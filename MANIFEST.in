@@ -1,0 +1,28 @@
+# Include documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+include SECURITY.md
+
+# Include configuration
+include pyproject.toml
+include .env.example
+
+# Include type information
+recursive-include oilpriceapi py.typed
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.so
+
+# Exclude test and development files
+exclude test_sdk_live.py
+exclude generate_*.py
+exclude data_validation_comparison.py
+prune tests
+prune docs/_build
+prune htmlcov
