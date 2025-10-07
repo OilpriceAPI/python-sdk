@@ -5,6 +5,9 @@
 [![Tests](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml)
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Website](https://img.shields.io/badge/Website-oilpriceapi.com-blue)](https://oilpriceapi.com)
+[![Documentation](https://img.shields.io/badge/Docs-docs.oilpriceapi.com-green)](https://docs.oilpriceapi.com/sdk/python)
+[![Sign Up](https://img.shields.io/badge/Sign%20Up-Free%20API%20Key-orange)](https://oilpriceapi.com/auth/signup)
 
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - Real-time and historical oil prices for Brent Crude, WTI, Natural Gas, and more.
 
@@ -68,6 +71,8 @@ spread = client.analysis.spread("BRENT_CRUDE_USD", "WTI_USD", start="2024-01-01"
 - ✅ **CLI Tool** - Command-line interface included
 
 ## 📚 Documentation
+
+**[Complete SDK Documentation →](docs/index.md)** | **[Online Docs →](https://docs.oilpriceapi.com/sdk/python)**
 
 ### Authentication
 
@@ -163,6 +168,16 @@ def test_my_strategy():
 
 ## 📈 Examples
 
+### Real-World Use Cases
+
+See **[EXAMPLES.md](EXAMPLES.md)** for comprehensive examples including:
+- 📊 **Trading Strategies** - Moving averages, spread analysis, risk management
+- 📈 **Data Analysis** - Seasonal patterns, correlations, forecasting
+- 💻 **Web Applications** - Dashboards, REST APIs, monitoring systems
+- 📤 **Data Export** - Excel reports, database integration, alerts
+
+### Code Samples
+
 Check out the [examples/](examples/) directory for:
 - [Quickstart Notebook](examples/quickstart.ipynb)
 - [Data Analysis](examples/data_analysis.ipynb)
@@ -209,6 +224,21 @@ Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) 
 - [API Documentation](https://docs.oilpriceapi.com)
 - [Pricing](https://oilpriceapi.com/pricing)
 - [Status Page](https://status.oilpriceapi.com)
+
+---
+
+## 🌟 Why OilPriceAPI?
+
+[OilPriceAPI](https://oilpriceapi.com) provides professional-grade commodity price data at **98% less cost than Bloomberg Terminal** ($24,000/year vs $45/month). Trusted by energy traders, financial analysts, and developers worldwide.
+
+### Key Benefits
+- ⚡ **Real-time data** updated every 5 minutes
+- 📊 **Historical data** for trend analysis and backtesting
+- 🔒 **99.9% uptime** with enterprise-grade reliability
+- 🚀 **5-minute integration** with this Python SDK
+- 💰 **Free tier** with 1,000 requests/month to get started
+
+**[Start Free →](https://oilpriceapi.com/auth/signup)** | **[View Pricing →](https://oilpriceapi.com/pricing)** | **[Read Docs →](https://docs.oilpriceapi.com)**
 
 ---
 
