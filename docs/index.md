@@ -274,11 +274,11 @@ pytest --cov=oilpriceapi --cov-report=html
 
 ## 🤝 Contributing
 
-We welcome contributions! Check out our [Contributing Guide](../CONTRIBUTING.md) to get started.
+We welcome contributions! Check out our [Contributing Guide](https://github.com/OilpriceAPI/python-sdk/blob/main/CONTRIBUTING.md) to get started.
 
 ## 📝 License
 
-MIT License - see [LICENSE](../LICENSE) file for details.
+MIT License - see [LICENSE](https://github.com/OilpriceAPI/python-sdk/blob/main/LICENSE) file for details.
 
 ---
 

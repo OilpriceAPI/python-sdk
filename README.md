@@ -170,7 +170,7 @@ def test_my_strategy():
 
 ### Real-World Use Cases
 
-See **[EXAMPLES.md](EXAMPLES.md)** for comprehensive examples including:
+See **[EXAMPLES.md](https://github.com/OilpriceAPI/python-sdk/blob/main/EXAMPLES.md)** for comprehensive examples including:
 - 📊 **Trading Strategies** - Moving averages, spread analysis, risk management
 - 📈 **Data Analysis** - Seasonal patterns, correlations, forecasting
 - 💻 **Web Applications** - Dashboards, REST APIs, monitoring systems
@@ -178,7 +178,7 @@ See **[EXAMPLES.md](EXAMPLES.md)** for comprehensive examples including:
 
 ### Code Samples
 
-Check out the [examples/](examples/) directory for:
+Check out the [examples/](https://github.com/OilpriceAPI/python-sdk/tree/main/examples/) directory for:
 - [Quickstart Notebook](examples/quickstart.ipynb)
 - [Data Analysis](examples/data_analysis.ipynb)
 - [Trading Signals](examples/trading_signals.ipynb)
@@ -206,11 +206,11 @@ mypy oilpriceapi
 
 ## 📝 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](https://github.com/OilpriceAPI/python-sdk/blob/main/LICENSE) file for details.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Contributions are welcome! Please see our [Contributing Guide](https://github.com/OilpriceAPI/python-sdk/blob/main/CONTRIBUTING.md) for details.
 
 ## 💬 Support
 
