@@ -1,6 +1,7 @@
 # OilPriceAPI Python SDK
 
 [![PyPI version](https://badge.fury.io/py/oilpriceapi.svg)](https://badge.fury.io/py/oilpriceapi)
+[![Downloads](https://img.shields.io/pypi/dm/oilpriceapi.svg)](https://pypi.org/project/oilpriceapi/)
 [![Python](https://img.shields.io/pypi/pyversions/oilpriceapi.svg)](https://pypi.org/project/oilpriceapi/)
 [![Tests](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml)
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
