@@ -1,16 +1,22 @@
 # OilPriceAPI Python SDK
 
+> **Real-time oil and commodity price data for Python** - Professional-grade API at 98% less cost than Bloomberg Terminal
+
 [![PyPI version](https://badge.fury.io/py/oilpriceapi.svg)](https://badge.fury.io/py/oilpriceapi)
-[![Downloads](https://img.shields.io/pypi/dm/oilpriceapi.svg)](https://pypi.org/project/oilpriceapi/)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/oilpriceapi)](https://pypistats.org/packages/oilpriceapi)
 [![Python](https://img.shields.io/pypi/pyversions/oilpriceapi.svg)](https://pypi.org/project/oilpriceapi/)
 [![Tests](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml)
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Website](https://img.shields.io/badge/Website-oilpriceapi.com-blue)](https://oilpriceapi.com)
-[![Documentation](https://img.shields.io/badge/Docs-docs.oilpriceapi.com-green)](https://docs.oilpriceapi.com/sdk/python)
-[![Sign Up](https://img.shields.io/badge/Sign%20Up-Free%20API%20Key-orange)](https://oilpriceapi.com/auth/signup)
+
+**[Get Free API Key](https://oilpriceapi.com/auth/signup)** • **[Documentation](https://docs.oilpriceapi.com/sdk/python)** • **[Examples](EXAMPLES.md)** • **[Pricing](https://oilpriceapi.com/pricing)**
 
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - Real-time and historical oil prices for Brent Crude, WTI, Natural Gas, and more.
+
+**Quick start:**
+```bash
+pip install oilpriceapi
+```
 
 ## 🚀 Quick Start
 
