@@ -63,7 +63,7 @@ Production systems that need reliable commodity price data:
 
 Comprehensive error handling, connection pooling, and retry logic that won't DDoS your API during an outage.
 
-**Early adoption:** 20+ downloads in the past month from developers testing in production. Looking for feedback to improve it.
+**Early adoption:** 250+ PyPI downloads since September launch, 4 active users making 100+ API requests. Most popular feature: historical price data. Looking for feedback on what to improve.
 
 ## Comparison
 

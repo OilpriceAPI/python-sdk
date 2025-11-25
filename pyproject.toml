@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oilpriceapi"
-version = "1.0.0"
+version = "1.0.1"
 description = "Official Python SDK for OilPriceAPI - Real-time and historical oil prices"
 authors = [
     {name = "OilPriceAPI", email = "support@oilpriceapi.com"}
@@ -84,8 +84,10 @@ Changelog = "https://github.com/oilpriceapi/python-sdk/blob/main/CHANGELOG.md"
 [project.scripts]
 oilprice = "oilpriceapi.cli:main"
 
-[tool.setuptools]
-packages = ["oilpriceapi"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["oilpriceapi*"]
+exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 oilpriceapi = ["py.typed"]
