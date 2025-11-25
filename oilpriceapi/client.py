@@ -15,6 +15,7 @@ from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
+from .retry import RetryStrategy
 from .exceptions import (
     OilPriceAPIError,
     AuthenticationError,
@@ -90,6 +91,12 @@ class OilPriceAPI:
         self.max_retries = max_retries or self.DEFAULT_MAX_RETRIES
         self.retry_on = retry_on or self.DEFAULT_RETRY_CODES
 
+        # Initialize retry strategy
+        self._retry_strategy = RetryStrategy(
+            max_retries=self.max_retries,
+            retry_on=self.retry_on
+        )
+
         logger.debug(
             f"Initialized OilPriceAPI client: base_url={self.base_url}, "
             f"timeout={self.timeout}s, max_retries={self.max_retries}"
@@ -160,7 +167,7 @@ class OilPriceAPI:
             path = '/' + path
         url = urljoin(self.base_url + '/', path)
 
-        # Retry logic
+        # Retry logic using retry strategy
         last_exception = None
         for attempt in range(self.max_retries):
             try:
@@ -209,12 +216,13 @@ class OilPriceAPI:
                         remaining=response.headers.get("X-RateLimit-Remaining"),
                     )
                 elif response.status_code >= 500:
-                    if response.status_code in self.retry_on and attempt < self.max_retries - 1:
-                        # Exponential backoff
-                        wait_time = min(2 ** attempt, 60)
-                        logger.warning(
-                            f"Server error {response.status_code}, retrying in {wait_time}s "
-                            f"(attempt {attempt + 1}/{self.max_retries})"
+                    if self._retry_strategy.should_retry(attempt, response.status_code):
+                        wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                        self._retry_strategy.log_retry(
+                            attempt,
+                            f"Server error {response.status_code}",
+                            wait_time,
+                            is_async=False
                         )
                         time.sleep(wait_time)
                         continue
@@ -229,15 +237,21 @@ class OilPriceAPI:
                         status_code=response.status_code,
                         response=error_data,
                     )
-                    
+
             except httpx.TimeoutException as e:
                 last_exception = TimeoutError(
                     message="Request timed out",
                     timeout=self.timeout,
                 )
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"Request timeout, retrying (attempt {attempt + 1}/{self.max_retries})")
-                    time.sleep(min(2 ** attempt, 60))
+                if self._retry_strategy.should_retry_on_exception(attempt):
+                    wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    self._retry_strategy.log_retry(
+                        attempt,
+                        "Request timeout",
+                        wait_time,
+                        is_async=False
+                    )
+                    time.sleep(wait_time)
                     continue
                 logger.error(f"Request timed out after {self.max_retries} attempts")
                 raise last_exception
@@ -245,16 +259,22 @@ class OilPriceAPI:
                 last_exception = OilPriceAPIError(
                     message=f"Request failed: {str(e)}",
                 )
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"Request error: {e}, retrying (attempt {attempt + 1}/{self.max_retries})")
-                    time.sleep(min(2 ** attempt, 60))
+                if self._retry_strategy.should_retry_on_exception(attempt):
+                    wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    self._retry_strategy.log_retry(
+                        attempt,
+                        f"Request error: {e}",
+                        wait_time,
+                        is_async=False
+                    )
+                    time.sleep(wait_time)
                     continue
                 logger.error(f"Request failed after {self.max_retries} attempts: {e}")
                 raise last_exception
-        
+
         if last_exception:
             raise last_exception
-        
+
         raise OilPriceAPIError("Max retries exceeded")
     
     def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:

@@ -15,6 +15,7 @@ from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
+from .retry import RetryStrategy
 from .exceptions import (
     OilPriceAPIError,
     AuthenticationError,
@@ -58,6 +59,8 @@ class AsyncOilPriceAPI:
         max_retries: Optional[int] = None,
         retry_on: Optional[list] = None,
         headers: Optional[Dict[str, str]] = None,
+        max_connections: int = 100,
+        max_keepalive_connections: int = 20,
     ):
         # Get API key
         self.api_key = api_key or os.environ.get("OILPRICEAPI_KEY")
@@ -65,13 +68,21 @@ class AsyncOilPriceAPI:
             raise ConfigurationError(
                 "API key required. Set OILPRICEAPI_KEY environment variable or pass api_key parameter."
             )
-        
+
         # Configuration
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
         self.timeout = timeout or self.DEFAULT_TIMEOUT
         self.max_retries = max_retries or self.DEFAULT_MAX_RETRIES
         self.retry_on = retry_on or self.DEFAULT_RETRY_CODES
-        
+        self.max_connections = max_connections
+        self.max_keepalive_connections = max_keepalive_connections
+
+        # Initialize retry strategy
+        self._retry_strategy = RetryStrategy(
+            max_retries=self.max_retries,
+            retry_on=self.retry_on
+        )
+
         # Build headers
         self.headers = {
             "Authorization": f"Token {self.api_key}",
@@ -90,12 +101,25 @@ class AsyncOilPriceAPI:
         self.historical = AsyncHistoricalResource(self)
     
     async def _ensure_client(self):
-        """Ensure HTTP client is created."""
+        """
+        Ensure HTTP client is created with connection pooling.
+
+        Configures connection limits to prevent resource exhaustion under
+        concurrent load. Max 100 concurrent connections prevents spawning
+        unlimited connections, while keeping 20 alive improves performance
+        for subsequent requests.
+        """
         if self._client is None:
+            limits = httpx.Limits(
+                max_connections=self.max_connections,
+                max_keepalive_connections=self.max_keepalive_connections
+            )
+
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
                 headers=self.headers,
                 timeout=self.timeout,
+                limits=limits,
                 follow_redirects=True,
             )
     
@@ -155,11 +179,13 @@ class AsyncOilPriceAPI:
                         remaining=response.headers.get("X-RateLimit-Remaining"),
                     )
                 elif response.status_code >= 500:
-                    if response.status_code in self.retry_on and attempt < self.max_retries - 1:
-                        wait_time = min(2 ** attempt, 60)
-                        logger.warning(
-                            f"Server error {response.status_code}, retrying in {wait_time}s "
-                            f"(attempt {attempt + 1}/{self.max_retries})"
+                    if self._retry_strategy.should_retry(attempt, response.status_code):
+                        wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                        self._retry_strategy.log_retry(
+                            attempt,
+                            f"Server error {response.status_code}",
+                            wait_time,
+                            is_async=True
                         )
                         await asyncio.sleep(wait_time)
                         continue
@@ -173,23 +199,37 @@ class AsyncOilPriceAPI:
                         message=error_data.get("error", f"Error: {response.status_code}"),
                         status_code=response.status_code,
                     )
-                    
+
             except httpx.TimeoutException:
                 last_exception = TimeoutError(timeout=self.timeout)
-                if attempt < self.max_retries - 1:
-                    await asyncio.sleep(min(2 ** attempt, 60))
+                if self._retry_strategy.should_retry_on_exception(attempt):
+                    wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    self._retry_strategy.log_retry(
+                        attempt,
+                        "Request timeout",
+                        wait_time,
+                        is_async=True
+                    )
+                    await asyncio.sleep(wait_time)
                     continue
                 raise last_exception
             except httpx.RequestError as e:
                 last_exception = OilPriceAPIError(message=str(e))
-                if attempt < self.max_retries - 1:
-                    await asyncio.sleep(min(2 ** attempt, 60))
+                if self._retry_strategy.should_retry_on_exception(attempt):
+                    wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    self._retry_strategy.log_retry(
+                        attempt,
+                        f"Request error: {e}",
+                        wait_time,
+                        is_async=True
+                    )
+                    await asyncio.sleep(wait_time)
                     continue
                 raise last_exception
-        
+
         if last_exception:
             raise last_exception
-        
+
         raise OilPriceAPIError("Max retries exceeded")
     
     async def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:
