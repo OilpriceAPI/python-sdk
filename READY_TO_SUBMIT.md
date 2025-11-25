@@ -29,25 +29,47 @@ Monitor: https://github.com/vinta/awesome-python/pull/2809
 
 ---
 
-### 2. Submit to Python Weekly (3 min)
+### 2. Email Python Weekly (3 min)
 
-**Visit:** https://www.pythonweekly.com/submit
+**NOTE:** The web form at pythonweekly.com/submit returns 404. Use email instead.
 
-**Form Fields:**
+**To:** rahul@pythonweekly.com
 
-**Title:**
+**Subject:**
 ```
-OilPriceAPI Python SDK - Real-time Commodity Prices
-```
-
-**URL:**
-```
-https://github.com/oilpriceapi/python-sdk
+Submission for Python Weekly: OilPriceAPI Python SDK
 ```
 
-**Description:**
+**Body:**
 ```
-Official Python SDK for OilPriceAPI with Pandas integration, async support, and CLI tools. Get real-time and historical oil & energy commodity prices for trading and financial analysis. Features: DataFrame support, smart caching, rate limit handling, full type hints. Free tier: 1,000 requests/month. Perfect for energy traders, financial analysts, and data scientists.
+Hi Rahul,
+
+I'd like to submit the OilPriceAPI Python SDK for consideration in Python Weekly:
+
+Project: OilPriceAPI Python SDK
+GitHub: https://github.com/oilpriceapi/python-sdk
+PyPI: https://pypi.org/project/oilpriceapi/
+
+Official Python SDK for real-time and historical oil & commodity price data with Pandas integration, async support, and CLI tools. Get real-time and historical oil & energy commodity prices for trading and financial analysis.
+
+Key Features:
+• Pandas DataFrame integration
+• Async/await support
+• Smart caching and rate limit handling
+• CLI tool for quick exports
+• Full type hints
+
+Perfect for energy traders, financial analysts, and data scientists working with commodity prices.
+
+Free tier: 1,000 requests/month to get started.
+
+The SDK is production-ready (v1.0.1) and actively maintained.
+
+Thanks for considering!
+
+Best regards,
+Karl
+OilPriceAPI Team
 ```
 
 ---
@@ -223,13 +245,13 @@ curl -s https://pypistats.org/api/packages/oilpriceapi/recent | python3 -m json.
 
 ## ✅ CHECKLIST
 
-- [ ] Create awesome-python PR (URL above)
-- [ ] Submit to Python Weekly
-- [ ] Email PyCoder's Weekly
+- [x] Create awesome-python PR (PR #2809 submitted)
+- [ ] Email Python Weekly (rahul@pythonweekly.com)
+- [ ] Email PyCoder's Weekly (editors@pycoders.com)
 - [ ] Wait for Tuesday-Thursday to post on r/Python
 - [ ] LinkedIn post
 - [ ] Twitter post
-- [ ] Monitor awesome-python PR for feedback
+- [x] Monitor awesome-python PR for feedback
 - [ ] Respond to any comments promptly
 
 ---
