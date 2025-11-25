@@ -29,10 +29,10 @@ Monitor: https://github.com/vinta/awesome-python/pull/2809
 
 ---
 
-### 2. Email Python Weekly (3 min)
+### 2. ✅ DONE - Python Weekly email sent!
 
-**NOTE:** The web form at pythonweekly.com/submit returns 404. Use email instead.
-
+**Sent via Postmark:** 2025-11-25
+**Message ID:** dc8a303c-b14f-442a-9921-8de7f2a1d3c1
 **To:** rahul@pythonweekly.com
 
 **Subject:**
@@ -74,8 +74,10 @@ OilPriceAPI Team
 
 ---
 
-### 3. Email PyCoder's Weekly (5 min)
+### 3. ✅ DONE - PyCoder's Weekly email sent!
 
+**Sent via Postmark:** 2025-11-25
+**Message ID:** 2f85f78b-4072-4fda-a1e9-8328164eee2d
 **To:** editors@pycoders.com
 
 **Subject:**
@@ -246,13 +248,18 @@ curl -s https://pypistats.org/api/packages/oilpriceapi/recent | python3 -m json.
 ## ✅ CHECKLIST
 
 - [x] Create awesome-python PR (PR #2809 submitted)
-- [ ] Email Python Weekly (rahul@pythonweekly.com)
-- [ ] Email PyCoder's Weekly (editors@pycoders.com)
+- [x] Email Python Weekly (SENT via Postmark - Message ID: dc8a303c-b14f-442a-9921-8de7f2a1d3c1)
+- [x] Email PyCoder's Weekly (SENT via Postmark - Message ID: 2f85f78b-4072-4fda-a1e9-8328164eee2d)
 - [ ] Wait for Tuesday-Thursday to post on r/Python
 - [ ] LinkedIn post
 - [ ] Twitter post
 - [x] Monitor awesome-python PR for feedback
 - [ ] Respond to any comments promptly
+
+**Email Tracking:**
+- Track opens/clicks in Postmark dashboard: https://account.postmarkapp.com/servers/12891773/streams/outbound/messages
+- Python Weekly Message: dc8a303c-b14f-442a-9921-8de7f2a1d3c1
+- PyCoder's Weekly Message: 2f85f78b-4072-4fda-a1e9-8328164eee2d
 
 ---
 
