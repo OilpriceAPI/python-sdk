@@ -26,11 +26,10 @@ python -c "from oilpriceapi import OilPriceAPI; print(OilPriceAPI().prices.get('
 
 Fetches real-time and historical oil & commodity prices with comprehensive retry handling, rate limiting, and connection pooling. Handles the boring-but-critical stuff like exponential backoff with jitter, connection limits, and error handling.
 
-**Quick example:**
+**Sync example:**
 ```python
 from oilpriceapi import OilPriceAPI
 
-# Explicit configuration (no magic)
 client = OilPriceAPI(
     api_key="your_key",  # or reads from OILPRICEAPI_KEY env var
     timeout=5.0,
@@ -45,6 +44,25 @@ except RateLimitError as e:
 except TimeoutError:
     # Automatically retried 3x with exponential backoff + jitter
     print("API timeout after retries")
+```
+
+**Async example:**
+```python
+import asyncio
+from oilpriceapi import AsyncOilPriceAPI
+
+async def get_prices():
+    async with AsyncOilPriceAPI() as client:
+        # Fetch multiple commodities concurrently
+        prices = await asyncio.gather(
+            client.prices.get("BRENT_CRUDE_USD"),
+            client.prices.get("WTI_USD"),
+            client.prices.get("NATURAL_GAS_USD")
+        )
+        for price in prices:
+            print(f"{price.commodity}: ${price.value}")
+
+asyncio.run(get_prices())
 ```
 
 **What happens when things break:**
