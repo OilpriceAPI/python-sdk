@@ -163,6 +163,7 @@ cython_debug/
 !setup.py
 !.env.example
 
-# Keep example notebooks
+# Keep example notebooks and GitHub Pages docs
 !examples/*.ipynb
 !docs/*.md
+!docs/index.html
