@@ -4,7 +4,7 @@ OilPriceAPI Python SDK
 The official Python SDK for OilPriceAPI - Real-time and historical oil prices.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.3.0"
 __author__ = "OilPriceAPI"
 __email__ = "support@oilpriceapi.com"
 
@@ -17,6 +17,11 @@ from oilpriceapi.exceptions import (
     DataNotFoundError,
     ServerError,
 )
+from oilpriceapi.models import (
+    DieselPrice,
+    DieselStation,
+    DieselStationsResponse,
+)
 
 __all__ = [
     "OilPriceAPI",
@@ -26,6 +31,9 @@ __all__ = [
     "RateLimitError",
     "DataNotFoundError",
     "ServerError",
+    "DieselPrice",
+    "DieselStation",
+    "DieselStationsResponse",
 ]
 
 # Convenience function for quick access

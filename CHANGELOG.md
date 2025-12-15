@@ -5,6 +5,67 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-12-15
+
+### Added
+- **Diesel Prices Support**: New `client.diesel` resource for diesel price data
+- **State Average Diesel Prices**: `diesel.get_price(state)` - Get EIA state-level diesel averages (free tier)
+- **Station-Level Diesel Pricing**: `diesel.get_stations(lat, lng, radius)` - Get nearby diesel stations with current prices from Google Maps (paid tiers)
+- **Diesel DataFrame Support**: `diesel.to_dataframe()` - Convert diesel data to pandas DataFrames
+- New Pydantic models:
+  - `DieselPrice` - State average diesel price data
+  - `DieselStation` - Individual diesel station with pricing
+  - `DieselStationsResponse` - Response from stations endpoint
+  - `DieselRegionalAverage` - Regional average for comparison
+  - `DieselSearchArea` - Search area details
+  - `DieselStationsMetadata` - Query metadata
+
+### Features
+- **Input Validation**: Comprehensive validation for coordinates, state codes, and radius
+- **Error Handling**: Specific errors for tier restrictions (403) and rate limits (429)
+- **Type Safety**: Full Pydantic models for all diesel operations
+- **Pandas Integration**: Built-in DataFrame conversion for analysis
+- **Documentation**: Complete docstrings with examples
+
+### Supported Endpoints
+Now supports **7 endpoints** (up from 5):
+- `GET /v1/prices/latest` - Get latest commodity prices
+- `GET /v1/prices` - Get historical commodity prices
+- `GET /v1/commodities` - Get all commodities metadata
+- `GET /v1/commodities/categories` - Get commodity categories
+- `GET /v1/commodities/{code}` - Get specific commodity details
+- `GET /v1/diesel-prices` - Get state average diesel prices (NEW)
+- `POST /v1/diesel-prices/stations` - Get nearby diesel stations (NEW)
+
+### Testing
+- Added comprehensive test suite for diesel resource (18 test cases)
+- Tests cover input validation, error handling, and DataFrame operations
+- 100% coverage of diesel functionality
+
+### Breaking Changes
+None - This is a backwards-compatible feature addition.
+
+### Example Usage
+
+```python
+from oilpriceapi import OilPriceAPI
+
+client = OilPriceAPI()
+
+# State average (free tier)
+ca_price = client.diesel.get_price("CA")
+print(f"California diesel: ${ca_price.price:.2f}/gallon")
+
+# Nearby stations (paid tiers)
+result = client.diesel.get_stations(lat=37.7749, lng=-122.4194)
+cheapest = min(result.stations, key=lambda s: s.diesel_price)
+print(f"Cheapest: {cheapest.name} at {cheapest.formatted_price}")
+
+# DataFrame analysis
+df = client.diesel.to_dataframe(states=["CA", "TX", "NY", "FL"])
+print(df[["state", "price", "updated_at"]])
+```
+
 ## [1.0.0] - 2025-09-29
 
 ### Added

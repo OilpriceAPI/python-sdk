@@ -170,9 +170,9 @@ class ApiStatus(BaseModel):
 
 class UsageStats(BaseModel):
     """API usage statistics."""
-    
+
     model_config = ConfigDict(populate_by_name=True)
-    
+
     requests_today: int = Field(description="Requests made today")
     requests_this_month: int = Field(description="Requests this month")
     limit_daily: Optional[int] = Field(default=None, description="Daily request limit")
@@ -181,3 +181,130 @@ class UsageStats(BaseModel):
     remaining_this_month: int
     reset_at: datetime = Field(description="When limits reset")
     plan: str = Field(description="Current plan name")
+
+
+class DieselPrice(BaseModel):
+    """State average diesel price data."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    state: str = Field(description="Two-letter US state code (e.g., CA, TX)")
+    price: float = Field(description="Average diesel price in USD per gallon")
+    currency: str = Field(description="Currency code (always USD)")
+    unit: str = Field(description="Unit of measurement (always gallon)")
+    granularity: str = Field(description="Data granularity level (e.g., state, national)")
+    source: str = Field(description="Data source (e.g., EIA)")
+    updated_at: datetime = Field(description="Last update timestamp")
+    cached: Optional[bool] = Field(default=None, description="Whether served from cache")
+
+    @field_validator('updated_at', mode='before')
+    @classmethod
+    def parse_updated_at(cls, v):
+        """Parse updated_at from various formats."""
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except ValueError:
+                from dateutil import parser
+                return parser.parse(v)
+        return v
+
+
+class DieselStationLocation(BaseModel):
+    """Geographic coordinates for a diesel station."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    lat: float = Field(description="Latitude")
+    lng: float = Field(description="Longitude")
+
+
+class DieselStation(BaseModel):
+    """Diesel station with pricing information."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str = Field(description="Station name")
+    address: str = Field(description="Full street address")
+    location: DieselStationLocation = Field(description="Geographic coordinates")
+    diesel_price: float = Field(description="Diesel price at this station (USD/gallon)")
+    formatted_price: str = Field(description="Formatted price string (e.g., $3.89)")
+    currency: str = Field(description="Currency code (always USD)")
+    unit: str = Field(description="Unit of measurement (always gallon)")
+    price_delta: Optional[float] = Field(default=None, description="Price difference from regional average")
+    price_vs_average: Optional[str] = Field(default=None, description="Human-readable price comparison")
+    fuel_types: Optional[List[str]] = Field(default=None, description="Available fuel types")
+    last_updated: Optional[datetime] = Field(default=None, description="Last price update timestamp")
+
+    @field_validator('last_updated', mode='before')
+    @classmethod
+    def parse_last_updated(cls, v):
+        """Parse last_updated from various formats."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except ValueError:
+                from dateutil import parser
+                return parser.parse(v)
+        return v
+
+
+class DieselRegionalAverage(BaseModel):
+    """Regional average diesel price for comparison."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    price: float = Field(description="Regional average price")
+    currency: str = Field(description="Currency code")
+    unit: str = Field(description="Unit of measurement")
+    region: str = Field(description="Region name")
+    granularity: str = Field(description="Granularity level")
+    source: str = Field(description="Data source")
+
+
+class DieselSearchArea(BaseModel):
+    """Search area details for station query."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    center: DieselStationLocation = Field(description="Search center coordinates")
+    radius_meters: float = Field(description="Search radius in meters")
+    radius_miles: float = Field(description="Search radius in miles")
+
+
+class DieselStationsMetadata(BaseModel):
+    """Metadata about diesel stations query."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    total_stations: int = Field(description="Number of stations found")
+    source: str = Field(description="Data source")
+    cached: bool = Field(description="Whether served from cache")
+    api_cost: float = Field(description="API query cost in dollars")
+    timestamp: datetime = Field(description="Response timestamp")
+    cache_age_hours: Optional[float] = Field(default=None, description="Cache age in hours")
+
+    @field_validator('timestamp', mode='before')
+    @classmethod
+    def parse_timestamp(cls, v):
+        """Parse timestamp from various formats."""
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except ValueError:
+                from dateutil import parser
+                return parser.parse(v)
+        return v
+
+
+class DieselStationsResponse(BaseModel):
+    """Response from diesel stations endpoint."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    regional_average: DieselRegionalAverage = Field(description="Regional average for comparison")
+    stations: List[DieselStation] = Field(description="List of nearby stations")
+    search_area: DieselSearchArea = Field(description="Search area details")
+    metadata: DieselStationsMetadata = Field(description="Query metadata")

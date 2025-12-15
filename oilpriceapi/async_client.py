@@ -88,7 +88,10 @@ class AsyncOilPriceAPI:
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "OilPriceAPI-Python-Async/1.0.0",
+            "User-Agent": "OilPriceAPI-Python-Async/1.3.0",
+            "X-SDK-Language": "python",
+            "X-SDK-Version": "1.3.0",
+            "X-Client-Type": "sdk",
         }
         if headers:
             self.headers.update(headers)

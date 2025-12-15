@@ -66,11 +66,49 @@ df = client.analysis.with_indicators(
 spread = client.analysis.spread("BRENT_CRUDE_USD", "WTI_USD", start="2024-01-01")
 ```
 
+### Diesel Prices (New in v1.3.0)
+
+```python
+# Get state average diesel price (free tier)
+ca_price = client.diesel.get_price("CA")
+print(f"California diesel: ${ca_price.price:.2f}/gallon")
+print(f"Source: {ca_price.source}")
+print(f"Updated: {ca_price.updated_at}")
+
+# Get nearby diesel stations (paid tiers)
+result = client.diesel.get_stations(
+    lat=37.7749,   # San Francisco
+    lng=-122.4194,
+    radius=8047    # 5 miles in meters
+)
+
+print(f"Regional average: ${result.regional_average.price:.2f}/gallon")
+print(f"Found {len(result.stations)} stations")
+
+# Find cheapest station
+cheapest = min(result.stations, key=lambda s: s.diesel_price)
+print(f"Cheapest: {cheapest.name} at {cheapest.formatted_price}")
+print(f"Savings: ${abs(cheapest.price_delta):.2f}/gal vs average")
+
+# Get diesel prices as DataFrame
+df = client.diesel.to_dataframe(states=["CA", "TX", "NY", "FL"])
+print(df[["state", "price", "updated_at"]])
+
+# Station data as DataFrame
+df_stations = client.diesel.to_dataframe(
+    lat=34.0522,   # Los Angeles
+    lng=-118.2437,
+    radius=5000
+)
+print(df_stations[["name", "diesel_price", "price_vs_average"]])
+```
+
 ## 📊 Features
 
 - ✅ **Simple API** - Intuitive methods for all endpoints
 - ✅ **Type Safe** - Full type hints for IDE autocomplete
 - ✅ **Pandas Integration** - First-class DataFrame support
+- ✅ **Diesel Prices** - State averages + station-level pricing ⛽ NEW
 - ✅ **Async Support** - High-performance async client
 - ✅ **Smart Caching** - Reduce API calls automatically
 - ✅ **Rate Limit Handling** - Automatic retries with backoff
@@ -243,7 +281,7 @@ Contributions are welcome! Please see our [Contributing Guide](https://github.co
 - 📊 **Historical data** for trend analysis and backtesting
 - 🔒 **99.9% uptime** with enterprise-grade reliability
 - 🚀 **5-minute integration** with this Python SDK
-- 💰 **Free tier** with 1,000 requests/month to get started
+- 💰 **Free tier** with 100 requests (lifetime) to get started
 
 **[Start Free →](https://oilpriceapi.com/auth/signup)** | **[View Pricing →](https://oilpriceapi.com/pricing)** | **[Read Docs →](https://docs.oilpriceapi.com)**
 
