@@ -103,10 +103,15 @@ class AlertsResource:
             path="/v1/alerts"
         )
 
-        if "alerts" in response:
+        # API returns array directly, but handle both formats for compatibility
+        if isinstance(response, list):
+            alerts_data = response
+        elif "alerts" in response:
             alerts_data = response["alerts"]
+        elif "data" in response:
+            alerts_data = response["data"]
         else:
-            alerts_data = response.get("data", [])
+            alerts_data = []
 
         return [PriceAlert(**alert_data) for alert_data in alerts_data]
 
@@ -143,10 +148,18 @@ class AlertsResource:
             path=f"/v1/alerts/{alert_id}"
         )
 
-        if "alert" in response:
+        # API returns object directly, but handle both formats for compatibility
+        if isinstance(response, dict) and "id" in response:
+            # Direct object response (actual API behavior)
+            alert_data = response
+        elif "alert" in response:
+            # Wrapped response
             alert_data = response["alert"]
+        elif "data" in response:
+            # Alternative wrapped format
+            alert_data = response["data"]
         else:
-            alert_data = response.get("data")
+            alert_data = response
 
         return PriceAlert(**alert_data)
 
@@ -299,10 +312,18 @@ class AlertsResource:
             }
         )
 
-        if "alert" in response:
+        # API returns object directly, but handle both formats for compatibility
+        if isinstance(response, dict) and "id" in response:
+            # Direct object response (actual API behavior)
+            alert_data = response
+        elif "alert" in response:
+            # Wrapped response
             alert_data = response["alert"]
+        elif "data" in response:
+            # Alternative wrapped format
+            alert_data = response["data"]
         else:
-            alert_data = response.get("data")
+            alert_data = response
 
         return PriceAlert(**alert_data)
 
@@ -439,10 +460,18 @@ class AlertsResource:
             }
         )
 
-        if "alert" in response:
+        # API returns object directly, but handle both formats for compatibility
+        if isinstance(response, dict) and "id" in response:
+            # Direct object response (actual API behavior)
+            alert_data = response
+        elif "alert" in response:
+            # Wrapped response
             alert_data = response["alert"]
+        elif "data" in response:
+            # Alternative wrapped format
+            alert_data = response["data"]
         else:
-            alert_data = response.get("data")
+            alert_data = response
 
         return PriceAlert(**alert_data)
 
@@ -480,57 +509,33 @@ class AlertsResource:
         """
         Test a webhook endpoint.
 
-        Sends a test POST request to the webhook URL to verify it's
-        working correctly. Returns response time and status code.
+        **NOTE:** This feature is not yet available in the API. The `/v1/alerts/test_webhook`
+        endpoint has not been implemented yet. This method will raise an error until the
+        backend endpoint is added.
 
-        **Test Payload Format:**
-        ```json
-        {
-            "event": "price_alert.test",
-            "alert_id": "test",
-            "timestamp": "2025-12-15T12:00:00Z"
-        }
+        To test if an alert would trigger, use the backend's `/v1/alerts/test` endpoint instead:
+        ```bash
+        curl -X POST "https://api.oilpriceapi.com/v1/alerts/:id/test" \\
+          -H "Authorization: Token YOUR_API_KEY"
         ```
 
         Args:
             webhook_url: The HTTPS webhook URL to test
 
         Returns:
-            WebhookTestResponse: Test results including response time and status
+            WebhookTestResponse: Test results
 
         Raises:
-            ValidationError: If webhook URL is invalid
-            OilPriceAPIError: If API request fails
+            NotImplementedError: Feature not yet available
 
-        Example:
-            >>> result = client.alerts.test_webhook('https://myapp.com/webhook')
-            >>> if result.success:
-            ...     print(f"Webhook OK ({result.status_code}) - {result.response_time_ms}ms")
-            ... else:
-            ...     print(f"Webhook failed: {result.error}")
+        .. deprecated::
+            This feature is not yet available in the API
         """
-        if not webhook_url or not isinstance(webhook_url, str):
-            raise ValidationError(
-                message="Webhook URL is required and must be a string",
-                field="webhook_url",
-                value=webhook_url
-            )
-        if not webhook_url.startswith('https://'):
-            raise ValidationError(
-                message="Webhook URL must use HTTPS protocol",
-                field="webhook_url",
-                value=webhook_url
-            )
-
-        response = self.client.request(
-            method="POST",
-            path="/v1/alerts/test_webhook",
-            json_data={
-                "webhook_url": webhook_url
-            }
+        raise NotImplementedError(
+            "Webhook testing is not yet available. The /v1/alerts/test_webhook endpoint "
+            "has not been implemented in the API. To test if an alert would trigger, "
+            "use the /v1/alerts/:id/test endpoint instead."
         )
-
-        return WebhookTestResponse(**response)
 
     def to_dataframe(self) -> 'pandas.DataFrame':
         """

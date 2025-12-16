@@ -165,7 +165,7 @@ Future:
 
 ## Free Tier Reality Check
 
-1,000 requests/month = 33/day. Good for:
+100 requests (lifetime) = 33/day. Good for:
 - ✅ Daily end-of-day batch jobs
 - ✅ Polling 1 commodity every 30 minutes
 - ✅ Development and testing workflows

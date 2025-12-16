@@ -290,7 +290,7 @@ The code is open source on GitHub if you want to audit it.
 Thanks for checking this out! A few quick notes:
 
 **Free Tier Details:**
-- 1,000 requests/month
+- 100 requests (lifetime)
 - No credit card required
 - All features included
 - Perfect for learning/prototyping
