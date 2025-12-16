@@ -308,3 +308,49 @@ class DieselStationsResponse(BaseModel):
     stations: List[DieselStation] = Field(description="List of nearby stations")
     search_area: DieselSearchArea = Field(description="Search area details")
     metadata: DieselStationsMetadata = Field(description="Query metadata")
+
+
+class PriceAlert(BaseModel):
+    """Price alert configuration and status."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(description="Unique alert identifier")
+    name: str = Field(description="User-friendly alert name")
+    commodity_code: str = Field(description="Commodity code to monitor (e.g., BRENT_CRUDE_USD)")
+    condition_operator: str = Field(description="Comparison operator (greater_than, less_than, equals, etc.)")
+    condition_value: float = Field(description="Price threshold value in USD")
+    webhook_url: Optional[str] = Field(default=None, description="Optional webhook URL for notifications")
+    enabled: bool = Field(description="Whether the alert is active")
+    cooldown_minutes: int = Field(description="Minimum minutes between alert triggers (0-1440)")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional custom metadata")
+    trigger_count: int = Field(description="Number of times this alert has triggered")
+    last_triggered_at: Optional[datetime] = Field(default=None, description="Last trigger timestamp")
+    created_at: datetime = Field(description="Alert creation timestamp")
+    updated_at: datetime = Field(description="Last update timestamp")
+
+    @field_validator('last_triggered_at', 'created_at', 'updated_at', mode='before')
+    @classmethod
+    def parse_datetime(cls, v):
+        """Parse datetime from various formats."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except ValueError:
+                from dateutil import parser
+                return parser.parse(v)
+        return v
+
+
+class WebhookTestResponse(BaseModel):
+    """Response from webhook test endpoint."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    success: bool = Field(description="Test result status")
+    status_code: int = Field(description="HTTP status code from webhook endpoint")
+    response_time_ms: float = Field(description="Response time in milliseconds")
+    response_body: Optional[str] = Field(default=None, description="Response body from webhook")
+    error: Optional[str] = Field(default=None, description="Error message if test failed")

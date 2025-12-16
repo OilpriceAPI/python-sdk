@@ -30,6 +30,7 @@ from .models import Price, PriceResponse, HistoricalResponse
 from .resources.prices import PricesResource
 from .resources.historical import HistoricalResource
 from .resources.diesel import DieselResource
+from .resources.alerts import AlertsResource
 
 
 class OilPriceAPI:
@@ -108,9 +109,9 @@ class OilPriceAPI:
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "OilPriceAPI-Python/1.3.0",
+            "User-Agent": "OilPriceAPI-Python/1.4.0",
             "X-SDK-Language": "python",
-            "X-SDK-Version": "1.3.0",
+            "X-SDK-Version": "1.4.0",
             "X-Client-Type": "sdk",
         }
         if headers:
@@ -128,6 +129,7 @@ class OilPriceAPI:
         self.prices = PricesResource(self)
         self.historical = HistoricalResource(self)
         self.diesel = DieselResource(self)
+        self.alerts = AlertsResource(self)
 
         # Initialize visualization (optional)
         try:

@@ -103,12 +103,78 @@ df_stations = client.diesel.to_dataframe(
 print(df_stations[["name", "diesel_price", "price_vs_average"]])
 ```
 
+### Price Alerts (New in v1.4.0)
+
+```python
+# Create a price alert with webhook notification
+alert = client.alerts.create(
+    name="Brent High Alert",
+    commodity_code="BRENT_CRUDE_USD",
+    condition_operator="greater_than",
+    condition_value=85.00,
+    webhook_url="https://your-server.com/webhook",  # Optional
+    enabled=True,
+    cooldown_minutes=60  # Min time between triggers
+)
+
+print(f"Alert created: {alert.id}")
+print(f"Monitoring: {alert.commodity_code}")
+print(f"Condition: {alert.condition_operator} ${alert.condition_value}")
+
+# List all alerts
+alerts = client.alerts.list()
+for alert in alerts:
+    print(f"{alert.name}: {alert.enabled} ({alert.trigger_count} triggers)")
+
+# Update an alert
+updated = client.alerts.update(
+    alert.id,
+    condition_value=90.00,
+    enabled=False
+)
+
+# Test webhook endpoint
+test_result = client.alerts.test_webhook("https://your-server.com/webhook")
+if test_result.success:
+    print(f"Webhook OK: {test_result.status_code} in {test_result.response_time_ms}ms")
+else:
+    print(f"Webhook failed: {test_result.error}")
+
+# Delete an alert
+client.alerts.delete(alert.id)
+
+# Get alerts as DataFrame
+df = client.alerts.to_dataframe()
+print(df[["name", "commodity_code", "condition_value", "trigger_count"]])
+```
+
+**Supported operators:**
+- `greater_than` - Price exceeds threshold
+- `less_than` - Price falls below threshold
+- `equals` - Price matches threshold
+- `greater_than_or_equal` - Price meets or exceeds threshold
+- `less_than_or_equal` - Price meets or falls below threshold
+
+**Webhook Payload:**
+```json
+{
+  "alert_id": "550e8400-e29b-41d4-a716-446655440000",
+  "alert_name": "Brent High Alert",
+  "commodity_code": "BRENT_CRUDE_USD",
+  "current_price": 86.50,
+  "condition_operator": "greater_than",
+  "condition_value": 85.00,
+  "triggered_at": "2025-12-15T10:30:00Z"
+}
+```
+
 ## 📊 Features
 
 - ✅ **Simple API** - Intuitive methods for all endpoints
 - ✅ **Type Safe** - Full type hints for IDE autocomplete
 - ✅ **Pandas Integration** - First-class DataFrame support
-- ✅ **Diesel Prices** - State averages + station-level pricing ⛽ NEW
+- ✅ **Price Alerts** - Automated monitoring with webhook notifications 🔔 NEW
+- ✅ **Diesel Prices** - State averages + station-level pricing ⛽
 - ✅ **Async Support** - High-performance async client
 - ✅ **Smart Caching** - Reduce API calls automatically
 - ✅ **Rate Limit Handling** - Automatic retries with backoff

@@ -5,6 +5,83 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-12-15
+
+### Added
+- **Price Alerts**: New `client.alerts` resource for automated price monitoring
+- **Alert CRUD Operations**: Complete create, read, update, delete operations
+- **Webhook Notifications**: HTTPS webhook support for alert triggers
+- **Alert Operators**: 5 comparison operators (greater_than, less_than, equals, greater_than_or_equal, less_than_or_equal)
+- **Cooldown Periods**: Rate limiting for alert triggers (0-1440 minutes)
+- **Webhook Testing**: Test webhook endpoints before creating alerts
+- **DataFrame Support**: `alerts.to_dataframe()` - Convert alerts to pandas DataFrames
+- New Pydantic models:
+  - `PriceAlert` - Alert configuration and status
+  - `WebhookTestResponse` - Webhook test results
+
+### Features
+- **Comprehensive Validation**: Input validation for all alert parameters
+- **Type Safety**: Full Pydantic models with datetime handling
+- **Error Handling**: Specific ValidationError exceptions with field details
+- **Pandas Integration**: Built-in DataFrame conversion for analysis
+- **Documentation**: Complete docstrings with examples
+
+### Supported Endpoints
+Now supports **12 endpoints** (up from 7):
+- `GET /v1/prices/latest` - Get latest commodity prices
+- `GET /v1/prices` - Get historical commodity prices
+- `GET /v1/commodities` - Get all commodities metadata
+- `GET /v1/commodities/categories` - Get commodity categories
+- `GET /v1/commodities/{code}` - Get specific commodity details
+- `GET /v1/diesel-prices` - Get state average diesel prices
+- `POST /v1/diesel-prices/stations` - Get nearby diesel stations
+- `GET /v1/alerts` - List all price alerts (NEW)
+- `GET /v1/alerts/{id}` - Get specific alert (NEW)
+- `POST /v1/alerts` - Create price alert (NEW)
+- `PATCH /v1/alerts/{id}` - Update price alert (NEW)
+- `DELETE /v1/alerts/{id}` - Delete price alert (NEW)
+
+### Testing
+- Added comprehensive test suite for alerts resource (22 test cases)
+- Tests cover all CRUD operations, validation, webhook testing, and DataFrame operations
+- 82% coverage of alerts functionality
+
+### Breaking Changes
+None - This is a backwards-compatible feature addition.
+
+### Example Usage
+
+```python
+from oilpriceapi import OilPriceAPI
+
+client = OilPriceAPI()
+
+# Create a price alert
+alert = client.alerts.create(
+    name="Brent High Alert",
+    commodity_code="BRENT_CRUDE_USD",
+    condition_operator="greater_than",
+    condition_value=85.00,
+    webhook_url="https://your-server.com/webhook",
+    cooldown_minutes=60
+)
+
+# List all alerts
+alerts = client.alerts.list()
+for alert in alerts:
+    print(f"{alert.name}: {alert.trigger_count} triggers")
+
+# Update alert
+client.alerts.update(alert.id, condition_value=90.00)
+
+# Test webhook
+test_result = client.alerts.test_webhook("https://your-server.com/webhook")
+print(f"Webhook OK: {test_result.success}")
+
+# Get as DataFrame
+df = client.alerts.to_dataframe()
+```
+
 ## [1.3.0] - 2025-12-15
 
 ### Added
