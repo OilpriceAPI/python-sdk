@@ -207,13 +207,25 @@ client = OilPriceAPI(
 
 ### Available Commodities
 
+**Oil & Gas:**
 - `BRENT_CRUDE_USD` - Brent Crude Oil
 - `WTI_USD` - West Texas Intermediate
 - `NATURAL_GAS_USD` - Natural Gas
 - `DIESEL_USD` - Diesel
 - `GASOLINE_USD` - Gasoline
 - `HEATING_OIL_USD` - Heating Oil
-- [View all commodities](https://docs.oilpriceapi.com/commodities)
+
+**Coal (8 Endpoints):**
+- `CAPP_COAL_USD` - Central Appalachian Coal (US Spot)
+- `PRB_COAL_USD` - Powder River Basin Coal (US Spot)
+- `ILLINOIS_COAL_USD` - Illinois Basin Coal (US Spot)
+- `NEWCASTLE_COAL_USD` - Newcastle API6 (International Futures)
+- `COKING_COAL_USD` - Metallurgical Coal (International Futures)
+- `CME_COAL_USD` - CME Coal Futures
+- `NYMEX_APPALACHIAN_USD` - NYMEX Central Appalachian (Historical 2004-2016)
+- `NYMEX_WESTERN_RAIL_USD` - NYMEX Powder River Basin (Historical 2009-2017)
+
+[View all 79 commodities](https://docs.oilpriceapi.com/commodities)
 
 ### Error Handling
 
