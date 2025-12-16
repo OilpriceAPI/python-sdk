@@ -61,7 +61,7 @@ Key Features:
 
 Perfect for energy traders, financial analysts, and data scientists working with commodity prices.
 
-Free tier: 1,000 requests/month to get started.
+Free tier: 100 requests (lifetime) to get started.
 
 The SDK is production-ready (v1.0.1) and actively maintained.
 
@@ -104,7 +104,7 @@ Official Python SDK for real-time and historical commodity price data. Features:
 
 Perfect for energy traders, financial analysts, and data scientists working with commodity prices.
 
-Free tier: 1,000 requests/month to get started.
+Free tier: 100 requests (lifetime) to get started.
 
 The SDK is production-ready (v1.0.1), actively maintained, and already has users in energy trading and research.
 
@@ -169,7 +169,7 @@ print(df.describe())
 - Data science projects
 - Academic research
 
-Free tier includes 1,000 requests/month. Would love feedback from the community!
+Free tier includes 100 requests (lifetime). Would love feedback from the community!
 ```
 
 **Best time:** Tuesday-Thursday, 9-11am EST
@@ -217,7 +217,7 @@ pip install oilpriceapi
 ✅ Pandas integration
 ✅ Async support
 ✅ CLI tool
-✅ Free tier: 1K requests/month
+✅ Free tier: 100 requests (lifetime)
 
 PyPI: https://pypi.org/project/oilpriceapi/
 Docs: https://docs.oilpriceapi.com/sdk/python

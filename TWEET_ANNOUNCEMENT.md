@@ -83,7 +83,7 @@ Build energy trading platforms, price monitoring dashboards, and data analytics 
 
 pip install oilpriceapi
 
-Free tier: 1,000 requests/month
+Free tier: 100 requests (lifetime)
 Enterprise: Unlimited
 
 🧵
@@ -153,7 +153,7 @@ print(f"${price.value}/barrel")
 
 Perfect for energy trading platforms, price monitoring systems, financial dashboards, and data analytics pipelines.
 
-Free tier includes 1,000 requests/month. Enterprise plans available for unlimited access.
+Free tier includes 100 requests (lifetime). Enterprise plans available for unlimited access.
 
 ---
 

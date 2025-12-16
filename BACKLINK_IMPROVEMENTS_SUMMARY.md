@@ -35,7 +35,7 @@ This document summarizes the backlink and SEO enhancements made to the OilPriceA
 - 📊 Historical data for trend analysis
 - 🔒 99.9% uptime
 - 🚀 5-minute integration
-- 💰 Free tier with 1,000 requests/month
+- 💰 Free tier with 100 requests (lifetime)
 
 **[Start Free →](https://oilpriceapi.com/auth/signup)** | **[View Pricing →](https://oilpriceapi.com/pricing)** | **[Read Docs →](https://docs.oilpriceapi.com)**
 ```

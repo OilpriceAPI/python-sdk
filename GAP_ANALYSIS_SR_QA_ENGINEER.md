@@ -235,7 +235,7 @@ Shows specific error handling examples with fallback behavior
 ### 10. REALISTIC FREE TIER EXAMPLES (🟢 MINOR GAP)
 
 **Post Claims:**
-- "1,000 requests/month = 33/day. Good for:"
+- "100 requests (lifetime) = 33/day. Good for:"
 - Specific use case breakdowns
 
 **Actual Implementation:**

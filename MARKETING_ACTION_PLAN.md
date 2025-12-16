@@ -57,7 +57,7 @@ git push
   Official Python SDK for OilPriceAPI with Pandas integration, async support, and CLI tools.
   Get real-time and historical oil & energy commodity prices for trading and financial analysis.
   Features: DataFrame support, technical indicators (SMA, RSI, MACD), smart caching,
-  rate limit handling. Free tier: 1,000 requests/month.
+  rate limit handling. Free tier: 100 requests (lifetime).
   ```
 
 ### 4. Email PyCoder's Weekly (3 minutes)
@@ -81,7 +81,7 @@ Official Python SDK for real-time and historical commodity price data. Features:
 - Smart caching and rate limit handling
 
 Perfect for energy traders, financial analysts, and data scientists.
-Free tier: 1,000 requests/month.
+Free tier: 100 requests (lifetime).
 
 Thanks for considering!
 OilPriceAPI Team
@@ -138,7 +138,7 @@ print(df.describe())
 - Data science projects
 - Academic research
 
-Free tier: 1,000 requests/month. Feedback welcome!
+Free tier: 100 requests (lifetime). Feedback welcome!
 ```
 
 ### 6. Submit to awesome-quant (5 minutes)
@@ -186,7 +186,7 @@ pip install oilpriceapi
 ✅ Technical indicators
 ✅ CLI tool
 
-Free tier: 1K requests/month
+Free tier: 100 requests (lifetime)
 
 PyPI: https://pypi.org/project/oilpriceapi/
 Docs: https://docs.oilpriceapi.com/sdk/python

@@ -352,51 +352,23 @@ class TestAlertsResource:
         with pytest.raises(ValidationError):
             client.alerts.delete(None)
 
-    def test_test_webhook_success(self, client):
-        """Test successful webhook test"""
-        mock_response = {
-            "success": True,
-            "status_code": 200,
-            "response_time_ms": 145.0,
-            "response_body": '{"received":true}'
-        }
+    def test_test_webhook_not_implemented(self, client):
+        """Test that webhook testing raises NotImplementedError"""
+        # Feature not yet available in API
+        with pytest.raises(NotImplementedError) as exc:
+            client.alerts.test_webhook("https://example.com/webhook")
 
-        with patch.object(client, 'request', return_value=mock_response):
-            result = client.alerts.test_webhook("https://example.com/webhook")
+        assert "not yet available" in str(exc.value)
+        assert "test_webhook endpoint" in str(exc.value)
 
-            assert isinstance(result, WebhookTestResponse)
-            assert result.success is True
-            assert result.status_code == 200
-            assert result.response_time_ms == 145.0
+    def test_test_webhook_always_fails(self, client):
+        """Test that webhook testing always raises error regardless of URL"""
+        # Even with valid URLs
+        with pytest.raises(NotImplementedError):
+            client.alerts.test_webhook("https://example.com")
 
-    def test_test_webhook_failure(self, client):
-        """Test failed webhook test"""
-        mock_response = {
-            "success": False,
-            "status_code": 500,
-            "response_time_ms": 5000.0,
-            "error": "Internal Server Error"
-        }
-
-        with patch.object(client, 'request', return_value=mock_response):
-            result = client.alerts.test_webhook("https://example.com/webhook")
-
-            assert result.success is False
-            assert result.error == "Internal Server Error"
-
-    def test_test_webhook_validation(self, client):
-        """Test webhook URL validation"""
-        # Empty URL
-        with pytest.raises(ValidationError):
-            client.alerts.test_webhook("")
-
-        # None URL
-        with pytest.raises(ValidationError):
-            client.alerts.test_webhook(None)
-
-        # Non-HTTPS URL
-        with pytest.raises(ValidationError):
-            client.alerts.test_webhook("http://insecure.com")
+        with pytest.raises(NotImplementedError):
+            client.alerts.test_webhook("https://test.com/hook")
 
     def test_to_dataframe(self, client, mock_alert):
         """Test converting alerts to DataFrame"""

@@ -207,7 +207,7 @@ Perfect for:
 - Data science projects
 - Academic research
 
-Free tier includes 1,000 requests/month. Would love feedback from the community!
+Free tier includes 100 requests (lifetime). Would love feedback from the community!
 ```
 
 **Best Time to Post:** Tuesday-Thursday, 9-11am EST
@@ -296,7 +296,7 @@ Get current Brent Crude price:
 📈 Financial modeling
 🎓 Academic research
 
-Free tier: 1,000 requests/month
+Free tier: 100 requests (lifetime)
 PyPI: pypi.org/project/oilpriceapi/
 GitHub: github.com/oilpriceapi/python-sdk
 
