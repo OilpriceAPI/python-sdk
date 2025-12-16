@@ -9,9 +9,11 @@
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[Get Free API Key](https://oilpriceapi.com/auth/signup)** • **[Documentation](https://docs.oilpriceapi.com/sdk/python)** • **[Examples](EXAMPLES.md)** • **[Pricing](https://oilpriceapi.com/pricing)**
+**[Get Free API Key](https://oilpriceapi.com/auth/signup)** • **[Documentation](https://docs.oilpriceapi.com/sdk/python)** • **[Pricing](https://oilpriceapi.com/pricing)**
 
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - Real-time and historical oil prices for Brent Crude, WTI, Natural Gas, and more.
+
+> **📝 Documentation Status**: This README reflects v1.4.0 features. All code examples shown are tested and working. Advanced features like technical indicators and CLI tools are planned for future releases - see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for roadmap.
 
 **Quick start:**
 ```bash
@@ -56,14 +58,8 @@ df = client.prices.to_dataframe(
     interval="daily"
 )
 
-# Add technical indicators
-df = client.analysis.with_indicators(
-    df,
-    indicators=["sma_20", "sma_50", "rsi", "bollinger_bands"]
-)
-
-# Calculate spread between Brent and WTI
-spread = client.analysis.spread("BRENT_CRUDE_USD", "WTI_USD", start="2024-01-01")
+print(f"Retrieved {len(df)} data points")
+print(df.head())
 ```
 
 ### Diesel Prices (New in v1.3.0)
@@ -173,13 +169,12 @@ print(df[["name", "commodity_code", "condition_value", "trigger_count"]])
 - ✅ **Simple API** - Intuitive methods for all endpoints
 - ✅ **Type Safe** - Full type hints for IDE autocomplete
 - ✅ **Pandas Integration** - First-class DataFrame support
-- ✅ **Price Alerts** - Automated monitoring with webhook notifications 🔔 NEW
+- ✅ **Price Alerts** - Automated monitoring with webhook notifications 🔔
 - ✅ **Diesel Prices** - State averages + station-level pricing ⛽
 - ✅ **Async Support** - High-performance async client
 - ✅ **Smart Caching** - Reduce API calls automatically
 - ✅ **Rate Limit Handling** - Automatic retries with backoff
-- ✅ **Technical Indicators** - Built-in SMA, RSI, MACD, etc.
-- ✅ **CLI Tool** - Command-line interface included
+- ✅ **Error Handling** - Comprehensive exception classes
 
 ## 📚 Documentation
 
@@ -261,51 +256,74 @@ async def get_prices():
 prices = asyncio.run(get_prices())
 ```
 
-## 🛠️ CLI Tool
-
-```bash
-# Get current price
-oilprice get BRENT_CRUDE_USD
-
-# Export historical data
-oilprice export WTI_USD --start 2024-01-01 --format csv -o wti_2024.csv
-
-# Watch prices in real-time
-oilprice watch BRENT_CRUDE_USD --interval 60
-```
-
 ## 🧪 Testing
 
-The SDK includes utilities for testing your applications:
+The SDK uses standard Python testing frameworks. Example using pytest:
 
 ```python
-from oilpriceapi.testing import MockClient
+import pytest
+from oilpriceapi import OilPriceAPI
 
-def test_my_strategy():
-    client = MockClient()
-    client.set_price("BRENT_CRUDE_USD", 75.50)
+def test_get_price():
+    client = OilPriceAPI(api_key="your_test_key")
+    price = client.prices.get("BRENT_CRUDE_USD")
 
-    result = my_trading_strategy(client)
-    assert result.action == "BUY"
+    assert price is not None
+    assert price.value > 0
+    assert price.commodity == "BRENT_CRUDE_USD"
 ```
 
 ## 📈 Examples
 
-### Real-World Use Cases
+### Quick Examples
 
-See **[EXAMPLES.md](https://github.com/OilpriceAPI/python-sdk/blob/main/EXAMPLES.md)** for comprehensive examples including:
-- 📊 **Trading Strategies** - Moving averages, spread analysis, risk management
-- 📈 **Data Analysis** - Seasonal patterns, correlations, forecasting
-- 💻 **Web Applications** - Dashboards, REST APIs, monitoring systems
-- 📤 **Data Export** - Excel reports, database integration, alerts
+```python
+# Example 1: Get multiple commodity prices
+from oilpriceapi import OilPriceAPI
 
-### Code Samples
+client = OilPriceAPI()
+commodities = ["BRENT_CRUDE_USD", "WTI_USD", "NATURAL_GAS_USD"]
+prices = client.prices.get_multiple(commodities)
 
-Check out the [examples/](https://github.com/OilpriceAPI/python-sdk/tree/main/examples/) directory for:
-- [Quickstart Notebook](examples/quickstart.ipynb)
-- [Data Analysis](examples/data_analysis.ipynb)
-- [Trading Signals](examples/trading_signals.ipynb)
-- [Async Operations](examples/async_example.py)
+for price in prices:
+    print(f"{price.commodity}: ${price.value:.2f}")
+```
+
+```python
+# Example 2: Historical data analysis with pandas
+import pandas as pd
+from oilpriceapi import OilPriceAPI
+
+client = OilPriceAPI()
+df = client.prices.to_dataframe(
+    commodity="BRENT_CRUDE_USD",
+    start="2024-01-01",
+    end="2024-12-31"
+)
+
+# Calculate simple moving average
+df['SMA_20'] = df['price'].rolling(window=20).mean()
+print(df[['created_at', 'price', 'SMA_20']].tail())
+```
+
+```python
+# Example 3: Price alerts with webhooks
+from oilpriceapi import OilPriceAPI
+
+client = OilPriceAPI()
+
+# Create alert when oil exceeds $85
+alert = client.alerts.create(
+    name="High Oil Price Alert",
+    commodity_code="BRENT_CRUDE_USD",
+    condition_operator="greater_than",
+    condition_value=85.00,
+    webhook_url="https://your-app.com/webhook",
+    enabled=True
+)
+
+print(f"Alert created: {alert.id}")
+```
 
 ## 🔧 Development
 
