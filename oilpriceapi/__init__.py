@@ -4,7 +4,7 @@ OilPriceAPI Python SDK
 The official Python SDK for OilPriceAPI - Real-time and historical oil prices.
 """
 
-__version__ = "1.4.0"
+__version__ = "1.4.2"
 __author__ = "OilPriceAPI"
 __email__ = "support@oilpriceapi.com"
 

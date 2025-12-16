@@ -12,10 +12,92 @@ from ..models import HistoricalPrice, HistoricalResponse, PaginationMeta
 
 class HistoricalResource:
     """Resource for historical price data."""
-    
+
     def __init__(self, client):
         self.client = client
-    
+
+    def _parse_date(self, date_input: Union[str, date, datetime]) -> date:
+        """Parse date input to date object."""
+        if isinstance(date_input, str):
+            return datetime.fromisoformat(date_input).date()
+        elif isinstance(date_input, datetime):
+            return date_input.date()
+        elif isinstance(date_input, date):
+            return date_input
+        else:
+            raise ValueError(f"Invalid date type: {type(date_input)}")
+
+    def _get_optimal_endpoint(
+        self,
+        start_date: Optional[Union[str, date, datetime]],
+        end_date: Optional[Union[str, date, datetime]]
+    ) -> str:
+        """Select optimal endpoint based on date range.
+
+        Args:
+            start_date: Start date for data range
+            end_date: End date for data range
+
+        Returns:
+            Optimal API endpoint path
+        """
+        if not start_date or not end_date:
+            return "/v1/prices/past_year"
+
+        # Parse dates
+        start = self._parse_date(start_date)
+        end = self._parse_date(end_date)
+
+        # Calculate days in range
+        days = (end - start).days
+
+        # Select endpoint based on range
+        if days <= 1:
+            return "/v1/prices/past_day"
+        elif days <= 7:
+            return "/v1/prices/past_week"
+        elif days <= 30:
+            return "/v1/prices/past_month"
+        else:
+            return "/v1/prices/past_year"
+
+    def _calculate_timeout(
+        self,
+        start_date: Optional[Union[str, date, datetime]],
+        end_date: Optional[Union[str, date, datetime]],
+        custom_timeout: Optional[float]
+    ) -> Optional[float]:
+        """Calculate appropriate timeout based on date range.
+
+        Args:
+            start_date: Start date for data range
+            end_date: End date for data range
+            custom_timeout: User-provided timeout override
+
+        Returns:
+            Timeout in seconds, or None to use client default
+        """
+        # If user provided custom timeout, use it
+        if custom_timeout is not None:
+            return custom_timeout
+
+        # If no dates provided, use default (will query 1 year)
+        if not start_date or not end_date:
+            return 120  # 2 minutes for year queries
+
+        # Parse dates and calculate range
+        start = self._parse_date(start_date)
+        end = self._parse_date(end_date)
+        days = (end - start).days
+
+        # Return appropriate timeout based on expected data volume
+        if days <= 7:
+            return 30  # 30s for 1 week
+        elif days <= 30:
+            return 60  # 1 min for 1 month
+        else:
+            return 120  # 2 min for 1 year
+
     def get(
         self,
         commodity: str,
@@ -24,10 +106,11 @@ class HistoricalResource:
         interval: str = "daily",
         page: int = 1,
         per_page: int = 100,
-        type_name: str = "spot_price"
+        type_name: str = "spot_price",
+        timeout: Optional[float] = None
     ) -> HistoricalResponse:
         """Get historical price data.
-        
+
         Args:
             commodity: Commodity code (e.g., "BRENT_CRUDE_USD")
             start_date: Start date for data range
@@ -36,10 +119,14 @@ class HistoricalResource:
             page: Page number for pagination
             per_page: Items per page (max 1000)
             type_name: Price type (spot_price, futures, etc.)
-            
+            timeout: Request timeout in seconds. If None, automatically determined by date range.
+                     - 1 week range: 30s
+                     - 1 month range: 60s
+                     - 1 year range: 120s
+
         Returns:
             HistoricalResponse with price data and pagination info
-            
+
         Example:
             >>> history = client.historical.get(
             ...     commodity="BRENT_CRUDE_USD",
@@ -49,6 +136,14 @@ class HistoricalResource:
             ... )
             >>> for price in history.data:
             ...     print(f"{price.date}: ${price.value:.2f}")
+
+            >>> # Custom timeout for very large queries
+            >>> history = client.historical.get(
+            ...     commodity="WTI_USD",
+            ...     start_date="2020-01-01",
+            ...     end_date="2024-12-31",
+            ...     timeout=180  # 3 minutes
+            ... )
         """
         # Build parameters
         params = {
@@ -58,18 +153,25 @@ class HistoricalResource:
             "per_page": min(per_page, 1000),  # Max 1000 per page
             "by_type": type_name,
         }
-        
+
         # Add date parameters if provided
         if start_date:
             params["start_date"] = self._format_date(start_date)
         if end_date:
             params["end_date"] = self._format_date(end_date)
-        
-        # Make request
+
+        # Select optimal endpoint based on date range
+        endpoint = self._get_optimal_endpoint(start_date, end_date)
+
+        # Calculate appropriate timeout
+        request_timeout = self._calculate_timeout(start_date, end_date, timeout)
+
+        # Make request with optimal endpoint and timeout
         response = self.client.request(
             method="GET",
-            path="/v1/prices/past_year",  # This endpoint handles all historical data
-            params=params
+            path=endpoint,
+            params=params,
+            timeout=request_timeout
         )
         
         # Parse response - handle nested structure
