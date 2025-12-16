@@ -105,14 +105,15 @@ class OilPriceAPI:
         )
         
         # Build headers
+        import sys
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         self.headers = {
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "OilPriceAPI-Python/1.4.0",
-            "X-SDK-Language": "python",
-            "X-SDK-Version": "1.4.0",
-            "X-Client-Type": "sdk",
+            "User-Agent": f"oilpriceapi-python/1.4.1 python/{python_version}",
+            "X-Api-Client": "oilpriceapi-python",
+            "X-Client-Version": "1.4.1",
         }
         if headers:
             self.headers.update(headers)
