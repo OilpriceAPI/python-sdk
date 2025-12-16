@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oilpriceapi"
-version = "1.4.1"
+version = "1.4.2"
 description = "Official Python SDK for OilPriceAPI - Real-time and historical oil prices"
 authors = [
     {name = "OilPriceAPI", email = "support@oilpriceapi.com"}

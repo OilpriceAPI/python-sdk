@@ -111,9 +111,9 @@ class OilPriceAPI:
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": f"oilpriceapi-python/1.4.1 python/{python_version}",
+            "User-Agent": f"oilpriceapi-python/1.4.2 python/{python_version}",
             "X-Api-Client": "oilpriceapi-python",
-            "X-Client-Version": "1.4.1",
+            "X-Client-Version": "1.4.2",
         }
         if headers:
             self.headers.update(headers)
@@ -145,6 +145,7 @@ class OilPriceAPI:
         path: str,
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """Make HTTP request to API.
@@ -157,6 +158,7 @@ class OilPriceAPI:
             path: API endpoint path
             params: Query parameters
             json_data: JSON body data
+            timeout: Request timeout in seconds. If None, uses client's default timeout.
             **kwargs: Additional httpx request arguments
 
         Returns:
@@ -175,6 +177,9 @@ class OilPriceAPI:
             path = '/' + path
         url = urljoin(self.base_url + '/', path)
 
+        # Use provided timeout or default
+        effective_timeout = timeout if timeout is not None else self.timeout
+
         # Retry logic using retry strategy
         last_exception = None
         for attempt in range(self.max_retries):
@@ -186,6 +191,7 @@ class OilPriceAPI:
                     url=url,
                     params=params,
                     json=json_data,
+                    timeout=effective_timeout,
                     **kwargs
                 )
 

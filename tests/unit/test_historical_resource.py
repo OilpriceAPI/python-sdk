@@ -376,3 +376,206 @@ class TestHistoricalResourceResponseHandling:
 
         assert len(history.data) == 0
         assert history.success is True
+
+
+class TestHistoricalResourceEndpointSelection:
+    """Test endpoint selection based on date range."""
+
+    @patch('httpx.Client.request')
+    def test_selects_past_day_endpoint_for_1_day_range(self, mock_request, api_key):
+        """Test that 1 day range uses /v1/prices/past_day endpoint."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-12-15",
+            end_date="2024-12-16",
+        )
+
+        # Verify correct endpoint was called
+        call_args = mock_request.call_args
+        assert "/v1/prices/past_day" in call_args.kwargs["url"]
+
+    @patch('httpx.Client.request')
+    def test_selects_past_week_endpoint_for_7_day_range(self, mock_request, api_key):
+        """Test that 7 day range uses /v1/prices/past_week endpoint."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-12-09",
+            end_date="2024-12-16",
+        )
+
+        # Verify correct endpoint was called
+        call_args = mock_request.call_args
+        assert "/v1/prices/past_week" in call_args.kwargs["url"]
+
+    @patch('httpx.Client.request')
+    def test_selects_past_month_endpoint_for_30_day_range(self, mock_request, api_key):
+        """Test that 30 day range uses /v1/prices/past_month endpoint."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-11-16",
+            end_date="2024-12-16",
+        )
+
+        # Verify correct endpoint was called
+        call_args = mock_request.call_args
+        assert "/v1/prices/past_month" in call_args.kwargs["url"]
+
+    @patch('httpx.Client.request')
+    def test_selects_past_year_endpoint_for_365_day_range(self, mock_request, api_key):
+        """Test that 365 day range uses /v1/prices/past_year endpoint."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-01-01",
+            end_date="2024-12-31",
+        )
+
+        # Verify correct endpoint was called
+        call_args = mock_request.call_args
+        assert "/v1/prices/past_year" in call_args.kwargs["url"]
+
+    @patch('httpx.Client.request')
+    def test_defaults_to_past_year_when_no_dates_provided(self, mock_request, api_key):
+        """Test that no date range defaults to past_year endpoint."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(commodity="WTI_USD")
+
+        # Verify past_year endpoint was used as default
+        call_args = mock_request.call_args
+        assert "/v1/prices/past_year" in call_args.kwargs["url"]
+
+
+class TestHistoricalResourceTimeouts:
+    """Test dynamic timeout handling for historical queries."""
+
+    @patch('httpx.Client.request')
+    def test_uses_30s_timeout_for_1_week_query(self, mock_request, api_key):
+        """Test that 1 week query uses 30s timeout."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-12-09",
+            end_date="2024-12-16",
+        )
+
+        # Verify timeout was set to 30s
+        call_args = mock_request.call_args
+        assert call_args.kwargs["timeout"] == 30
+
+    @patch('httpx.Client.request')
+    def test_uses_60s_timeout_for_1_month_query(self, mock_request, api_key):
+        """Test that 1 month query uses 60s timeout."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-11-16",
+            end_date="2024-12-16",
+        )
+
+        # Verify timeout was set to 60s
+        call_args = mock_request.call_args
+        assert call_args.kwargs["timeout"] == 60
+
+    @patch('httpx.Client.request')
+    def test_uses_120s_timeout_for_1_year_query(self, mock_request, api_key):
+        """Test that 1 year query uses 120s timeout."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-01-01",
+            end_date="2024-12-31",
+        )
+
+        # Verify timeout was set to 120s
+        call_args = mock_request.call_args
+        assert call_args.kwargs["timeout"] == 120
+
+    @patch('httpx.Client.request')
+    def test_allows_custom_timeout_override(self, mock_request, api_key):
+        """Test that custom timeout can be provided."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"prices": []}
+        }
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        client.historical.get(
+            commodity="WTI_USD",
+            start_date="2024-01-01",
+            end_date="2024-12-31",
+            timeout=180  # Custom 3 minute timeout
+        )
+
+        # Verify custom timeout was used
+        call_args = mock_request.call_args
+        assert call_args.kwargs["timeout"] == 180
