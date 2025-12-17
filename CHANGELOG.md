@@ -5,6 +5,33 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2025-12-17
+
+### Fixed
+- **CRITICAL: Historical Data Returns Wrong Commodity**: Fixed issue where all historical queries returned BRENT_CRUDE_USD regardless of requested commodity
+  - Root cause: SDK was sending `commodity` parameter but API expects `by_code` parameter
+  - Impact: ALL historical queries since v1.4.0 returned incorrect data
+  - Solution: Changed parameter name from `commodity` to `by_code` in historical resource
+  - Reported by: Idan (idan@comity.ai)
+
+- **Date Range Parameters Ignored**: Fixed issue where start_date and end_date parameters were completely ignored
+  - Root cause: API endpoints were hardcoded to return last week/month/year from current date
+  - Impact: Requesting specific date ranges (e.g., Jan 2024) would return current period instead
+  - Solution: API now respects start_date and end_date parameters across all historical endpoints
+  - This fix was applied to the backend API simultaneously
+
+### Added
+- **Strict Commodity Validation**: API now validates commodity codes and returns clear error messages for invalid codes
+  - Before: Silently accepted invalid codes like "oijfoijofwijewef" and returned BRENT data
+  - After: Returns 400 Bad Request with list of valid codes
+  - Error includes link to `/v1/prices/metrics` for full list of valid commodity codes
+
+### Breaking Changes
+None - This is a critical bug fix. Existing code will work correctly after update.
+
+### Upgrade Priority
+**CRITICAL** - All users of `client.historical.get()` should upgrade immediately. Previous versions return completely wrong data.
+
 ## [1.4.2] - 2025-12-16
 
 ### Fixed
