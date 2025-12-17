@@ -146,8 +146,9 @@ class HistoricalResource:
             ... )
         """
         # Build parameters
+        # CRITICAL: API expects 'by_code' not 'commodity' (Issue #XXX)
         params = {
-            "commodity": commodity,
+            "by_code": commodity,  # Changed from 'commodity' to match API expectation
             "interval": interval,
             "page": page,
             "per_page": min(per_page, 1000),  # Max 1000 per page
