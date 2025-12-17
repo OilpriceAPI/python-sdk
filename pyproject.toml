@@ -134,6 +134,12 @@ addopts = [
     "--cov-report=xml",
     "-v",
 ]
+markers = [
+    "integration: marks tests as integration tests (calls real API)",
+    "contract: marks tests as contract tests (validates API assumptions)",
+    "slow: marks tests as slow running (deselect with '-m \"not slow\"')",
+    "unit: marks tests as unit tests (fast, mocked)",
+]
 
 [tool.coverage.run]
 source = ["oilpriceapi"]
