@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install SDK and dependencies
+COPY pyproject.toml ./
+COPY oilpriceapi/ ./oilpriceapi/
+RUN pip install --no-cache-dir prometheus_client && \
+    pip install --no-cache-dir -e .
+
+# Copy monitoring script
+COPY scripts/synthetic_monitor.py ./
+
+# Expose Prometheus metrics port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/metrics')"
+
+# Run monitoring
+CMD ["python", "synthetic_monitor.py"]
