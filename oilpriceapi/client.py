@@ -78,6 +78,8 @@ class OilPriceAPI:
         max_retries: Optional[int] = None,
         retry_on: Optional[list] = None,
         headers: Optional[Dict[str, str]] = None,
+        app_url: Optional[str] = None,
+        app_name: Optional[str] = None,
     ):
         # Get API key from parameter or environment
         self.api_key = api_key or os.environ.get("OILPRICEAPI_KEY")
@@ -104,6 +106,10 @@ class OilPriceAPI:
             f"timeout={self.timeout}s, max_retries={self.max_retries}"
         )
         
+        # Store telemetry settings
+        self.app_url = app_url
+        self.app_name = app_name
+
         # Build headers
         import sys
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
@@ -111,10 +117,17 @@ class OilPriceAPI:
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": f"oilpriceapi-python/1.4.2 python/{python_version}",
-            "X-Api-Client": "oilpriceapi-python",
-            "X-Client-Version": "1.4.2",
+            "User-Agent": f"oilpriceapi-python/1.5.0 python/{python_version}",
+            "X-SDK-Name": "oilpriceapi-python",
+            "X-SDK-Version": "1.5.0",
         }
+
+        # Add optional telemetry headers (10% bonus for app_url!)
+        if self.app_url:
+            self.headers["X-App-URL"] = self.app_url
+        if self.app_name:
+            self.headers["X-App-Name"] = self.app_name
+
         if headers:
             self.headers.update(headers)
         
