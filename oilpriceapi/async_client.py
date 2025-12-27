@@ -61,6 +61,8 @@ class AsyncOilPriceAPI:
         headers: Optional[Dict[str, str]] = None,
         max_connections: int = 100,
         max_keepalive_connections: int = 20,
+        app_url: Optional[str] = None,
+        app_name: Optional[str] = None,
     ):
         # Get API key
         self.api_key = api_key or os.environ.get("OILPRICEAPI_KEY")
@@ -76,6 +78,8 @@ class AsyncOilPriceAPI:
         self.retry_on = retry_on or self.DEFAULT_RETRY_CODES
         self.max_connections = max_connections
         self.max_keepalive_connections = max_keepalive_connections
+        self.app_url = app_url
+        self.app_name = app_name
 
         # Initialize retry strategy
         self._retry_strategy = RetryStrategy(
@@ -84,15 +88,23 @@ class AsyncOilPriceAPI:
         )
 
         # Build headers
+        import sys
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         self.headers = {
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "OilPriceAPI-Python-Async/1.4.0",
-            "X-SDK-Language": "python",
-            "X-SDK-Version": "1.4.0",
-            "X-Client-Type": "sdk",
+            "User-Agent": f"oilpriceapi-python/1.5.0 python/{python_version}",
+            "X-SDK-Name": "oilpriceapi-python",
+            "X-SDK-Version": "1.5.0",
         }
+
+        # Add optional telemetry headers (10% bonus for app_url!)
+        if self.app_url:
+            self.headers["X-App-URL"] = self.app_url
+        if self.app_name:
+            self.headers["X-App-Name"] = self.app_name
+
         if headers:
             self.headers.update(headers)
         
