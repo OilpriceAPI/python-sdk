@@ -6,7 +6,7 @@ Main client class for interacting with OilPriceAPI.
 
 import os
 import logging
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, List
 import httpx
 from datetime import datetime, timedelta
 import json
@@ -26,7 +26,7 @@ from .exceptions import (
     ValidationError,
     ConfigurationError,
 )
-from .models import Price, PriceResponse, HistoricalResponse
+from .models import Price, PriceResponse, HistoricalResponse, DataConnectorPrice
 from .resources.prices import PricesResource
 from .resources.historical import HistoricalResource
 from .resources.diesel import DieselResource
@@ -326,7 +326,47 @@ class OilPriceAPI:
                 except (ValueError, TypeError):
                     pass
         return None
-    
+
+    def get_data_connector_prices(
+        self,
+        fuel_type: Optional[str] = None,
+        port: Optional[str] = None,
+        region: Optional[str] = None,
+        since: Optional[str] = None
+    ) -> List[DataConnectorPrice]:
+        """
+        Get prices from connected data sources (BYOS - Bring Your Own Subscription).
+
+        Requires Data Connector feature enabled on your organization.
+
+        Args:
+            fuel_type: Filter by fuel type (VLSFO, MGO, IFO380)
+            port: Filter by port name
+            region: Filter by region (AMERICAS, EMEA, APAC)
+            since: ISO 8601 timestamp to fetch prices after
+
+        Returns:
+            List of DataConnectorPrice objects
+
+        Example:
+            >>> prices = client.get_data_connector_prices(fuel_type='VLSFO')
+            >>> for p in prices:
+            ...     print(f"{p.port}: ${p.price}/{p.unit}")
+        """
+        params = {}
+        if fuel_type:
+            params['fuel_type'] = fuel_type
+        if port:
+            params['port'] = port
+        if region:
+            params['region'] = region
+        if since:
+            params['since'] = since
+
+        response = self.request('GET', '/v1/prices/data-connector', params=params)
+        prices_data = response.get('data', {}).get('prices', [])
+        return [DataConnectorPrice(**p) for p in prices_data]
+
     def close(self):
         """Close the HTTP client."""
         self._client.close()

@@ -23,6 +23,7 @@ from oilpriceapi.models import (
     DieselStationsResponse,
     PriceAlert,
     WebhookTestResponse,
+    DataConnectorPrice,
 )
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "DieselStationsResponse",
     "PriceAlert",
     "WebhookTestResponse",
+    "DataConnectorPrice",
 ]
 
 # Convenience function for quick access
