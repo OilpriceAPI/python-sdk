@@ -354,3 +354,34 @@ class WebhookTestResponse(BaseModel):
     response_time_ms: float = Field(description="Response time in milliseconds")
     response_body: Optional[str] = Field(default=None, description="Response body from webhook")
     error: Optional[str] = Field(default=None, description="Error message if test failed")
+
+
+class DataConnectorPrice(BaseModel):
+    """Price from connected data source (BYOS - Bring Your Own Subscription)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    price: float = Field(description="Price value in specified currency")
+    currency: str = Field(description="Currency code (e.g., USD)")
+    fuel_type: str = Field(description="Fuel type (VLSFO, MGO, IFO380)")
+    port: str = Field(description="Port name")
+    region: Optional[str] = Field(default=None, description="Geographic region (AMERICAS, EMEA, APAC)")
+    unit: str = Field(description="Unit of measure (MT = metric ton)")
+    source: str = Field(description="Data provider (e.g., shipandbunker)")
+    timestamp: datetime = Field(description="ISO 8601 timestamp when price was recorded")
+
+    @field_validator('timestamp', mode='before')
+    @classmethod
+    def parse_timestamp(cls, v):
+        """Parse timestamp from various formats."""
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except ValueError:
+                from dateutil import parser
+                return parser.parse(v)
+        return v
+
+    def __str__(self) -> str:
+        """String representation."""
+        return f"{self.fuel_type} @ {self.port}: {self.currency}{self.price:.2f}/{self.unit}"
