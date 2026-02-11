@@ -352,23 +352,27 @@ class TestAlertsResource:
         with pytest.raises(ValidationError):
             client.alerts.delete(None)
 
-    def test_test_webhook_not_implemented(self, client):
-        """Test that webhook testing raises NotImplementedError"""
-        # Feature not yet available in API
-        with pytest.raises(NotImplementedError) as exc:
-            client.alerts.test_webhook("https://example.com/webhook")
+    def test_test_alert(self, client, mock_alert):
+        """Test sending a test notification for an alert"""
+        test_result = {
+            "status": "success",
+            "webhook_response": {"status_code": 200, "body": "OK"},
+            "message": "Test notification sent successfully"
+        }
 
-        assert "not yet available" in str(exc.value)
-        assert "test_webhook endpoint" in str(exc.value)
+        with patch.object(client, 'request', return_value=test_result):
+            result = client.alerts.test("550e8400-e29b-41d4-a716-446655440000")
 
-    def test_test_webhook_always_fails(self, client):
-        """Test that webhook testing always raises error regardless of URL"""
-        # Even with valid URLs
-        with pytest.raises(NotImplementedError):
-            client.alerts.test_webhook("https://example.com")
+            assert result["status"] == "success"
+            assert "webhook_response" in result
 
-        with pytest.raises(NotImplementedError):
-            client.alerts.test_webhook("https://test.com/hook")
+    def test_test_alert_invalid_id(self, client):
+        """Test testing alert with invalid ID"""
+        with pytest.raises(ValidationError):
+            client.alerts.test("")
+
+        with pytest.raises(ValidationError):
+            client.alerts.test(None)
 
     def test_to_dataframe(self, client, mock_alert):
         """Test converting alerts to DataFrame"""

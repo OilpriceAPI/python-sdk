@@ -65,7 +65,7 @@ class DieselResource:
             >>> print(f"Granularity: {price.granularity}")
         """
         # Validate state code
-        if not state or not isinstance(state, str):
+        if not isinstance(state, str):
             raise ValidationError(
                 message="State code must be a string",
                 field="state",
