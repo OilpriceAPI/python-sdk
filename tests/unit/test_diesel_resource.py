@@ -81,7 +81,7 @@ class TestDieselResourceGetPrice:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_price("")
 
-        assert "2-letter US state code" in str(exc_info.value)
+        assert "2-letter US state code" in exc_info.value.message
 
     def test_get_price_invalid_length_short(self):
         """Test that 1-character state code raises ValidationError."""
@@ -90,7 +90,7 @@ class TestDieselResourceGetPrice:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_price("C")
 
-        assert "2-letter US state code" in str(exc_info.value)
+        assert "2-letter US state code" in exc_info.value.message
 
     def test_get_price_invalid_length_long(self):
         """Test that 3-character state code raises ValidationError."""
@@ -99,7 +99,7 @@ class TestDieselResourceGetPrice:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_price("CAL")
 
-        assert "2-letter US state code" in str(exc_info.value)
+        assert "2-letter US state code" in exc_info.value.message
 
     def test_get_price_non_string(self):
         """Test that non-string state code raises ValidationError."""
@@ -108,7 +108,7 @@ class TestDieselResourceGetPrice:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_price(123)
 
-        assert "must be a string" in str(exc_info.value)
+        assert "must be a string" in exc_info.value.message
 
     def test_get_price_none(self):
         """Test that None state code raises ValidationError."""
@@ -117,7 +117,7 @@ class TestDieselResourceGetPrice:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_price(None)
 
-        assert "must be a string" in str(exc_info.value)
+        assert "must be a string" in exc_info.value.message
 
 
 class TestDieselResourceGetStations:
@@ -214,7 +214,7 @@ class TestDieselResourceGetStations:
 
         # Check that request was made with default radius
         call_args = mock_request.call_args
-        assert call_args[1]["json_data"]["radius"] == 8047
+        assert call_args[1]["json"]["radius"] == 8047
 
     def test_get_stations_invalid_lat_low(self):
         """Test that latitude < -90 raises ValidationError."""
@@ -223,7 +223,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=-91, lng=-122)
 
-        assert "Latitude must be between -90 and 90" in str(exc_info.value)
+        assert "Latitude must be between -90 and 90" in exc_info.value.message
 
     def test_get_stations_invalid_lat_high(self):
         """Test that latitude > 90 raises ValidationError."""
@@ -232,7 +232,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=91, lng=-122)
 
-        assert "Latitude must be between -90 and 90" in str(exc_info.value)
+        assert "Latitude must be between -90 and 90" in exc_info.value.message
 
     def test_get_stations_invalid_lng_low(self):
         """Test that longitude < -180 raises ValidationError."""
@@ -241,7 +241,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=37, lng=-181)
 
-        assert "Longitude must be between -180 and 180" in str(exc_info.value)
+        assert "Longitude must be between -180 and 180" in exc_info.value.message
 
     def test_get_stations_invalid_lng_high(self):
         """Test that longitude > 180 raises ValidationError."""
@@ -250,7 +250,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=37, lng=181)
 
-        assert "Longitude must be between -180 and 180" in str(exc_info.value)
+        assert "Longitude must be between -180 and 180" in exc_info.value.message
 
     def test_get_stations_invalid_radius_negative(self):
         """Test that negative radius raises ValidationError."""
@@ -259,7 +259,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=37, lng=-122, radius=-100)
 
-        assert "Radius must be between 0 and 50000" in str(exc_info.value)
+        assert "Radius must be between 0 and 50000" in exc_info.value.message
 
     def test_get_stations_invalid_radius_too_large(self):
         """Test that radius > 50000 raises ValidationError."""
@@ -268,7 +268,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=37, lng=-122, radius=50001)
 
-        assert "Radius must be between 0 and 50000" in str(exc_info.value)
+        assert "Radius must be between 0 and 50000" in exc_info.value.message
 
     def test_get_stations_invalid_lat_type(self):
         """Test that non-numeric latitude raises ValidationError."""
@@ -277,7 +277,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat="invalid", lng=-122)
 
-        assert "Latitude must be a number" in str(exc_info.value)
+        assert "Latitude must be a number" in exc_info.value.message
 
     def test_get_stations_invalid_lng_type(self):
         """Test that non-numeric longitude raises ValidationError."""
@@ -286,7 +286,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=37, lng="invalid")
 
-        assert "Longitude must be a number" in str(exc_info.value)
+        assert "Longitude must be a number" in exc_info.value.message
 
     def test_get_stations_invalid_radius_type(self):
         """Test that non-numeric radius raises ValidationError."""
@@ -295,7 +295,7 @@ class TestDieselResourceGetStations:
         with pytest.raises(ValidationError) as exc_info:
             client.diesel.get_stations(lat=37, lng=-122, radius="invalid")
 
-        assert "Radius must be a number" in str(exc_info.value)
+        assert "Radius must be a number" in exc_info.value.message
 
     @patch('httpx.Client.request')
     def test_get_stations_custom_radius(self, mock_request):
@@ -332,7 +332,7 @@ class TestDieselResourceGetStations:
 
         # Check that request was made with custom radius
         call_args = mock_request.call_args
-        assert call_args[1]["json_data"]["radius"] == 5000
+        assert call_args[1]["json"]["radius"] == 5000
 
 
 class TestDieselResourceToDataFrame:
