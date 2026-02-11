@@ -31,6 +31,14 @@ from .resources.prices import PricesResource
 from .resources.historical import HistoricalResource
 from .resources.diesel import DieselResource
 from .resources.alerts import AlertsResource
+from .resources.commodities import CommoditiesResource
+from .resources.futures import FuturesResource
+from .resources.storage import StorageResource
+from .resources.rig_counts import RigCountsResource
+from .resources.bunker_fuels import BunkerFuelsResource
+from .resources.analytics import AnalyticsResource
+from .resources.forecasts import ForecastsResource
+from .resources.data_quality import DataQualityResource
 
 
 class OilPriceAPI:
@@ -144,6 +152,14 @@ class OilPriceAPI:
         self.historical = HistoricalResource(self)
         self.diesel = DieselResource(self)
         self.alerts = AlertsResource(self)
+        self.commodities = CommoditiesResource(self)
+        self.futures = FuturesResource(self)
+        self.storage = StorageResource(self)
+        self.rig_counts = RigCountsResource(self)
+        self.bunker_fuels = BunkerFuelsResource(self)
+        self.analytics = AnalyticsResource(self)
+        self.forecasts = ForecastsResource(self)
+        self.data_quality = DataQualityResource(self)
 
         # Initialize visualization (optional)
         try:
