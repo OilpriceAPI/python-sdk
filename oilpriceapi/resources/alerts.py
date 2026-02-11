@@ -505,37 +505,114 @@ class AlertsResource:
             path=f"/v1/alerts/{alert_id}"
         )
 
-    def test_webhook(self, webhook_url: str) -> WebhookTestResponse:
+    def test(self, alert_id: str) -> Dict[str, Any]:
         """
-        Test a webhook endpoint.
+        Test an alert by simulating a trigger.
 
-        **NOTE:** This feature is not yet available in the API. The `/v1/alerts/test_webhook`
-        endpoint has not been implemented yet. This method will raise an error until the
-        backend endpoint is added.
-
-        To test if an alert would trigger, use the backend's `/v1/alerts/test` endpoint instead:
-        ```bash
-        curl -X POST "https://api.oilpriceapi.com/v1/alerts/:id/test" \\
-          -H "Authorization: Token YOUR_API_KEY"
-        ```
+        Sends a test notification through the alert's webhook to verify
+        it is configured correctly. Does not count toward trigger limits.
 
         Args:
-            webhook_url: The HTTPS webhook URL to test
+            alert_id: The alert ID to test
 
         Returns:
-            WebhookTestResponse: Test results
+            Dict[str, Any]: Test results including webhook response
 
         Raises:
-            NotImplementedError: Feature not yet available
+            ValidationError: If alert_id is invalid
+            DataNotFoundError: If alert ID not found
+            OilPriceAPIError: If API request fails
 
-        .. deprecated::
-            This feature is not yet available in the API
+        Example:
+            >>> result = client.alerts.test(alert_id)
+            >>> print(f"Test status: {result['status']}")
+            >>> print(f"Response: {result['webhook_response']}")
         """
-        raise NotImplementedError(
-            "Webhook testing is not yet available. The /v1/alerts/test_webhook endpoint "
-            "has not been implemented in the API. To test if an alert would trigger, "
-            "use the /v1/alerts/:id/test endpoint instead."
+        if not alert_id or not isinstance(alert_id, str):
+            raise ValidationError(
+                message="Alert ID must be a non-empty string",
+                field="alert_id",
+                value=alert_id
+            )
+
+        response = self.client.request(
+            method="POST",
+            path=f"/v1/alerts/{alert_id}/test"
         )
+
+        # Parse response
+        if "data" in response:
+            return response["data"]
+        return response
+
+    def triggers(self, **params) -> List[Dict[str, Any]]:
+        """
+        Get alert trigger history.
+
+        Returns a list of all alert triggers across all alerts.
+
+        Args:
+            **params: Optional query parameters for filtering
+
+        Returns:
+            List[Dict[str, Any]]: List of alert trigger records
+
+        Raises:
+            OilPriceAPIError: If API request fails
+
+        Example:
+            >>> triggers = client.alerts.triggers()
+            >>> for trigger in triggers:
+            ...     print(f"{trigger['alert_name']}: {trigger['triggered_at']}")
+            ...     print(f"  Price: ${trigger['price']} (threshold: ${trigger['threshold']})")
+        """
+        response = self.client.request(
+            method="GET",
+            path="/v1/alerts/triggers",
+            params=params
+        )
+
+        # Parse response
+        if isinstance(response, list):
+            return response
+        elif "triggers" in response:
+            return response["triggers"]
+        elif "data" in response:
+            return response["data"]
+        return []
+
+    def analytics_history(self, **params) -> Dict[str, Any]:
+        """
+        Get alert analytics history.
+
+        Returns analytics and statistics about alert performance,
+        trigger frequency, and accuracy over time.
+
+        Args:
+            **params: Optional query parameters for filtering
+
+        Returns:
+            Dict[str, Any]: Analytics data with metrics and trends
+
+        Raises:
+            OilPriceAPIError: If API request fails
+
+        Example:
+            >>> analytics = client.alerts.analytics_history()
+            >>> print(f"Total triggers: {analytics['total_triggers']}")
+            >>> print(f"Average response time: {analytics['avg_response_time']}ms")
+            >>> print(f"Success rate: {analytics['success_rate']}%")
+        """
+        response = self.client.request(
+            method="GET",
+            path="/v1/alerts/analytics_history",
+            params=params
+        )
+
+        # Parse response
+        if "data" in response:
+            return response["data"]
+        return response
 
     def to_dataframe(self) -> 'pandas.DataFrame':
         """

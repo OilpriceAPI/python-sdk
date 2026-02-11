@@ -16,6 +16,10 @@ from .bunker_fuels import BunkerFuelsResource
 from .analytics import AnalyticsResource
 from .forecasts import ForecastsResource
 from .data_quality import DataQualityResource
+from .drilling import DrillingIntelligenceResource
+from .ei import EnergyIntelligenceResource
+from .webhooks import WebhooksResource
+from .data_sources import DataSourcesResource
 
 __all__ = [
     "PricesResource",
@@ -30,4 +34,8 @@ __all__ = [
     "AnalyticsResource",
     "ForecastsResource",
     "DataQualityResource",
+    "DrillingIntelligenceResource",
+    "EnergyIntelligenceResource",
+    "WebhooksResource",
+    "DataSourcesResource",
 ]

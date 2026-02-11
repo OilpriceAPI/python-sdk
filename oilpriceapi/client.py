@@ -39,6 +39,10 @@ from .resources.bunker_fuels import BunkerFuelsResource
 from .resources.analytics import AnalyticsResource
 from .resources.forecasts import ForecastsResource
 from .resources.data_quality import DataQualityResource
+from .resources.drilling import DrillingIntelligenceResource
+from .resources.ei import EnergyIntelligenceResource
+from .resources.webhooks import WebhooksResource
+from .resources.data_sources import DataSourcesResource
 
 
 class OilPriceAPI:
@@ -160,6 +164,10 @@ class OilPriceAPI:
         self.analytics = AnalyticsResource(self)
         self.forecasts = ForecastsResource(self)
         self.data_quality = DataQualityResource(self)
+        self.drilling = DrillingIntelligenceResource(self)
+        self.ei = EnergyIntelligenceResource(self)
+        self.webhooks = WebhooksResource(self)
+        self.data_sources = DataSourcesResource(self)
 
         # Initialize visualization (optional)
         try:
