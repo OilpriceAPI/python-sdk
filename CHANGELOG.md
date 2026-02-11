@@ -5,9 +5,44 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-02-11
+
+### Added
+
+- **Commodities Resource**: `client.commodities.list()`, `get(code)`, `categories()` for commodity catalog discovery
+- **Futures Resource**: `client.futures.latest()`, `historical()`, `ohlc()`, `intraday()`, `spreads()`, `curve()`, `continuous()` for futures contract data
+- **Storage Resource**: `client.storage.all()`, `cushing()`, `spr()`, `regional()`, `history()` for oil inventory levels
+- **Rig Counts Resource**: `client.rig_counts.latest()`, `current()`, `historical()`, `trends()`, `summary()` for Baker Hughes rig count data
+- **Bunker Fuels Resource**: `client.bunker_fuels.all()`, `port()`, `compare()`, `spreads()`, `historical()`, `export()` for marine fuel prices
+- **Analytics Resource**: `client.analytics.performance()`, `statistics()`, `correlation()`, `trend()`, `spread()`, `forecast()` for price analytics
+- **Forecasts Resource**: `client.forecasts.monthly()`, `accuracy()`, `archive()`, `get()` for EIA monthly price forecasts
+- **Data Quality Resource**: `client.data_quality.summary()`, `reports()`, `report()` for data quality monitoring
+- **Drilling Intelligence Resource**: `client.drilling.latest()`, `summary()`, `trends()`, `frac_spreads()`, `well_permits()`, `duc_wells()`, `completions()`, `wells_drilled()`, `basin()` for drilling activity data
+- **Energy Intelligence Resource**: `client.ei` with 7 sub-resources: `rig_counts`, `oil_inventories`, `opec_production`, `drilling_productivity`, `forecasts`, `well_permits`, `frac_focus` for comprehensive EIA data
+- **Webhooks Resource**: `client.webhooks.create()`, `list()`, `get()`, `update()`, `delete()`, `test()`, `events()` for webhook management
+- **Data Sources Resource**: `client.data_sources.list()`, `get()`, `create()`, `update()`, `delete()`, `test()`, `logs()`, `health()`, `rotate_credentials()` for data connector management
+- **Enhanced Alerts**: Added `test()`, `triggers()`, `analytics_history()` methods to existing alerts resource
+- **Data Connector Support**: `client.get_data_connector_prices()` for BYOS (Bring Your Own Subscription) prices
+- **Telemetry Headers**: `app_url` and `app_name` parameters for API usage attribution (10% rate limit bonus for app_url)
+
+### Fixed
+
+- **Diesel validation**: Empty string state codes now properly rejected with ValidationError
+
+### Testing
+
+- 84 new unit tests added (222 total, 0 failures)
+- Test coverage improved from ~40% to 60%
+- New test files for all 13 resource modules
+
+### Breaking Changes
+
+None - All new resources are additive. Existing code continues to work unchanged.
+
 ## [1.4.3] - 2025-12-17
 
 ### Fixed
+
 - **CRITICAL: Historical Data Returns Wrong Commodity**: Fixed issue where all historical queries returned BRENT_CRUDE_USD regardless of requested commodity
   - Root cause: SDK was sending `commodity` parameter but API expects `by_code` parameter
   - Impact: ALL historical queries since v1.4.0 returned incorrect data
@@ -21,20 +56,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This fix was applied to the backend API simultaneously
 
 ### Added
+
 - **Strict Commodity Validation**: API now validates commodity codes and returns clear error messages for invalid codes
   - Before: Silently accepted invalid codes like "oijfoijofwijewef" and returned BRENT data
   - After: Returns 400 Bad Request with list of valid codes
   - Error includes link to `/v1/prices/metrics` for full list of valid commodity codes
 
 ### Breaking Changes
+
 None - This is a critical bug fix. Existing code will work correctly after update.
 
 ### Upgrade Priority
+
 **CRITICAL** - All users of `client.historical.get()` should upgrade immediately. Previous versions return completely wrong data.
 
 ## [1.4.2] - 2025-12-16
 
 ### Fixed
+
 - **Historical Queries Timeout Issue**: Fixed 100% timeout rate on historical data requests
   - Root cause: SDK was using hardcoded `/v1/prices/past_year` endpoint for all date ranges
   - Solution: Implemented intelligent endpoint selection based on date range
@@ -45,6 +84,7 @@ None - This is a critical bug fix. Existing code will work correctly after updat
   - Performance improvement: 7x faster for 1 week queries, 3x faster for 1 month queries
 
 ### Added
+
 - **Dynamic Timeout Management**: Automatic timeout adjustment based on query size
   - 1 week queries: 30 seconds (previously 30s, but now uses optimal endpoint)
   - 1 month queries: 60 seconds
@@ -55,25 +95,30 @@ None - This is a critical bug fix. Existing code will work correctly after updat
   - Historical resource automatically uses appropriate timeouts
 
 ### Performance
+
 - 1 week historical queries: **67s → ~10s** (7x faster via `/past_week` endpoint)
 - 1 month historical queries: **67s → ~20s** (3x faster via `/past_month` endpoint)
 - 1 year historical queries: **Timeout (30s) → Success (67-85s with 120s timeout)**
 
 ### Testing
+
 - Added 9 new tests for endpoint selection and timeout handling
 - All 20 existing tests pass with new changes
 - Test coverage for `historical.py`: 88.68% (up from ~54%)
 
 ### Documentation
+
 - Updated `historical.get()` docstring with timeout parameter examples
 - Added clear examples for custom timeout usage
 
 ### Breaking Changes
+
 None - This is a backwards-compatible bug fix. Existing code will continue to work and will automatically benefit from performance improvements.
 
 ## [1.4.0] - 2025-12-15
 
 ### Added
+
 - **Price Alerts**: New `client.alerts` resource for automated price monitoring
 - **Alert CRUD Operations**: Complete create, read, update, delete operations
 - **Webhook Notifications**: HTTPS webhook support for alert triggers
@@ -86,6 +131,7 @@ None - This is a backwards-compatible bug fix. Existing code will continue to wo
   - `WebhookTestResponse` - Webhook test results
 
 ### Features
+
 - **Comprehensive Validation**: Input validation for all alert parameters
 - **Type Safety**: Full Pydantic models with datetime handling
 - **Error Handling**: Specific ValidationError exceptions with field details
@@ -93,7 +139,9 @@ None - This is a backwards-compatible bug fix. Existing code will continue to wo
 - **Documentation**: Complete docstrings with examples
 
 ### Supported Endpoints
+
 Now supports **12 endpoints** (up from 7):
+
 - `GET /v1/prices/latest` - Get latest commodity prices
 - `GET /v1/prices` - Get historical commodity prices
 - `GET /v1/commodities` - Get all commodities metadata
@@ -108,11 +156,13 @@ Now supports **12 endpoints** (up from 7):
 - `DELETE /v1/alerts/{id}` - Delete price alert (NEW)
 
 ### Testing
+
 - Added comprehensive test suite for alerts resource (22 test cases)
 - Tests cover all CRUD operations, validation, webhook testing, and DataFrame operations
 - 82% coverage of alerts functionality
 
 ### Breaking Changes
+
 None - This is a backwards-compatible feature addition.
 
 ### Example Usage
@@ -151,6 +201,7 @@ df = client.alerts.to_dataframe()
 ## [1.3.0] - 2025-12-15
 
 ### Added
+
 - **Diesel Prices Support**: New `client.diesel` resource for diesel price data
 - **State Average Diesel Prices**: `diesel.get_price(state)` - Get EIA state-level diesel averages (free tier)
 - **Station-Level Diesel Pricing**: `diesel.get_stations(lat, lng, radius)` - Get nearby diesel stations with current prices from Google Maps (paid tiers)
@@ -164,6 +215,7 @@ df = client.alerts.to_dataframe()
   - `DieselStationsMetadata` - Query metadata
 
 ### Features
+
 - **Input Validation**: Comprehensive validation for coordinates, state codes, and radius
 - **Error Handling**: Specific errors for tier restrictions (403) and rate limits (429)
 - **Type Safety**: Full Pydantic models for all diesel operations
@@ -171,7 +223,9 @@ df = client.alerts.to_dataframe()
 - **Documentation**: Complete docstrings with examples
 
 ### Supported Endpoints
+
 Now supports **7 endpoints** (up from 5):
+
 - `GET /v1/prices/latest` - Get latest commodity prices
 - `GET /v1/prices` - Get historical commodity prices
 - `GET /v1/commodities` - Get all commodities metadata
@@ -181,11 +235,13 @@ Now supports **7 endpoints** (up from 5):
 - `POST /v1/diesel-prices/stations` - Get nearby diesel stations (NEW)
 
 ### Testing
+
 - Added comprehensive test suite for diesel resource (18 test cases)
 - Tests cover input validation, error handling, and DataFrame operations
 - 100% coverage of diesel functionality
 
 ### Breaking Changes
+
 None - This is a backwards-compatible feature addition.
 
 ### Example Usage
@@ -212,6 +268,7 @@ print(df[["state", "price", "updated_at"]])
 ## [1.0.0] - 2025-09-29
 
 ### Added
+
 - 🎉 Initial release of OilPriceAPI Python SDK
 - ✅ Synchronous client (`OilPriceAPI`)
 - ✅ Asynchronous client (`AsyncOilPriceAPI`)
@@ -229,6 +286,7 @@ print(df[["state", "price", "updated_at"]])
 - ✅ Documentation and examples
 
 ### Features
+
 - **Current Prices**: Get latest commodity prices
 - **Historical Data**: Fetch past prices with flexible date ranges
 - **Multi-commodity**: Support for Brent, WTI, Natural Gas, and more
@@ -239,12 +297,14 @@ print(df[["state", "price", "updated_at"]])
 - **Type Safety**: Full Pydantic validation
 
 ### Security
+
 - Environment variable-based API key management
 - No hardcoded credentials
 - HTTPS-only communication
 - Safe error messages that don't leak secrets
 
 ### Documentation
+
 - Comprehensive README with examples
 - API reference documentation
 - Security policy (SECURITY.md)
@@ -252,6 +312,7 @@ print(df[["state", "price", "updated_at"]])
 - Example scripts and notebooks
 
 ### Supported Python Versions
+
 - Python 3.8+
 - Python 3.9
 - Python 3.10
@@ -263,6 +324,7 @@ print(df[["state", "price", "updated_at"]])
 ## [Unreleased]
 
 ### Planned
+
 - CLI tool (`oilprice` command)
 - WebSocket support for real-time prices
 - Advanced caching with Redis
@@ -285,17 +347,21 @@ pip install -e ".[dev]"
 ```
 
 ### Breaking Changes
+
 None - this is the initial release.
 
 ### Deprecations
+
 None.
 
 ### Migration Guide
+
 N/A for initial release.
 
 ---
 
 ## Links
+
 - [PyPI Package](https://pypi.org/project/oilpriceapi/)
 - [GitHub Repository](https://github.com/oilpriceapi/python-sdk)
 - [Documentation](https://docs.oilpriceapi.com/sdk/python)
