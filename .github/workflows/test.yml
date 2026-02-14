@@ -37,7 +37,7 @@ jobs:
         continue-on-error: true
 
       - name: Run unit tests
-        run: pytest tests/ -m 'not integration and not contract' --cov=oilpriceapi --cov-report=xml -v
+        run: pytest tests/ --ignore=tests/integration --ignore=tests/contract -m 'not slow' --cov=oilpriceapi --cov-report=xml -v
 
       - name: Upload coverage
         if: matrix.python-version == '3.12'
