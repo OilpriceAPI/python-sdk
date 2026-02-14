@@ -1,0 +1,38 @@
+name: Weekly SDK Health Check
+
+on:
+  schedule:
+    - cron: "0 14 * * 1" # Monday 6am PST / 2pm UTC
+  workflow_dispatch: {}
+
+jobs:
+  health-check:
+    name: Integration Health Check
+    runs-on: ubuntu-latest
+    env:
+      OILPRICEAPI_KEY: ${{ secrets.OILPRICEAPI_TEST_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      - name: Run integration tests
+        run: pytest tests/ -m 'integration' -v --timeout=60
+
+      - name: Run contract tests
+        run: pytest tests/ -m 'contract' -v --timeout=60
+
+      - name: Check for dependency vulnerabilities
+        run: |
+          pip install pip-audit
+          pip-audit --strict
+        continue-on-error: true
