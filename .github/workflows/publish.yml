@@ -29,7 +29,7 @@ jobs:
         continue-on-error: true
 
       - name: Run unit tests
-        run: pytest tests/ -m 'not integration and not contract' --cov=oilpriceapi -v
+        run: pytest tests/ --ignore=tests/integration --ignore=tests/contract -m 'not slow' --cov=oilpriceapi -v
 
   publish:
     name: Publish to PyPI
