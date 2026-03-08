@@ -9,7 +9,7 @@
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[Get Free API Key](https://oilpriceapi.com/auth/signup)** • **[Documentation](https://docs.oilpriceapi.com/sdk/python)** • **[Pricing](https://oilpriceapi.com/pricing)**
+**[Get Free API Key](https://www.oilpriceapi.com/signup?utm_source=pypi&utm_medium=sdk&utm_campaign=readme)** • **[Documentation](https://docs.oilpriceapi.com/sdk/python)** • **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)**
 
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - Real-time and historical oil prices for Brent Crude, WTI, Natural Gas, and more.
 
@@ -638,7 +638,7 @@ Contributions are welcome! Please see our [Contributing Guide](https://github.co
 
 - [OilPriceAPI Website](https://oilpriceapi.com)
 - [API Documentation](https://docs.oilpriceapi.com)
-- [Pricing](https://oilpriceapi.com/pricing)
+- [Pricing](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)
 - [Status Page](https://status.oilpriceapi.com)
 
 ---
@@ -655,8 +655,18 @@ Contributions are welcome! Please see our [Contributing Guide](https://github.co
 - 🚀 **5-minute integration** with this Python SDK
 - 💰 **Free tier** with 100 requests (lifetime) to get started
 
-**[Start Free →](https://oilpriceapi.com/auth/signup)** | **[View Pricing →](https://oilpriceapi.com/pricing)** | **[Read Docs →](https://docs.oilpriceapi.com)**
+**[Start Free →](https://www.oilpriceapi.com/signup?utm_source=pypi&utm_medium=sdk&utm_campaign=readme)** | **[View Pricing →](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)** | **[Read Docs →](https://docs.oilpriceapi.com)**
 
 ---
 
-Made with ❤️ by the OilPriceAPI Team
+## Also Available As
+
+- **[Node.js SDK](https://www.npmjs.com/package/oilpriceapi)** - TypeScript/JavaScript SDK for Node.js
+- **[Go SDK](https://github.com/OilpriceAPI/oilpriceapi-go)** - Idiomatic Go client
+- **[MCP Server](https://www.npmjs.com/package/oilpriceapi-mcp)** - Model Context Protocol server for Claude, Cursor, and VS Code
+- **[Google Sheets Add-on](https://github.com/OilpriceAPI/google-sheets-addin)** - Custom functions for spreadsheets
+- **[Excel Add-in](https://github.com/OilpriceAPI/excel-energy-addin)** - Energy price comparison in Excel
+
+---
+
+Made with care by the OilPriceAPI Team
