@@ -18,6 +18,7 @@ class TestHistoricalResource:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_historical_response
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -62,6 +63,7 @@ class TestHistoricalResource:
                 "has_prev": True,
             }
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -83,6 +85,7 @@ class TestHistoricalResource:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_historical_response
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -107,6 +110,7 @@ class TestHistoricalResource:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_historical_response
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -130,6 +134,7 @@ class TestHistoricalResource:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_historical_response
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -201,6 +206,8 @@ class TestHistoricalResource:
             }
         }
 
+        page1_response.headers = {"X-Total-Pages": "2", "X-Page": "1", "X-Per-Page": "500"}
+        page2_response.headers = {"X-Total-Pages": "2", "X-Page": "2", "X-Per-Page": "500"}
         mock_request.side_effect = [page1_response, page2_response]
 
         client = OilPriceAPI(api_key=api_key)
@@ -243,6 +250,7 @@ class TestHistoricalResource:
                     "has_prev": page > 1,
                 }
             }
+            response.headers = {"X-Total-Pages": "3", "X-Page": str(page), "X-Per-Page": "100"}
             responses.append(response)
 
         mock_request.side_effect = responses
@@ -270,6 +278,7 @@ class TestHistoricalResource:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_historical_response
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -326,6 +335,7 @@ class TestHistoricalResourceResponseHandling:
                 ]
             }
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -351,6 +361,7 @@ class TestHistoricalResourceResponseHandling:
                 }
             ]
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -369,6 +380,7 @@ class TestHistoricalResourceResponseHandling:
                 "prices": []
             }
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -390,6 +402,7 @@ class TestHistoricalResourceEndpointSelection:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -412,6 +425,7 @@ class TestHistoricalResourceEndpointSelection:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -434,6 +448,7 @@ class TestHistoricalResourceEndpointSelection:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -456,6 +471,7 @@ class TestHistoricalResourceEndpointSelection:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -478,6 +494,7 @@ class TestHistoricalResourceEndpointSelection:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -500,6 +517,7 @@ class TestHistoricalResourceTimeouts:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -522,6 +540,7 @@ class TestHistoricalResourceTimeouts:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -544,6 +563,7 @@ class TestHistoricalResourceTimeouts:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
@@ -566,6 +586,7 @@ class TestHistoricalResourceTimeouts:
             "status": "success",
             "data": {"prices": []}
         }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
         mock_request.return_value = mock_response
 
         client = OilPriceAPI(api_key=api_key)
