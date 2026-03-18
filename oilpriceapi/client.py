@@ -328,6 +328,107 @@ class OilPriceAPI:
 
         raise OilPriceAPIError("Max retries exceeded")
     
+    def request_with_headers(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        json_data: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        **kwargs
+    ) -> tuple:
+        """Make HTTP request and return (json_body, headers) tuple.
+
+        Identical to request() but also returns response headers so callers
+        can inspect pagination headers like X-Has-Next, X-Page, X-Per-Page.
+
+        Returns:
+            Tuple of (parsed JSON dict, httpx.Headers)
+        """
+        # Ensure path starts with / for proper urljoin behavior
+        if not path.startswith('/'):
+            path = '/' + path
+        url = urljoin(self.base_url + '/', path)
+
+        effective_timeout = timeout if timeout is not None else self.timeout
+
+        last_exception = None
+        for attempt in range(self.max_retries):
+            try:
+                response = self._client.request(
+                    method=method,
+                    url=url,
+                    params=params,
+                    json=json_data,
+                    timeout=effective_timeout,
+                    **kwargs
+                )
+
+                if response.status_code == 200:
+                    return response.json(), response.headers
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid API key or authentication failed")
+                elif response.status_code == 404:
+                    error_data = self._safe_parse_json(response)
+                    raise DataNotFoundError(
+                        message=error_data.get("error", "Resource not found"),
+                        commodity=params.get("commodity") if params else None,
+                    )
+                elif response.status_code == 422:
+                    error_data = self._safe_parse_json(response)
+                    raise ValidationError(
+                        message=error_data.get("error", "Validation failed"),
+                        field=error_data.get("field"),
+                        value=error_data.get("value"),
+                    )
+                elif response.status_code == 429:
+                    reset_time = self._parse_rate_limit_reset(response.headers)
+                    raise RateLimitError(
+                        message="Rate limit exceeded",
+                        reset_time=reset_time,
+                        limit=response.headers.get("X-RateLimit-Limit"),
+                        remaining=response.headers.get("X-RateLimit-Remaining"),
+                    )
+                elif response.status_code >= 500:
+                    if self._retry_strategy.should_retry(attempt, response.status_code):
+                        wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                        time.sleep(wait_time)
+                        continue
+                    raise ServerError(
+                        message=f"Server error: {response.status_code}",
+                        status_code=response.status_code,
+                    )
+                else:
+                    error_data = self._safe_parse_json(response)
+                    raise OilPriceAPIError(
+                        message=error_data.get("error", f"Unexpected error: {response.status_code}"),
+                        status_code=response.status_code,
+                        response=error_data,
+                    )
+
+            except httpx.TimeoutException:
+                last_exception = TimeoutError(
+                    message="Request timed out",
+                    timeout=self.timeout,
+                )
+                if self._retry_strategy.should_retry_on_exception(attempt):
+                    wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    time.sleep(wait_time)
+                    continue
+                raise last_exception
+            except httpx.RequestError as e:
+                last_exception = OilPriceAPIError(message=f"Request failed: {str(e)}")
+                if self._retry_strategy.should_retry_on_exception(attempt):
+                    wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    time.sleep(wait_time)
+                    continue
+                raise last_exception
+
+        if last_exception:
+            raise last_exception
+
+        raise OilPriceAPIError("Max retries exceeded")
+
     def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:
         """Safely parse JSON response."""
         try:

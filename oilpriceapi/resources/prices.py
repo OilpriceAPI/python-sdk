@@ -110,28 +110,60 @@ class PricesResource:
             return prices, failures
         return prices
     
-    def get_all(self) -> List[Price]:
+    def get_all(self, per_page: int = 100) -> List[Price]:
         """Get current prices for all available commodities.
-        
+
+        Auto-paginates using X-Has-Next response headers until all records
+        are retrieved.
+
+        Args:
+            per_page: Number of records per page (default 100, matches API default)
+
         Returns:
             List of Price objects for all commodities
-            
+
         Example:
             >>> all_prices = client.prices.get_all()
             >>> oil_prices = [p for p in all_prices if 'CRUDE' in p.commodity]
         """
-        response = self.client.request(
-            method="GET",
-            path="/v1/prices/all"
-        )
-        
-        # Parse response
-        if "data" in response:
-            prices_data = response["data"]
-        else:
-            prices_data = response
-        
-        return [Price(**price_data) for price_data in prices_data]
+        all_prices: List[Price] = []
+        page = 1
+
+        while True:
+            body, headers = self.client.request_with_headers(
+                method="GET",
+                path="/v1/prices/all",
+                params={"page": page, "per_page": per_page},
+            )
+
+            # Parse response
+            if "data" in body:
+                prices_data = body["data"]
+            else:
+                prices_data = body if isinstance(body, list) else []
+
+            for price_data in prices_data:
+                if isinstance(price_data, dict):
+                    mapped = {
+                        "commodity": price_data.get("code", ""),
+                        "value": price_data.get("price"),
+                        "currency": price_data.get("currency", "USD"),
+                        "unit": price_data.get("unit", "barrel"),
+                        "timestamp": price_data.get("created_at"),
+                    }
+                    all_prices.append(Price(**mapped))
+                else:
+                    # Fallback: already a Price-compatible object
+                    all_prices.append(Price(**price_data) if isinstance(price_data, dict) else price_data)
+
+            # Check pagination header
+            has_next = str(headers.get("X-Has-Next", "false")).lower() == "true"
+            if not has_next or not prices_data:
+                break
+
+            page += 1
+
+        return all_prices
     
     def to_dataframe(
         self,
@@ -139,22 +171,27 @@ class PricesResource:
         commodities: Optional[List[str]] = None,
         start: Optional[Union[str, datetime]] = None,
         end: Optional[Union[str, datetime]] = None,
-        interval: str = "daily"
+        interval: str = "daily",
+        per_page: int = 100,
     ):
         """Get price data as a pandas DataFrame.
-        
+
         Note: Requires pandas to be installed.
-        
+
         Args:
             commodity: Single commodity code
             commodities: Multiple commodity codes
             start: Start date for historical data
             end: End date for historical data
             interval: Data interval (minute, hourly, daily, weekly, monthly)
-            
+            per_page: Records per page when fetching all current prices.
+                      Default 100 (matches API default). Only used when neither
+                      ``commodity`` nor ``commodities`` is specified and no date
+                      range is given. Auto-pagination fetches all pages.
+
         Returns:
             pandas DataFrame with price data
-            
+
         Example:
             >>> df = client.prices.to_dataframe(
             ...     commodity="BRENT_CRUDE_USD",
@@ -208,7 +245,7 @@ class PricesResource:
             prices = self.get_multiple(commodities)
             df = pd.DataFrame([p.model_dump() for p in prices])
         else:
-            prices = self.get_all()
+            prices = self.get_all(per_page=per_page)
             df = pd.DataFrame([p.model_dump() for p in prices])
         
         # Set timestamp as index
