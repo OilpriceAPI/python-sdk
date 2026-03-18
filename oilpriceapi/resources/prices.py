@@ -136,25 +136,30 @@ class PricesResource:
                 params={"page": page, "per_page": per_page},
             )
 
-            # Parse response
-            if "data" in body:
-                prices_data = body["data"]
-            else:
-                prices_data = body if isinstance(body, list) else []
+            # Parse response — /v1/prices/all returns nested:
+            # {"status":"success","data":{"status":"success","data":{"prices":{CODE: {...}, ...}}}}
+            # Extract the prices dict regardless of nesting depth
+            prices_data = body
+            if isinstance(prices_data, dict) and "data" in prices_data:
+                prices_data = prices_data["data"]
+            if isinstance(prices_data, dict) and "data" in prices_data:
+                prices_data = prices_data["data"]
+            if isinstance(prices_data, dict) and "prices" in prices_data:
+                prices_data = prices_data["prices"]
 
-            for price_data in prices_data:
+            # prices_data is now either a dict {CODE: {...}} or a list [{...}]
+            items = prices_data.values() if isinstance(prices_data, dict) else (prices_data if isinstance(prices_data, list) else [])
+
+            for price_data in items:
                 if isinstance(price_data, dict):
                     mapped = {
                         "commodity": price_data.get("code", ""),
                         "value": price_data.get("price"),
                         "currency": price_data.get("currency", "USD"),
                         "unit": price_data.get("unit", "barrel"),
-                        "timestamp": price_data.get("created_at"),
+                        "timestamp": price_data.get("updated_at") or price_data.get("created_at"),
                     }
                     all_prices.append(Price(**mapped))
-                else:
-                    # Fallback: already a Price-compatible object
-                    all_prices.append(Price(**price_data) if isinstance(price_data, dict) else price_data)
 
             # Check pagination header
             has_next = str(headers.get("X-Has-Next", "false")).lower() == "true"

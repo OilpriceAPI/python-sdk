@@ -167,14 +167,15 @@ class HistoricalResource:
         # Calculate appropriate timeout
         request_timeout = self._calculate_timeout(start_date, end_date, timeout)
 
-        # Make request with optimal endpoint and timeout
-        response = self.client.request(
+        # Make request with optimal endpoint and timeout — use request_with_headers
+        # so we can read X-Has-Next for reliable pagination detection
+        response, headers = self.client.request_with_headers(
             method="GET",
             path=endpoint,
             params=params,
             timeout=request_timeout
         )
-        
+
         # Parse response - handle nested structure
         # API returns: {"status": "success", "data": {"prices": [...]}}
         if "data" in response and isinstance(response["data"], dict) and "prices" in response["data"]:
@@ -193,12 +194,20 @@ class HistoricalResource:
                     "created_at": price_data.get("created_at"),
                     "commodity_name": price_data.get("code", price_data.get("commodity_name")),
                     "price": price_data.get("price"),
+                    "currency": price_data.get("currency", "USD"),
                     "unit_of_measure": price_data.get("unit", "barrel"),
                     "type_name": price_data.get("type", "spot_price"),
                 }
                 prices.append(HistoricalPrice(**mapped_data))
-        
-        # Parse pagination metadata
+
+        # Parse pagination metadata — prefer response headers over body
+        # API uses X-Total-Pages (Kaminari-style) or X-Has-Next (custom)
+        total_pages = int(headers.get("X-Total-Pages", 0))
+        has_next_header = (
+            str(headers.get("X-Has-Next", "")).lower() == "true"
+            or (total_pages > 0 and page < total_pages)
+        )
+
         meta = None
         if "meta" in response:
             meta_data = response["meta"]
@@ -207,17 +216,17 @@ class HistoricalResource:
                 per_page=meta_data.get("per_page", per_page),
                 total=meta_data.get("total", len(prices)),
                 total_pages=meta_data.get("total_pages", 1),
-                has_next=meta_data.get("has_next", False),
+                has_next=meta_data.get("has_next", has_next_header),
                 has_prev=meta_data.get("has_prev", False),
             )
         else:
-            # Create default metadata if not in response
+            # Use X-Has-Next header for reliable pagination detection
             meta = PaginationMeta(
                 page=page,
                 per_page=per_page,
-                total=len(prices),
-                total_pages=1,
-                has_next=len(prices) == per_page,
+                total=int(headers.get("X-Total", len(prices))),
+                total_pages=int(headers.get("X-Total-Pages", 1)),
+                has_next=has_next_header,
                 has_prev=page > 1,
             )
         
@@ -265,7 +274,7 @@ class HistoricalResource:
                 end_date=end_date,
                 interval=interval,
                 page=page,
-                per_page=1000,  # Max per page
+                per_page=500,  # API max is 500 per page
                 type_name=type_name
             )
             
