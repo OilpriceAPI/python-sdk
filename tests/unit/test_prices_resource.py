@@ -181,6 +181,197 @@ class TestPricesResource:
         assert "pandas is required" in str(exc_info.value)
 
 
+class TestGetAllPagination:
+    """Test get_all auto-pagination via X-Has-Next header."""
+
+    @patch('httpx.Client.request')
+    def test_get_all_single_page(self, mock_request, api_key):
+        """Test get_all with a single page (X-Has-Next: false)."""
+        import httpx
+        mock_response = Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": [
+                {
+                    "code": "BRENT_CRUDE_USD",
+                    "price": 75.50,
+                    "currency": "USD",
+                    "unit": "barrel",
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+                {
+                    "code": "EU_CARBON_EUR",
+                    "price": 65.00,
+                    "currency": "EUR",
+                    "unit": "tonne",
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+            ],
+        }
+        mock_response.headers = {"X-Has-Next": "false"}
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        prices = client.prices.get_all()
+
+        assert len(prices) == 2
+        assert mock_request.call_count == 1
+
+    @patch('httpx.Client.request')
+    def test_get_all_multi_page(self, mock_request, api_key):
+        """Test get_all fetches all pages when X-Has-Next is true."""
+        import httpx
+
+        def make_response(data, has_next):
+            r = Mock(spec=httpx.Response)
+            r.status_code = 200
+            r.json.return_value = {"status": "success", "data": data}
+            r.headers = {"X-Has-Next": "true" if has_next else "false"}
+            return r
+
+        page1_data = [
+            {
+                "code": "BRENT_CRUDE_USD",
+                "price": 75.50,
+                "currency": "USD",
+                "unit": "barrel",
+                "created_at": "2024-01-15T10:00:00Z",
+            }
+        ]
+        page2_data = [
+            {
+                "code": "WTI_USD",
+                "price": 70.25,
+                "currency": "USD",
+                "unit": "barrel",
+                "created_at": "2024-01-15T10:00:00Z",
+            }
+        ]
+
+        mock_request.side_effect = [
+            make_response(page1_data, has_next=True),
+            make_response(page2_data, has_next=False),
+        ]
+
+        client = OilPriceAPI(api_key=api_key)
+        prices = client.prices.get_all(per_page=1)
+
+        assert len(prices) == 2
+        assert mock_request.call_count == 2
+        assert prices[0].commodity == "BRENT_CRUDE_USD"
+        assert prices[1].commodity == "WTI_USD"
+
+    @patch('httpx.Client.request')
+    def test_get_all_preserves_currency(self, mock_request, api_key):
+        """Bug 1: get_all must preserve each record's currency field."""
+        import httpx
+        mock_response = Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": [
+                {
+                    "code": "EU_CARBON_EUR",
+                    "price": 65.00,
+                    "currency": "EUR",
+                    "unit": "tonne",
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+                {
+                    "code": "NATURAL_GAS_GBP",
+                    "price": 90.00,
+                    "currency": "GBP",
+                    "unit": "therm",
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+                {
+                    "code": "BRENT_CRUDE_USD",
+                    "price": 75.50,
+                    "currency": "USD",
+                    "unit": "barrel",
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+            ],
+        }
+        mock_response.headers = {"X-Has-Next": "false"}
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        prices = client.prices.get_all()
+
+        by_code = {p.commodity: p for p in prices}
+        assert by_code["EU_CARBON_EUR"].currency == "EUR"
+        assert by_code["NATURAL_GAS_GBP"].currency == "GBP"
+        assert by_code["BRENT_CRUDE_USD"].currency == "USD"
+
+    @patch('httpx.Client.request')
+    def test_to_dataframe_currency_column(self, mock_request, api_key):
+        """Bug 1: to_dataframe() currency column must reflect each commodity's currency."""
+        pytest.importorskip("pandas")
+        import httpx
+        mock_response = Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": [
+                {
+                    "code": "EU_CARBON_EUR",
+                    "price": 65.00,
+                    "currency": "EUR",
+                    "unit": "tonne",
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+                {
+                    "code": "BRENT_CRUDE_USD",
+                    "price": 75.50,
+                    "currency": "USD",
+                    "unit": "barrel",
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+            ],
+        }
+        mock_response.headers = {"X-Has-Next": "false"}
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        df = client.prices.to_dataframe()
+
+        assert "currency" in df.columns
+        currencies = dict(zip(df["commodity"], df["currency"]))
+        assert currencies["EU_CARBON_EUR"] == "EUR"
+        assert currencies["BRENT_CRUDE_USD"] == "USD"
+
+    @patch('httpx.Client.request')
+    def test_to_dataframe_per_page_parameter(self, mock_request, api_key):
+        """Bug 2: to_dataframe() per_page parameter is forwarded to get_all."""
+        pytest.importorskip("pandas")
+        import httpx
+        mock_response = Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": [
+                {
+                    "code": "BRENT_CRUDE_USD",
+                    "price": 75.50,
+                    "currency": "USD",
+                    "unit": "barrel",
+                    "created_at": "2024-01-15T10:00:00Z",
+                }
+            ],
+        }
+        mock_response.headers = {"X-Has-Next": "false"}
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        df = client.prices.to_dataframe(per_page=50)
+
+        # Verify per_page was included in the request params
+        call_kwargs = mock_request.call_args.kwargs
+        assert call_kwargs["params"]["per_page"] == 50
+
+
 class TestPricesResourceErrorHandling:
     """Test error handling in prices resource."""
 
