@@ -4,7 +4,7 @@ EI Rig Counts Resource
 Energy Intelligence rig count data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class EIRigCountsResource:

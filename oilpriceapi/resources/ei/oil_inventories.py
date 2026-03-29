@@ -4,7 +4,7 @@ EI Oil Inventories Resource
 Energy Intelligence oil inventory data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class EIOilInventoriesResource:

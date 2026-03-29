@@ -5,27 +5,27 @@ Current price operations.
 """
 from __future__ import annotations
 
-from typing import List, Optional, Union
 from datetime import datetime
+from typing import List, Optional, Union
 
-from ..models import Price, PriceResponse, MultiplePricesResponse
+from ..models import Price
 
 
 class PricesResource:
     """Resource for current price operations."""
-    
+
     def __init__(self, client):
         self.client = client
-    
+
     def get(self, commodity: str) -> Price:
         """Get current price for a single commodity.
-        
+
         Args:
             commodity: Commodity code (e.g., "BRENT_CRUDE_USD")
-            
+
         Returns:
             Price object with current data
-            
+
         Example:
             >>> price = client.prices.get("BRENT_CRUDE_USD")
             >>> print(f"Brent: ${price.value:.2f}")
@@ -35,7 +35,7 @@ class PricesResource:
             path="/v1/prices/latest",
             params={"by_code": commodity}
         )
-        
+
         # Parse response
         if "data" in response:
             price_data = response["data"]
@@ -55,7 +55,7 @@ class PricesResource:
         }
 
         return Price(**mapped_data)
-    
+
     def get_multiple(
         self,
         commodities: List[str],
@@ -110,7 +110,7 @@ class PricesResource:
         if return_failures:
             return prices, failures
         return prices
-    
+
     def get_all(self, per_page: int = 100) -> List[Price]:
         """Get current prices for all available commodities.
 
@@ -170,7 +170,7 @@ class PricesResource:
             page += 1
 
         return all_prices
-    
+
     def to_dataframe(
         self,
         commodity: Optional[str] = None,
@@ -213,12 +213,12 @@ class PricesResource:
                 "pandas is required for DataFrame support. "
                 "Install with: pip install oilpriceapi[pandas]"
             )
-        
+
         # If historical data requested, use historical endpoint
         if start or end:
             from .historical import HistoricalResource
             hist = HistoricalResource(self.client)
-            
+
             if commodity:
                 df = hist.to_dataframe(
                     commodity=commodity,
@@ -240,9 +240,9 @@ class PricesResource:
                 df = pd.concat(dfs, ignore_index=True)
             else:
                 raise ValueError("Either commodity or commodities must be specified")
-            
+
             return df
-        
+
         # Current prices only
         if commodity:
             price = self.get(commodity)
@@ -253,10 +253,10 @@ class PricesResource:
         else:
             prices = self.get_all(per_page=per_page)
             df = pd.DataFrame([p.model_dump() for p in prices])
-        
+
         # Set timestamp as index
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"])
             df.set_index("timestamp", inplace=True)
-        
+
         return df

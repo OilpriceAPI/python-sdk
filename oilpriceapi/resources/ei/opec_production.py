@@ -4,7 +4,7 @@ EI OPEC Production Resource
 Energy Intelligence OPEC production data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class EIOpecProductionResource:

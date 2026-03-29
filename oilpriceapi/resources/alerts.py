@@ -4,10 +4,10 @@ Price Alerts Resource
 Manage price alert configurations for automated notifications.
 """
 
-from typing import Optional, List, Dict, Any
-from ..exceptions import ValidationError, OilPriceAPIError
-from ..models import PriceAlert, WebhookTestResponse
+from typing import Any, Dict, List, Optional
 
+from ..exceptions import ValidationError
+from ..models import PriceAlert
 
 # Valid alert operators
 VALID_OPERATORS = [
@@ -614,7 +614,7 @@ class AlertsResource:
             return response["data"]
         return response
 
-    def to_dataframe(self) -> 'pandas.DataFrame':
+    def to_dataframe(self):  # -> pandas.DataFrame
         """
         Convert all price alerts to a pandas DataFrame.
 

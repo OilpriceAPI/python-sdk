@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Any, Union
-from datetime import datetime, date
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Union
 
-from .models import DieselPrice, DieselStationsResponse, PriceAlert
 from .exceptions import ValidationError
+from .models import DieselPrice, DieselStationsResponse, PriceAlert
 from .resource_validators import VALID_OPERATORS, format_date
 
 

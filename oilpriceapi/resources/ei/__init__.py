@@ -4,14 +4,15 @@ Energy Intelligence (EI) Resources
 Energy Intelligence data resource modules.
 """
 
-from typing import Dict, Any
-from .rig_counts import EIRigCountsResource
-from .oil_inventories import EIOilInventoriesResource
-from .opec_production import EIOpecProductionResource
+from typing import Any, Dict
+
 from .drilling_productivity import EIDrillingProductivityResource
 from .forecasts import EIForecastsResource
-from .well_permits import EIWellPermitsResource
 from .frac_focus import EIFracFocusResource
+from .oil_inventories import EIOilInventoriesResource
+from .opec_production import EIOpecProductionResource
+from .rig_counts import EIRigCountsResource
+from .well_permits import EIWellPermitsResource
 
 
 class EnergyIntelligenceResource:

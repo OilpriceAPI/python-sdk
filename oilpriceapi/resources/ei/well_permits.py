@@ -4,7 +4,7 @@ EI Well Permits Resource
 Energy Intelligence well permit data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class EIWellPermitsResource:

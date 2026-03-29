@@ -4,8 +4,8 @@ Historical Data Resource
 Historical price data operations.
 """
 
-from typing import List, Optional, Union, Generator
-from datetime import datetime, date
+from datetime import date, datetime
+from typing import Generator, List, Optional, Union
 
 from ..models import HistoricalPrice, HistoricalResponse, PaginationMeta
 
@@ -229,13 +229,13 @@ class HistoricalResource:
                 has_next=has_next_header,
                 has_prev=page > 1,
             )
-        
+
         return HistoricalResponse(
             success=True,
             data=prices,
             meta=meta
         )
-    
+
     def get_all(
         self,
         commodity: str,
@@ -245,17 +245,17 @@ class HistoricalResource:
         type_name: str = "spot_price"
     ) -> List[HistoricalPrice]:
         """Get all historical data (handles pagination automatically).
-        
+
         Args:
             commodity: Commodity code
             start_date: Start date for data range
             end_date: End date for data range
             interval: Data interval
             type_name: Price type
-            
+
         Returns:
             List of all HistoricalPrice objects
-            
+
         Example:
             >>> all_data = client.historical.get_all(
             ...     commodity="WTI_USD",
@@ -266,7 +266,7 @@ class HistoricalResource:
         """
         all_prices = []
         page = 1
-        
+
         while True:
             response = self.get(
                 commodity=commodity,
@@ -277,16 +277,16 @@ class HistoricalResource:
                 per_page=500,  # API max is 500 per page
                 type_name=type_name
             )
-            
+
             all_prices.extend(response.data)
-            
+
             if not response.meta or not response.meta.has_next:
                 break
-            
+
             page += 1
-        
+
         return all_prices
-    
+
     def iter_pages(
         self,
         commodity: str,
@@ -297,9 +297,9 @@ class HistoricalResource:
         type_name: str = "spot_price"
     ) -> Generator[List[HistoricalPrice], None, None]:
         """Iterate through pages of historical data.
-        
+
         Memory efficient iterator for large datasets.
-        
+
         Args:
             commodity: Commodity code
             start_date: Start date for data range
@@ -307,17 +307,17 @@ class HistoricalResource:
             interval: Data interval
             per_page: Items per page
             type_name: Price type
-            
+
         Yields:
             List of HistoricalPrice objects for each page
-            
+
         Example:
             >>> for page_data in client.historical.iter_pages("NATURAL_GAS_USD"):
             ...     process_batch(page_data)
             ...     print(f"Processed {len(page_data)} records")
         """
         page = 1
-        
+
         while True:
             response = self.get(
                 commodity=commodity,
@@ -328,15 +328,15 @@ class HistoricalResource:
                 per_page=per_page,
                 type_name=type_name
             )
-            
+
             if response.data:
                 yield response.data
-            
+
             if not response.meta or not response.meta.has_next:
                 break
-            
+
             page += 1
-    
+
     def to_dataframe(
         self,
         commodity: str,
@@ -346,19 +346,19 @@ class HistoricalResource:
         type_name: str = "spot_price"
     ):
         """Get historical data as a pandas DataFrame.
-        
+
         Note: Requires pandas to be installed.
-        
+
         Args:
             commodity: Commodity code
             start: Start date
             end: End date
             interval: Data interval
             type_name: Price type
-            
+
         Returns:
             pandas DataFrame with historical prices
-            
+
         Example:
             >>> df = client.historical.to_dataframe(
             ...     commodity="BRENT_CRUDE_USD",
@@ -375,7 +375,7 @@ class HistoricalResource:
                 "pandas is required for DataFrame support. "
                 "Install with: pip install oilpriceapi[pandas]"
             )
-        
+
         # Get all data
         prices = self.get_all(
             commodity=commodity,
@@ -384,22 +384,22 @@ class HistoricalResource:
             interval=interval,
             type_name=type_name
         )
-        
+
         # Convert to DataFrame
         df = pd.DataFrame([p.model_dump() for p in prices])
-        
+
         # Set date as index
         if "date" in df.columns:
             df["date"] = pd.to_datetime(df["date"])
             df.set_index("date", inplace=True)
             df.sort_index(inplace=True)
-        
+
         # Ensure numeric types
         if "value" in df.columns:
             df["value"] = pd.to_numeric(df["value"], errors="coerce")
-        
+
         return df
-    
+
     def _format_date(self, date_input: Union[str, date, datetime]) -> str:
         """Format date for API."""
         if isinstance(date_input, str):

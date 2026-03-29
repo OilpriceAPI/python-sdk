@@ -4,9 +4,8 @@ Bunker Fuels Resource
 Marine bunker fuel price operations.
 """
 
-from typing import List, Dict, Any, Optional
-from datetime import datetime, date
-from typing import Union
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Union
 
 
 class BunkerFuelsResource:

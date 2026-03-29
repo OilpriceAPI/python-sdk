@@ -4,7 +4,7 @@ EI Drilling Productivity Resource
 Energy Intelligence drilling productivity data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class EIDrillingProductivityResource:

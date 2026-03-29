@@ -4,7 +4,7 @@ Forecasts Resource
 EIA and agency price forecast operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class ForecastsResource:

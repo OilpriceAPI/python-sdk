@@ -4,7 +4,7 @@ Data Sources Resource
 Data source connector management operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class DataSourcesResource:
