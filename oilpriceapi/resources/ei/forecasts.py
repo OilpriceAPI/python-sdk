@@ -4,7 +4,7 @@ EI Forecasts Resource
 Energy Intelligence forecast data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class EIForecastsResource:

@@ -13,8 +13,8 @@ Usage:
 Requires: pip install oilpriceapi[cli]
 """
 
-import sys
 import os
+import sys
 
 try:
     import click
@@ -96,7 +96,7 @@ def price(commodities, as_json):
             updated = str(p.last_updated) if hasattr(p, "last_updated") else ""
             table.add_row(code, price_str, currency, updated)
         except Exception as e:
-            table.add_row(code, f"[red]Error[/red]", "", str(e))
+            table.add_row(code, "[red]Error[/red]", "", str(e))
 
     console.print(table)
 

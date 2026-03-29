@@ -5,69 +5,69 @@ Async/await support for high-performance applications.
 """
 from __future__ import annotations
 
-import os
-import logging
-from typing import Optional, Dict, Any, Union, List, AsyncGenerator
-import httpx
-from datetime import datetime
-import json
 import asyncio
+import json
+import logging
+import os
+from datetime import datetime
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 from urllib.parse import urljoin
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
-from .retry import RetryStrategy
-from .exceptions import (
-    OilPriceAPIError,
-    AuthenticationError,
-    RateLimitError,
-    DataNotFoundError,
-    ServerError,
-    TimeoutError,
-    ValidationError,
-    ConfigurationError,
-)
-from .models import Price, HistoricalPrice, HistoricalResponse
 from .async_resources import (
-    AsyncDieselResource,
     AsyncAlertsResource,
-    AsyncCommoditiesResource,
-    AsyncFuturesResource,
-    AsyncStorageResource,
-    AsyncRigCountsResource,
-    AsyncBunkerFuelsResource,
     AsyncAnalyticsResource,
-    AsyncForecastsResource,
+    AsyncBunkerFuelsResource,
+    AsyncCommoditiesResource,
     AsyncDataQualityResource,
+    AsyncDataSourcesResource,
+    AsyncDieselResource,
     AsyncDrillingIntelligenceResource,
     AsyncEnergyIntelligenceResource,
+    AsyncForecastsResource,
+    AsyncFuturesResource,
+    AsyncRigCountsResource,
+    AsyncStorageResource,
     AsyncWebhooksResource,
-    AsyncDataSourcesResource,
 )
+from .exceptions import (
+    AuthenticationError,
+    ConfigurationError,
+    DataNotFoundError,
+    OilPriceAPIError,
+    RateLimitError,
+    ServerError,
+    TimeoutError,
+)
+from .models import HistoricalPrice, HistoricalResponse, Price
+from .retry import RetryStrategy
 
 
 class AsyncOilPriceAPI:
     """Asynchronous client for OilPriceAPI.
-    
+
     Provides async/await support for all API operations.
-    
+
     Args:
         api_key: API key for authentication
         base_url: Base URL for API
         timeout: Request timeout in seconds
         max_retries: Maximum retry attempts
-        
+
     Example:
         >>> async with AsyncOilPriceAPI() as client:
         ...     price = await client.prices.get("BRENT_CRUDE_USD")
         ...     print(f"Brent: ${price.value:.2f}")
     """
-    
+
     DEFAULT_BASE_URL = "https://api.oilpriceapi.com"
     DEFAULT_TIMEOUT = 30
     DEFAULT_MAX_RETRIES = 3
     DEFAULT_RETRY_CODES = [429, 500, 502, 503, 504]
-    
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -107,7 +107,8 @@ class AsyncOilPriceAPI:
 
         # Build headers
         import sys
-        from .version import SDK_VERSION, SDK_NAME
+
+        from .version import SDK_NAME, SDK_VERSION
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         self.headers = {
             "Authorization": f"Token {self.api_key}",
@@ -126,10 +127,10 @@ class AsyncOilPriceAPI:
 
         if headers:
             self.headers.update(headers)
-        
+
         # Client will be created in __aenter__ or when needed
         self._client = None
-        
+
         # Initialize resources
         self.prices = AsyncPricesResource(self)
         self.historical = AsyncHistoricalResource(self)
@@ -174,7 +175,7 @@ class AsyncOilPriceAPI:
                 limits=limits,
                 follow_redirects=True,
             )
-    
+
     async def request(
         self,
         method: str,
@@ -185,12 +186,12 @@ class AsyncOilPriceAPI:
     ) -> Union[Dict[str, Any], list]:
         """Make async HTTP request to API."""
         await self._ensure_client()
-        
+
         # Ensure path starts with / for proper urljoin behavior
         if not path.startswith('/'):
             path = '/' + path
         url = urljoin(self.base_url + '/', path)
-        
+
         # Retry logic
         import time as _time
         start_time = _time.time()
@@ -320,7 +321,7 @@ class AsyncOilPriceAPI:
             return response.json()
         except json.JSONDecodeError:
             return {"error": response.text or "Unknown error"}
-    
+
     def _parse_rate_limit_reset(self, headers: Dict[str, str]) -> Optional[datetime]:
         """Parse rate limit reset time."""
         reset_header = headers.get("X-RateLimit-Reset")
@@ -334,19 +335,19 @@ class AsyncOilPriceAPI:
                 except (ValueError, TypeError):
                     pass
         return None
-    
+
     async def close(self):
         """Close the HTTP client and flush telemetry."""
         self._telemetry.close()
         if self._client:
             await self._client.aclose()
             self._client = None
-    
+
     async def __aenter__(self):
         """Async context manager entry."""
         await self._ensure_client()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         await self.close()
@@ -354,10 +355,10 @@ class AsyncOilPriceAPI:
 
 class AsyncPricesResource:
     """Async resource for current prices."""
-    
+
     def __init__(self, client: AsyncOilPriceAPI):
         self.client = client
-    
+
     async def get(self, commodity: str) -> Price:
         """Get current price for commodity."""
         response = await self.client.request(
@@ -365,7 +366,7 @@ class AsyncPricesResource:
             path="/v1/prices/latest",
             params={"by_code": commodity}
         )
-        
+
         if "data" in response:
             price_data = response["data"]
         else:
@@ -383,7 +384,7 @@ class AsyncPricesResource:
         }
 
         return Price(**mapped_data)
-    
+
     async def get_multiple(
         self,
         commodities: List[str],
@@ -403,7 +404,6 @@ class AsyncPricesResource:
         Raises:
             OilPriceAPIError: If raise_on_error=True and any commodity fails
         """
-        from .exceptions import OilPriceAPIError
 
         # Use gather for concurrent requests
         tasks = [self.get(commodity) for commodity in commodities]
@@ -423,28 +423,28 @@ class AsyncPricesResource:
         if return_failures:
             return prices, failures
         return prices
-    
+
     async def get_all(self) -> List[Price]:
         """Get all available prices."""
         response = await self.client.request(
             method="GET",
             path="/v1/prices/all"
         )
-        
+
         if "data" in response:
             prices_data = response["data"]
         else:
             prices_data = response
-        
+
         return [Price(**price_data) for price_data in prices_data]
 
 
 class AsyncHistoricalResource:
     """Async resource for historical data."""
-    
+
     def __init__(self, client: AsyncOilPriceAPI):
         self.client = client
-    
+
     async def get(
         self,
         commodity: str,
@@ -463,18 +463,18 @@ class AsyncHistoricalResource:
             "per_page": min(per_page, 1000),
             "by_type": type_name,
         }
-        
+
         if start_date:
             params["start_date"] = start_date
         if end_date:
             params["end_date"] = end_date
-        
+
         response = await self.client.request(
             method="GET",
             path="/v1/prices/past_year",
             params=params
         )
-        
+
         # Parse response - handle nested structure
         # API returns: {"status": "success", "data": {"prices": [...]}}
         if "data" in response and isinstance(response["data"], dict) and "prices" in response["data"]:
@@ -497,13 +497,13 @@ class AsyncHistoricalResource:
                     "type_name": price_data.get("type", "spot_price"),
                 }
                 prices.append(HistoricalPrice(**mapped_data))
-        
+
         return HistoricalResponse(
             success=True,
             data=prices,
             meta=None  # Simplified for now
         )
-    
+
     async def get_all(
         self,
         commodity: str,
@@ -514,7 +514,7 @@ class AsyncHistoricalResource:
         """Get all historical data with automatic pagination."""
         all_prices = []
         page = 1
-        
+
         while True:
             response = await self.get(
                 commodity=commodity,
@@ -524,13 +524,13 @@ class AsyncHistoricalResource:
                 page=page,
                 per_page=1000
             )
-            
+
             all_prices.extend(response.data)
-            
+
             # Check if we got a full page (might be more)
             if len(response.data) < 1000:
                 break
-            
+
             page += 1
 
         return all_prices

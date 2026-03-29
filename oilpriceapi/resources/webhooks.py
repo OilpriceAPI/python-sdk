@@ -4,7 +4,7 @@ Webhooks Resource
 Webhook endpoint management operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class WebhooksResource:
@@ -272,8 +272,8 @@ class WebhooksResource:
             ...         abort(401)
             ...     return '', 200
         """
-        import hmac
         import hashlib
+        import hmac
 
         expected = "sha256=" + hmac.new(
             secret.encode(), payload, hashlib.sha256

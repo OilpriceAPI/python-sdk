@@ -4,7 +4,7 @@ Commodities Resource
 Commodity catalog and category operations.
 """
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 class CommoditiesResource:

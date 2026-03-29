@@ -4,7 +4,7 @@ EI FracFocus Resource
 Energy Intelligence FracFocus data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class EIFracFocusResource:

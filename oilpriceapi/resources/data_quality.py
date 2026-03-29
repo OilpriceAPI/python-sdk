@@ -4,7 +4,7 @@ Data Quality Resource
 Data quality monitoring and reporting operations.
 """
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 class DataQualityResource:

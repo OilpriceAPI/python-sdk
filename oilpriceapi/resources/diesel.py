@@ -4,11 +4,10 @@ Diesel Prices Resource
 State-level diesel averages and station-level pricing operations.
 """
 
-from typing import Optional, List, Union
-from datetime import datetime
+from typing import List, Optional
 
-from ..models import DieselPrice, DieselStation, DieselStationsResponse
 from ..exceptions import ValidationError
+from ..models import DieselPrice, DieselStationsResponse
 
 
 class DieselResource:

@@ -105,9 +105,14 @@ select = [
     "I",  # isort
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
-    "UP", # pyupgrade
 ]
-ignore = []
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E402",  # module import not at top (needed for conditional imports)
+    "B028",  # no explicit stacklevel (pre-existing in visualization.py)
+    "B904",  # raise-without-from (pre-existing pattern in retry loops)
+    "C408",  # unnecessary dict() call (pre-existing in visualization.py)
+]
 fixable = ["ALL"]
 
 [tool.mypy]

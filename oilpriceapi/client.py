@@ -4,45 +4,46 @@ OilPriceAPI Client
 Main client class for interacting with OilPriceAPI.
 """
 
-import os
-import logging
-from typing import Optional, Dict, Any, Union, List
-import httpx
-from datetime import datetime, timedelta
 import json
+import logging
+import os
 import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
-from .retry import RetryStrategy
 from .exceptions import (
-    OilPriceAPIError,
     AuthenticationError,
-    RateLimitError,
+    ConfigurationError,
     DataNotFoundError,
+    OilPriceAPIError,
+    RateLimitError,
     ServerError,
     TimeoutError,
     ValidationError,
-    ConfigurationError,
 )
-from .models import Price, PriceResponse, HistoricalResponse, DataConnectorPrice
-from .resources.prices import PricesResource
-from .resources.historical import HistoricalResource
-from .resources.diesel import DieselResource
+from .models import DataConnectorPrice
 from .resources.alerts import AlertsResource
-from .resources.commodities import CommoditiesResource
-from .resources.futures import FuturesResource
-from .resources.storage import StorageResource
-from .resources.rig_counts import RigCountsResource
-from .resources.bunker_fuels import BunkerFuelsResource
 from .resources.analytics import AnalyticsResource
-from .resources.forecasts import ForecastsResource
+from .resources.bunker_fuels import BunkerFuelsResource
+from .resources.commodities import CommoditiesResource
 from .resources.data_quality import DataQualityResource
+from .resources.data_sources import DataSourcesResource
+from .resources.diesel import DieselResource
 from .resources.drilling import DrillingIntelligenceResource
 from .resources.ei import EnergyIntelligenceResource
+from .resources.forecasts import ForecastsResource
+from .resources.futures import FuturesResource
+from .resources.historical import HistoricalResource
+from .resources.prices import PricesResource
+from .resources.rig_counts import RigCountsResource
+from .resources.storage import StorageResource
 from .resources.webhooks import WebhooksResource
-from .resources.data_sources import DataSourcesResource
+from .retry import RetryStrategy
 
 
 class OilPriceAPI:
@@ -76,12 +77,12 @@ class OilPriceAPI:
         ... finally:
         ...     client.close()
     """
-    
+
     DEFAULT_BASE_URL = "https://api.oilpriceapi.com"
     DEFAULT_TIMEOUT = 30
     DEFAULT_MAX_RETRIES = 3
     DEFAULT_RETRY_CODES = [429, 500, 502, 503, 504]
-    
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -118,14 +119,15 @@ class OilPriceAPI:
             f"Initialized OilPriceAPI client: base_url={self.base_url}, "
             f"timeout={self.timeout}s, max_retries={self.max_retries}"
         )
-        
+
         # Store telemetry settings
         self.app_url = app_url
         self.app_name = app_name
 
         # Build headers
         import sys
-        from .version import SDK_VERSION, SDK_NAME
+
+        from .version import SDK_NAME, SDK_VERSION
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         self.headers = {
             "Authorization": f"Token {self.api_key}",
@@ -144,7 +146,7 @@ class OilPriceAPI:
 
         if headers:
             self.headers.update(headers)
-        
+
         # Create HTTP client
         self._client = httpx.Client(
             base_url=self.base_url,
@@ -152,7 +154,7 @@ class OilPriceAPI:
             timeout=self.timeout,
             follow_redirects=True,
         )
-        
+
         # Initialize resources
         self.prices = PricesResource(self)
         self.historical = HistoricalResource(self)
@@ -181,7 +183,7 @@ class OilPriceAPI:
         # Initialize telemetry (opt-in, disabled by default)
         from .telemetry import Telemetry
         self._telemetry = Telemetry(enabled=enable_telemetry)
-    
+
     def request(
         self,
         method: str,
@@ -310,7 +312,7 @@ class OilPriceAPI:
                         response=error_data,
                     )
 
-            except httpx.TimeoutException as e:
+            except httpx.TimeoutException:
                 last_exception = TimeoutError(
                     message="Request timed out",
                     timeout=self.timeout,
@@ -479,7 +481,7 @@ class OilPriceAPI:
             return response.json()
         except json.JSONDecodeError:
             return {"error": response.text or "Unknown error"}
-    
+
     def _parse_rate_limit_reset(self, headers: Dict[str, str]) -> Optional[datetime]:
         """Parse rate limit reset time from headers."""
         reset_header = headers.get("X-RateLimit-Reset")
@@ -540,15 +542,15 @@ class OilPriceAPI:
         """Close the HTTP client and flush telemetry."""
         self._telemetry.close()
         self._client.close()
-    
+
     def __enter__(self):
         """Context manager entry."""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
-    
+
     def __del__(self):
         """Cleanup on deletion.
 

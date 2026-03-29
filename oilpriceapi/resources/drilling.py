@@ -4,7 +4,7 @@ Drilling Intelligence Resource
 Drilling and completion activity data operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
 
 class DrillingIntelligenceResource:

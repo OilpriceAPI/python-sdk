@@ -36,14 +36,12 @@ What we DON'T collect:
 - Any user identifiable information
 """
 
-import os
-import sys
-import time
 import platform
+import sys
 import threading
-from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
-import json
+import time
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 try:
     import httpx

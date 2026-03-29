@@ -4,22 +4,22 @@ OilPriceAPI Resources
 Resource modules for different API endpoints.
 """
 
-from .prices import PricesResource
-from .historical import HistoricalResource
-from .diesel import DieselResource
 from .alerts import AlertsResource
-from .commodities import CommoditiesResource
-from .futures import FuturesResource
-from .storage import StorageResource
-from .rig_counts import RigCountsResource
-from .bunker_fuels import BunkerFuelsResource
 from .analytics import AnalyticsResource
-from .forecasts import ForecastsResource
+from .bunker_fuels import BunkerFuelsResource
+from .commodities import CommoditiesResource
 from .data_quality import DataQualityResource
+from .data_sources import DataSourcesResource
+from .diesel import DieselResource
 from .drilling import DrillingIntelligenceResource
 from .ei import EnergyIntelligenceResource
+from .forecasts import ForecastsResource
+from .futures import FuturesResource
+from .historical import HistoricalResource
+from .prices import PricesResource
+from .rig_counts import RigCountsResource
+from .storage import StorageResource
 from .webhooks import WebhooksResource
-from .data_sources import DataSourcesResource
 
 __all__ = [
     "PricesResource",
