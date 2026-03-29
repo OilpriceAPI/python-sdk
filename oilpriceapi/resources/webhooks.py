@@ -246,3 +246,37 @@ class WebhooksResource:
         if "data" in response:
             return response["data"]
         return response
+
+    @staticmethod
+    def verify_signature(payload: bytes, signature: str, secret: str) -> bool:
+        """Verify a webhook signature.
+
+        Validates that a webhook payload was sent by OilPriceAPI by checking
+        the HMAC-SHA256 signature. Uses constant-time comparison to prevent
+        timing attacks.
+
+        Args:
+            payload: Raw request body as bytes
+            signature: Value of the X-OilPriceAPI-Signature header (e.g., "sha256=abc123...")
+            secret: Your webhook signing secret
+
+        Returns:
+            True if signature is valid
+
+        Example:
+            >>> # Flask example
+            >>> @app.route('/webhook', methods=['POST'])
+            >>> def handle_webhook():
+            ...     sig = request.headers.get('X-OilPriceAPI-Signature', '')
+            ...     if not client.webhooks.verify_signature(request.data, sig, 'secret'):
+            ...         abort(401)
+            ...     return '', 200
+        """
+        import hmac
+        import hashlib
+
+        expected = "sha256=" + hmac.new(
+            secret.encode(), payload, hashlib.sha256
+        ).hexdigest()
+
+        return hmac.compare_digest(expected, signature)

@@ -194,7 +194,7 @@ class HistoricalResource:
                     "created_at": price_data.get("created_at"),
                     "commodity_name": price_data.get("code", price_data.get("commodity_name")),
                     "price": price_data.get("price"),
-                    "currency": price_data.get("currency", "USD"),
+                    "currency": price_data.get("currency"),
                     "unit_of_measure": price_data.get("unit", "barrel"),
                     "type_name": price_data.get("type", "spot_price"),
                 }

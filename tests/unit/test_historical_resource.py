@@ -600,3 +600,66 @@ class TestHistoricalResourceTimeouts:
         # Verify custom timeout was used
         call_args = mock_request.call_args
         assert call_args.kwargs["timeout"] == 180
+
+
+class TestHistoricalResourceCurrencyPassthrough:
+    """Test that currency is passed through from API, not hardcoded to USD."""
+
+    @patch('httpx.Client.request')
+    def test_preserves_eur_currency(self, mock_request, api_key):
+        """Test that EUR currency from API is preserved, not overridden to USD."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "prices": [
+                    {
+                        "code": "BRENT_CRUDE_EUR",
+                        "price": 68.50,
+                        "currency": "EUR",
+                        "created_at": "2024-01-01T10:00:00Z",
+                        "type": "spot_price",
+                        "unit": "barrel",
+                    }
+                ]
+            }
+        }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        history = client.historical.get(commodity="BRENT_CRUDE_EUR")
+
+        assert len(history.data) == 1
+        assert history.data[0].currency == "EUR"
+        assert history.data[0].value == 68.50
+
+    @patch('httpx.Client.request')
+    def test_preserves_gbp_currency(self, mock_request, api_key):
+        """Test that GBP currency from API is preserved."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "prices": [
+                    {
+                        "code": "NATURAL_GAS_GBP",
+                        "price": 80.0,
+                        "currency": "GBP",
+                        "created_at": "2024-01-01T10:00:00Z",
+                        "type": "spot_price",
+                        "unit": "therm",
+                    }
+                ]
+            }
+        }
+        mock_response.headers = {"X-Total-Pages": "1", "X-Page": "1", "X-Per-Page": "100"}
+        mock_request.return_value = mock_response
+
+        client = OilPriceAPI(api_key=api_key)
+        history = client.historical.get(commodity="NATURAL_GAS_GBP")
+
+        assert len(history.data) == 1
+        assert history.data[0].currency == "GBP"

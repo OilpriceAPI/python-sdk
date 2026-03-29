@@ -1,0 +1,3 @@
+# Client
+
+::: oilpriceapi.client.OilPriceAPI

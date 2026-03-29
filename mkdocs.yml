@@ -1,0 +1,39 @@
+site_name: OilPriceAPI Python SDK
+site_description: Official Python SDK for OilPriceAPI
+site_url: https://oilpriceapi.github.io/python-sdk/
+repo_url: https://github.com/oilpriceapi/python-sdk
+repo_name: oilpriceapi/python-sdk
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep orange
+  features:
+    - content.code.copy
+    - navigation.sections
+
+nav:
+  - Home: index.md
+  - API Reference:
+      - Client: reference/client.md
+      - Async Client: reference/async_client.md
+      - Resources: reference/resources.md
+      - Models: reference/models.md
+      - Exceptions: reference/exceptions.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            heading_level: 2
+            members_order: source
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - admonition

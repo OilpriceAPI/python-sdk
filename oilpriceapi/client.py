@@ -92,6 +92,7 @@ class OilPriceAPI:
         headers: Optional[Dict[str, str]] = None,
         app_url: Optional[str] = None,
         app_name: Optional[str] = None,
+        enable_telemetry: bool = False,
     ):
         # Get API key from parameter or environment
         self.api_key = api_key or os.environ.get("OILPRICEAPI_KEY")
@@ -124,14 +125,15 @@ class OilPriceAPI:
 
         # Build headers
         import sys
+        from .version import SDK_VERSION, SDK_NAME
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         self.headers = {
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": f"oilpriceapi-python/1.5.0 python/{python_version}",
-            "X-SDK-Name": "oilpriceapi-python",
-            "X-SDK-Version": "1.5.0",
+            "User-Agent": f"{SDK_NAME}/{SDK_VERSION} python/{python_version}",
+            "X-SDK-Name": SDK_NAME,
+            "X-SDK-Version": SDK_VERSION,
         }
 
         # Add optional telemetry headers (10% bonus for app_url!)
@@ -175,6 +177,10 @@ class OilPriceAPI:
             self.viz = PriceVisualizer(self)
         except ImportError:
             self.viz = None
+
+        # Initialize telemetry (opt-in, disabled by default)
+        from .telemetry import Telemetry
+        self._telemetry = Telemetry(enabled=enable_telemetry)
     
     def request(
         self,
@@ -219,6 +225,7 @@ class OilPriceAPI:
 
         # Retry logic using retry strategy
         last_exception = None
+        start_time = time.time()
         for attempt in range(self.max_retries):
             try:
                 logger.debug(f"API request: {method} {url} (attempt {attempt + 1}/{self.max_retries})")
@@ -236,6 +243,11 @@ class OilPriceAPI:
 
                 # Handle different status codes
                 if response.status_code == 200:
+                    self._telemetry.track_request(
+                        operation=self._sanitize_path_for_telemetry(method, path),
+                        duration=time.time() - start_time,
+                        success=True,
+                    )
                     return response.json()
                 elif response.status_code == 401:
                     logger.error(f"Authentication failed for {url}")
@@ -256,10 +268,19 @@ class OilPriceAPI:
                 elif response.status_code == 429:
                     # Parse rate limit headers
                     reset_time = self._parse_rate_limit_reset(response.headers)
+                    retry_after = response.headers.get("Retry-After")
                     logger.warning(
                         f"Rate limit exceeded. Limit: {response.headers.get('X-RateLimit-Limit')}, "
                         f"Remaining: {response.headers.get('X-RateLimit-Remaining')}"
                     )
+
+                    # Auto-retry with Retry-After if we have attempts left
+                    if self._retry_strategy.should_retry(attempt, 429):
+                        wait_time = min(float(retry_after), 60.0) if retry_after else self._retry_strategy.calculate_wait_time(attempt)
+                        logger.info(f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+                        time.sleep(wait_time)
+                        continue
+
                     raise RateLimitError(
                         message="Rate limit exceeded",
                         reset_time=reset_time,
@@ -324,10 +345,16 @@ class OilPriceAPI:
                 raise last_exception
 
         if last_exception:
+            self._telemetry.track_request(
+                operation=f"{method} {path}",
+                duration=time.time() - start_time,
+                success=False,
+                error_type=type(last_exception).__name__,
+            )
             raise last_exception
 
         raise OilPriceAPIError("Max retries exceeded")
-    
+
     def request_with_headers(
         self,
         method: str,
@@ -383,6 +410,14 @@ class OilPriceAPI:
                     )
                 elif response.status_code == 429:
                     reset_time = self._parse_rate_limit_reset(response.headers)
+                    retry_after = response.headers.get("Retry-After")
+
+                    if self._retry_strategy.should_retry(attempt, 429):
+                        wait_time = min(float(retry_after), 60.0) if retry_after else self._retry_strategy.calculate_wait_time(attempt)
+                        logger.info(f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+                        time.sleep(wait_time)
+                        continue
+
                     raise RateLimitError(
                         message="Rate limit exceeded",
                         reset_time=reset_time,
@@ -428,6 +463,15 @@ class OilPriceAPI:
             raise last_exception
 
         raise OilPriceAPIError("Max retries exceeded")
+
+    @staticmethod
+    def _sanitize_path_for_telemetry(method: str, path: str) -> str:
+        """Strip resource IDs from path to avoid leaking user data in telemetry."""
+        import re
+        # Replace UUIDs and numeric IDs with :id
+        sanitized = re.sub(r'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '/:id', path)
+        sanitized = re.sub(r'/\d+', '/:id', sanitized)
+        return f"{method} {sanitized}"
 
     def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:
         """Safely parse JSON response."""
@@ -493,7 +537,8 @@ class OilPriceAPI:
         return [DataConnectorPrice(**p) for p in prices_data]
 
     def close(self):
-        """Close the HTTP client."""
+        """Close the HTTP client and flush telemetry."""
+        self._telemetry.close()
         self._client.close()
     
     def __enter__(self):

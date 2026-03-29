@@ -150,6 +150,7 @@ def sample_historical_price_data():
         "created_at": "2024-01-01T10:00:00Z",
         "commodity_name": "BRENT_CRUDE_USD",
         "price": 75.50,
+        "currency": "USD",
         "unit_of_measure": "barrel",
         "type_name": "spot_price",
     }
