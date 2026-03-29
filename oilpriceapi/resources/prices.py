@@ -3,6 +3,7 @@ Prices Resource
 
 Current price operations.
 """
+from __future__ import annotations
 
 from typing import List, Optional, Union
 from datetime import datetime
@@ -48,7 +49,7 @@ class PricesResource:
         mapped_data = {
             "commodity": price_data.get("code", commodity),
             "value": price_data.get("price"),
-            "currency": price_data.get("currency", "USD"),
+            "currency": price_data.get("currency"),
             "unit": price_data.get("unit", "barrel"),
             "timestamp": price_data.get("created_at"),
         }
@@ -155,7 +156,7 @@ class PricesResource:
                     mapped = {
                         "commodity": price_data.get("code", ""),
                         "value": price_data.get("price"),
-                        "currency": price_data.get("currency", "USD"),
+                        "currency": price_data.get("currency"),
                         "unit": price_data.get("unit", "barrel"),
                         "timestamp": price_data.get("updated_at") or price_data.get("created_at"),
                     }

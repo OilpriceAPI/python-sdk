@@ -3,10 +3,11 @@ Asynchronous OilPriceAPI Client
 
 Async/await support for high-performance applications.
 """
+from __future__ import annotations
 
 import os
 import logging
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any, Union, List, AsyncGenerator
 import httpx
 from datetime import datetime
 import json
@@ -27,6 +28,22 @@ from .exceptions import (
     ConfigurationError,
 )
 from .models import Price, HistoricalPrice, HistoricalResponse
+from .async_resources import (
+    AsyncDieselResource,
+    AsyncAlertsResource,
+    AsyncCommoditiesResource,
+    AsyncFuturesResource,
+    AsyncStorageResource,
+    AsyncRigCountsResource,
+    AsyncBunkerFuelsResource,
+    AsyncAnalyticsResource,
+    AsyncForecastsResource,
+    AsyncDataQualityResource,
+    AsyncDrillingIntelligenceResource,
+    AsyncEnergyIntelligenceResource,
+    AsyncWebhooksResource,
+    AsyncDataSourcesResource,
+)
 
 
 class AsyncOilPriceAPI:
@@ -63,6 +80,7 @@ class AsyncOilPriceAPI:
         max_keepalive_connections: int = 20,
         app_url: Optional[str] = None,
         app_name: Optional[str] = None,
+        enable_telemetry: bool = False,
     ):
         # Get API key
         self.api_key = api_key or os.environ.get("OILPRICEAPI_KEY")
@@ -89,14 +107,15 @@ class AsyncOilPriceAPI:
 
         # Build headers
         import sys
+        from .version import SDK_VERSION, SDK_NAME
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         self.headers = {
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": f"oilpriceapi-python/1.5.0 python/{python_version}",
-            "X-SDK-Name": "oilpriceapi-python",
-            "X-SDK-Version": "1.5.0",
+            "User-Agent": f"{SDK_NAME}/{SDK_VERSION} python/{python_version}",
+            "X-SDK-Name": SDK_NAME,
+            "X-SDK-Version": SDK_VERSION,
         }
 
         # Add optional telemetry headers (10% bonus for app_url!)
@@ -114,7 +133,25 @@ class AsyncOilPriceAPI:
         # Initialize resources
         self.prices = AsyncPricesResource(self)
         self.historical = AsyncHistoricalResource(self)
-    
+        self.diesel = AsyncDieselResource(self)
+        self.alerts = AsyncAlertsResource(self)
+        self.commodities = AsyncCommoditiesResource(self)
+        self.futures = AsyncFuturesResource(self)
+        self.storage = AsyncStorageResource(self)
+        self.rig_counts = AsyncRigCountsResource(self)
+        self.bunker_fuels = AsyncBunkerFuelsResource(self)
+        self.analytics = AsyncAnalyticsResource(self)
+        self.forecasts = AsyncForecastsResource(self)
+        self.data_quality = AsyncDataQualityResource(self)
+        self.drilling = AsyncDrillingIntelligenceResource(self)
+        self.ei = AsyncEnergyIntelligenceResource(self)
+        self.webhooks = AsyncWebhooksResource(self)
+        self.data_sources = AsyncDataSourcesResource(self)
+
+        # Initialize telemetry (opt-in, disabled by default)
+        from .telemetry import Telemetry
+        self._telemetry = Telemetry(enabled=enable_telemetry)
+
     async def _ensure_client(self):
         """
         Ensure HTTP client is created with connection pooling.
@@ -155,6 +192,8 @@ class AsyncOilPriceAPI:
         url = urljoin(self.base_url + '/', path)
         
         # Retry logic
+        import time as _time
+        start_time = _time.time()
         last_exception = None
         for attempt in range(self.max_retries):
             try:
@@ -172,22 +211,36 @@ class AsyncOilPriceAPI:
 
                 # Handle response codes
                 if response.status_code == 200:
-                    return await response.json()
+                    self._telemetry.track_request(
+                        operation=self._sanitize_path(method, path),
+                        duration=_time.time() - start_time,
+                        success=True,
+                    )
+                    return response.json()
                 elif response.status_code == 401:
                     logger.error(f"Authentication failed for {url}")
                     raise AuthenticationError()
                 elif response.status_code == 404:
-                    error_data = await self._safe_parse_json(response)
+                    error_data = self._safe_parse_json(response)
                     raise DataNotFoundError(
                         message=error_data.get("error", "Not found"),
                         commodity=params.get("commodity") if params else None,
                     )
                 elif response.status_code == 429:
                     reset_time = self._parse_rate_limit_reset(response.headers)
+                    retry_after = response.headers.get("Retry-After")
                     logger.warning(
                         f"Rate limit exceeded. Limit: {response.headers.get('X-RateLimit-Limit')}, "
                         f"Remaining: {response.headers.get('X-RateLimit-Remaining')}"
                     )
+
+                    # Auto-retry with Retry-After if we have attempts left
+                    if self._retry_strategy.should_retry(attempt, 429):
+                        wait_time = min(float(retry_after), 60.0) if retry_after else self._retry_strategy.calculate_wait_time(attempt)
+                        logger.info(f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+
                     raise RateLimitError(
                         reset_time=reset_time,
                         limit=response.headers.get("X-RateLimit-Limit"),
@@ -209,7 +262,7 @@ class AsyncOilPriceAPI:
                         status_code=response.status_code,
                     )
                 else:
-                    error_data = await self._safe_parse_json(response)
+                    error_data = self._safe_parse_json(response)
                     raise OilPriceAPIError(
                         message=error_data.get("error", f"Error: {response.status_code}"),
                         status_code=response.status_code,
@@ -243,14 +296,28 @@ class AsyncOilPriceAPI:
                 raise last_exception
 
         if last_exception:
+            self._telemetry.track_request(
+                operation=self._sanitize_path(method, path),
+                duration=_time.time() - start_time,
+                success=False,
+                error_type=type(last_exception).__name__,
+            )
             raise last_exception
 
         raise OilPriceAPIError("Max retries exceeded")
-    
-    async def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:
+
+    @staticmethod
+    def _sanitize_path(method: str, path: str) -> str:
+        """Strip resource IDs from path for telemetry privacy."""
+        import re
+        sanitized = re.sub(r'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '/:id', path)
+        sanitized = re.sub(r'/\d+', '/:id', sanitized)
+        return f"{method} {sanitized}"
+
+    def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:
         """Safely parse JSON response."""
         try:
-            return await response.json()
+            return response.json()
         except json.JSONDecodeError:
             return {"error": response.text or "Unknown error"}
     
@@ -269,7 +336,8 @@ class AsyncOilPriceAPI:
         return None
     
     async def close(self):
-        """Close the HTTP client."""
+        """Close the HTTP client and flush telemetry."""
+        self._telemetry.close()
         if self._client:
             await self._client.aclose()
             self._client = None
@@ -464,5 +532,42 @@ class AsyncHistoricalResource:
                 break
             
             page += 1
-        
+
         return all_prices
+
+    async def iter_pages(
+        self,
+        commodity: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        interval: str = "daily",
+        per_page: int = 100,
+    ) -> AsyncGenerator:
+        """Async iterate through pages of historical data.
+
+        Memory-efficient async iterator for large datasets.
+
+        Example:
+            >>> async for page_data in client.historical.iter_pages("BRENT_CRUDE_USD"):
+            ...     for price in page_data:
+            ...         print(f"{price.created_at}: {price.price}")
+        """
+        page = 1
+
+        while True:
+            response = await self.get(
+                commodity=commodity,
+                start_date=start_date,
+                end_date=end_date,
+                interval=interval,
+                page=page,
+                per_page=per_page,
+            )
+
+            if response.data:
+                yield response.data
+
+            if len(response.data) < per_page:
+                break
+
+            page += 1

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oilpriceapi"
-version = "1.6.1"
+version = "1.7.0"
 description = "Official Python SDK for OilPriceAPI - Real-time and historical oil prices"
 authors = [
     {name = "OilPriceAPI", email = "support@oilpriceapi.com"}
@@ -50,9 +50,7 @@ pandas = [
     "pandas>=1.5.0",
     "numpy>=1.20.0",
 ]
-async = [
-    "aiohttp>=3.8.0",
-]
+async = []
 cache = [
     "redis>=4.5.0",
     "cachetools>=5.3.0",
@@ -132,6 +130,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
+    "--cov-fail-under=50",
     "-v",
 ]
 markers = [

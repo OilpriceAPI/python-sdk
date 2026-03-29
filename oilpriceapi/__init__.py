@@ -4,7 +4,8 @@ OilPriceAPI Python SDK
 The official Python SDK for OilPriceAPI - Real-time and historical oil prices.
 """
 
-__version__ = "1.5.0"
+from oilpriceapi.version import __version__
+
 __author__ = "OilPriceAPI"
 __email__ = "support@oilpriceapi.com"
 
@@ -16,6 +17,9 @@ from oilpriceapi.exceptions import (
     RateLimitError,
     DataNotFoundError,
     ServerError,
+    ValidationError,
+    TimeoutError,
+    ConfigurationError,
 )
 from oilpriceapi.models import (
     DieselPrice,
@@ -34,6 +38,9 @@ __all__ = [
     "RateLimitError",
     "DataNotFoundError",
     "ServerError",
+    "ValidationError",
+    "TimeoutError",
+    "ConfigurationError",
     "DieselPrice",
     "DieselStation",
     "DieselStationsResponse",
@@ -41,6 +48,12 @@ __all__ = [
     "WebhookTestResponse",
     "DataConnectorPrice",
 ]
+
+from oilpriceapi.resources.webhooks import WebhooksResource
+
+# Standalone webhook signature verification
+verify_webhook_signature = WebhooksResource.verify_signature
+
 
 # Convenience function for quick access
 def get_current_price(commodity: str, api_key: str = None) -> float:
@@ -59,6 +72,6 @@ def get_current_price(commodity: str, api_key: str = None) -> float:
         >>> price = opa.get_current_price("BRENT_CRUDE_USD")
         >>> print(f"Oil: ${price}")
     """
-    client = OilPriceAPI(api_key=api_key)
-    price = client.prices.get(commodity)
-    return price.value
+    with OilPriceAPI(api_key=api_key) as client:
+        price = client.prices.get(commodity)
+        return price.value

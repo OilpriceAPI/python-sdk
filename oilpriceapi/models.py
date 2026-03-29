@@ -89,7 +89,7 @@ class HistoricalPrice(BaseModel):
     date: datetime = Field(alias="created_at")
     commodity: str = Field(alias="commodity_name")
     value: float = Field(alias="price")
-    currency: str = Field(default="USD")
+    currency: str = Field(description="Currency code from API response")
     unit: str = Field(alias="unit_of_measure")
     type_name: Optional[str] = Field(default="spot_price")
     
