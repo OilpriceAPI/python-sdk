@@ -49,7 +49,9 @@ class PricesResource:
         mapped_data = {
             "commodity": price_data.get("code", commodity),
             "value": price_data.get("price"),
-            "currency": price_data.get("currency"),
+            # API responses are USD-denominated; default for backwards compatibility
+            # when the 'currency' field is absent from a minimal response.
+            "currency": price_data.get("currency", "USD"),
             "unit": price_data.get("unit", "barrel"),
             "timestamp": price_data.get("created_at"),
         }
