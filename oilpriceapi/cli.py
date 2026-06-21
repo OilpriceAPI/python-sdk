@@ -15,18 +15,17 @@ Requires: pip install oilpriceapi[cli]
 
 import os
 import sys
+from typing import Any, List
 
 try:
     import click
     from rich.console import Console
     from rich.table import Table
 except ImportError:
-    def main():
-        print("CLI requires extra dependencies. Install with:")
-        print("  pip install oilpriceapi[cli]")
-        sys.exit(1)
-    if __name__ == "__main__":
-        main()
+    # The [cli] extra (click + rich) is not installed. Surface a helpful message
+    # and exit at import time; the decorated commands below are never reached.
+    print("CLI requires extra dependencies. Install with:")
+    print("  pip install oilpriceapi[cli]")
     sys.exit(1)
 
 from oilpriceapi.version import __version__
@@ -177,12 +176,13 @@ def commodities(search, as_json):
         sys.exit(1)
 
     # Handle different response formats
+    commodity_list: List[Any]
     if isinstance(items, dict):
-        commodity_list = items.get("commodities", items.get("data", []))
+        commodity_list = items.get("commodities") or items.get("data") or []
     elif isinstance(items, list):
         commodity_list = items
     else:
-        commodity_list = items.data if hasattr(items, "data") else []
+        commodity_list = list(items.data) if hasattr(items, "data") else []
 
     if search:
         search_lower = search.lower()

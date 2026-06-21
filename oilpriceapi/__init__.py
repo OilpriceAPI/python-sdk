@@ -4,6 +4,8 @@ OilPriceAPI Python SDK
 The official Python SDK for OilPriceAPI - Real-time and historical oil prices.
 """
 
+from typing import Optional
+
 from oilpriceapi.version import __version__  # noqa: F401
 
 __author__ = "OilPriceAPI"
@@ -68,7 +70,7 @@ verify_webhook_signature = WebhooksResource.verify_signature
 
 
 # Convenience function for quick access
-def get_current_price(commodity: str, api_key: str = None) -> float:
+def get_current_price(commodity: str, api_key: Optional[str] = None) -> float:
     """
     Quick helper to get current price without client initialization.
 

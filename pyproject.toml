@@ -139,17 +139,20 @@ show_column_numbers = true
 pretty = true
 
 # --- Gradual typing baseline (CI was non-blocking for mypy until v1.7.0) ---
-# The SDK has not been fully annotated yet. Until v1.7.0 the mypy CI step ran
-# with `continue-on-error: true`, so ~700 "annotation completeness" findings
-# (missing annotations / returning Any) never blocked merges. v1.7.0 made the
-# step blocking, turning CI red. Rather than hide everything, we:
+# The SDK is not yet fully annotated. Until v1.7.0 the mypy CI step ran with
+# `continue-on-error: true`, so ~700 "annotation completeness" findings (missing
+# annotations / returning Any) never blocked merges. v1.7.0 made the step
+# blocking. We:
 #   1. Relax ONLY the annotation-completeness checks package-wide (the legitimate
 #      "we haven't finished typing the SDK" debt), keeping every bug-catching
 #      check (assignment, arg-type, union-attr, etc.) active.
-#   2. Re-enable FULL strict checking for modules that are already clean
-#      (forecasts, drilling) so they cannot regress.
-#   3. Grandfather the handful of legacy modules that still trip real-bug codes
-#      via narrow per-module overrides (TODO: fix and remove these).
+#   2. Keep modules that are fully strict-clean under FULL strict checking so
+#      they cannot regress.
+#
+# The previous per-module `TODO(typing-debt)` overrides (client, async_client,
+# cli, telemetry, prices, alerts, analytics, data_sources, webhooks, and the
+# package __init__) have all been PAID DOWN — the real type errors were fixed
+# with proper annotations, so those overrides were removed.
 [[tool.mypy.overrides]]
 module = "oilpriceapi.*"
 disable_error_code = ["no-untyped-def", "no-any-return", "no-untyped-call"]
@@ -159,50 +162,12 @@ disable_error_code = ["no-untyped-def", "no-any-return", "no-untyped-call"]
 module = ["oilpriceapi.resources.forecasts", "oilpriceapi.resources.drilling"]
 disable_error_code = []
 
-# TODO(typing-debt): fix the real type issues below, then delete these overrides.
-[[tool.mypy.overrides]]
-module = "oilpriceapi"
-disable_error_code = ["assignment"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.client"
-disable_error_code = ["assignment", "arg-type", "misc", "type-arg"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.async_client"
-disable_error_code = ["assignment", "attr-defined", "call-overload", "misc", "type-arg"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.cli"
-disable_error_code = ["arg-type", "attr-defined", "no-redef", "union-attr"]
-
+# models.py optionally imports `dateutil` for a fallback timestamp parse. The
+# stub package (types-python-dateutil) is not a runtime/CI dependency, so this
+# is a missing-stub finding, not a real typing bug.
 [[tool.mypy.overrides]]
 module = "oilpriceapi.models"
 disable_error_code = ["import-untyped"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.telemetry"
-disable_error_code = ["arg-type", "assignment", "attr-defined", "var-annotated"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.resources.alerts"
-disable_error_code = ["assignment"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.resources.analytics"
-disable_error_code = ["assignment"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.resources.data_sources"
-disable_error_code = ["assignment"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.resources.webhooks"
-disable_error_code = ["assignment"]
-
-[[tool.mypy.overrides]]
-module = "oilpriceapi.resources.prices"
-disable_error_code = ["union-attr"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -221,6 +186,7 @@ markers = [
     "contract: marks tests as contract tests (validates API assumptions)",
     "slow: marks tests as slow running (deselect with '-m \"not slow\"')",
     "unit: marks tests as unit tests (fast, mocked)",
+    "live: marks tests that hit the public live demo API (no API key needed)",
 ]
 
 [tool.coverage.run]
