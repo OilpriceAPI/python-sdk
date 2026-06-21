@@ -23,7 +23,7 @@ def _parse_ts(v: Any) -> Any:
         try:
             return datetime.fromisoformat(v.replace("Z", "+00:00"))
         except ValueError:
-            from dateutil import parser  # type: ignore[import-untyped]
+            from dateutil import parser  # type: ignore[import-untyped, unused-ignore]
 
             return parser.parse(v)
     return v

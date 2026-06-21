@@ -2,10 +2,23 @@
 Futures Resource
 
 Futures contract price operations.
+
+Endpoints are keyed by *slug* (e.g. ``"ice-brent"``), not by raw exchange
+contract code. The latest-curve route is ``GET /v1/futures/{slug}`` and the
+sub-resources are ``/{slug}/curve``, ``/historical``, ``/ohlc``, ``/intraday``
+and ``/spread-history``. Each method accepts either a slug or a friendly
+contract code (e.g. ``"BZ"``, ``"CL"``, ``"NG"``) and normalizes it via
+:mod:`._futures_slug`.
+
+Valid slugs: ``ice-brent``, ``ice-wti``, ``ice-gasoil``, ``natural-gas``,
+``ttf-gas``, ``lng-jkm``, ``eua-carbon``, ``uk-carbon`` (+ continuous slugs
+``continuous/brent`` and ``continuous/wti``).
 """
 
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
+
+from ._futures_slug import normalize_futures_slug
 
 
 class FuturesResource:
@@ -20,21 +33,25 @@ class FuturesResource:
         self.client = client
 
     def latest(self, contract: str) -> Dict[str, Any]:
-        """Get latest futures price for a contract.
+        """Get the latest futures curve for a contract family.
 
         Args:
-            contract: Futures contract code (e.g., "CL.1", "BZ.1")
+            contract: Futures slug (e.g. ``"ice-brent"``, ``"ice-wti"``) or a
+                friendly contract code (e.g. ``"BZ"``, ``"CL"``, ``"NG"``).
 
         Returns:
-            Latest futures price data
+            Latest futures curve data (front month + forward contracts)
 
         Example:
-            >>> price = client.futures.latest("CL.1")
-            >>> print(f"WTI Front Month: ${price['price']:.2f}")
+            >>> curve = client.futures.latest("ice-brent")
+            >>> # Friendly code form also works:
+            >>> curve = client.futures.latest("BZ")
+            >>> print(curve["front_month"]["last_price"])
         """
+        slug = normalize_futures_slug(contract)
         response = self.client.request(
             method="GET",
-            path=f"/v1/futures/{contract}"
+            path=f"/v1/futures/{slug}"
         )
 
         # Parse response
@@ -51,7 +68,7 @@ class FuturesResource:
         """Get historical futures prices for a contract.
 
         Args:
-            contract: Futures contract code
+            contract: Futures slug or friendly contract code (see ``latest``).
             start_date: Start date for historical data
             end_date: End date for historical data
 
@@ -60,13 +77,14 @@ class FuturesResource:
 
         Example:
             >>> history = client.futures.historical(
-            ...     contract="CL.1",
+            ...     contract="ice-wti",
             ...     start_date="2024-01-01",
             ...     end_date="2024-12-31"
             ... )
             >>> for record in history:
             ...     print(f"{record['date']}: ${record['price']:.2f}")
         """
+        slug = normalize_futures_slug(contract)
         params = {}
         if start_date:
             params["start_date"] = self._format_date(start_date)
@@ -75,7 +93,7 @@ class FuturesResource:
 
         response = self.client.request(
             method="GET",
-            path=f"/v1/futures/{contract}/historical",
+            path=f"/v1/futures/{slug}/historical",
             params=params
         )
 
@@ -88,26 +106,27 @@ class FuturesResource:
         """Get OHLC (Open, High, Low, Close) data for a contract.
 
         Args:
-            contract: Futures contract code
+            contract: Futures slug or friendly contract code (see ``latest``).
             date: Specific date for OHLC data (defaults to latest)
 
         Returns:
             OHLC data with open, high, low, close, and volume
 
         Example:
-            >>> ohlc = client.futures.ohlc("CL.1")
+            >>> ohlc = client.futures.ohlc("ice-wti")
             >>> print(f"Open: ${ohlc['open']:.2f}")
             >>> print(f"High: ${ohlc['high']:.2f}")
             >>> print(f"Low: ${ohlc['low']:.2f}")
             >>> print(f"Close: ${ohlc['close']:.2f}")
         """
+        slug = normalize_futures_slug(contract)
         params = {}
         if date:
             params["date"] = date
 
         response = self.client.request(
             method="GET",
-            path=f"/v1/futures/{contract}/ohlc",
+            path=f"/v1/futures/{slug}/ohlc",
             params=params
         )
 
@@ -120,19 +139,20 @@ class FuturesResource:
         """Get intraday futures prices for a contract.
 
         Args:
-            contract: Futures contract code
+            contract: Futures slug or friendly contract code (see ``latest``).
 
         Returns:
             List of intraday price records
 
         Example:
-            >>> intraday = client.futures.intraday("CL.1")
+            >>> intraday = client.futures.intraday("ice-wti")
             >>> for record in intraday:
             ...     print(f"{record['time']}: ${record['price']:.2f}")
         """
+        slug = normalize_futures_slug(contract)
         response = self.client.request(
             method="GET",
-            path=f"/v1/futures/{contract}/intraday"
+            path=f"/v1/futures/{slug}/intraday"
         )
 
         # Parse response
@@ -169,22 +189,23 @@ class FuturesResource:
         return response
 
     def curve(self, contract: str) -> List[Dict[str, Any]]:
-        """Get futures curve for a contract.
+        """Get the futures curve (contango/backwardation) for a contract.
 
         Args:
-            contract: Futures contract code
+            contract: Futures slug or friendly contract code (see ``latest``).
 
         Returns:
             List of futures curve data points
 
         Example:
-            >>> curve = client.futures.curve("CL")
+            >>> curve = client.futures.curve("ice-wti")
             >>> for point in curve:
             ...     print(f"{point['month']}: ${point['price']:.2f}")
         """
+        slug = normalize_futures_slug(contract)
         response = self.client.request(
             method="GET",
-            path=f"/v1/futures/{contract}/curve"
+            path=f"/v1/futures/{slug}/curve"
         )
 
         # Parse response
@@ -193,23 +214,28 @@ class FuturesResource:
         return response
 
     def continuous(self, contract: str, months: int = 12) -> List[Dict[str, Any]]:
-        """Get continuous futures price history.
+        """Get continuous (auto-rolled) front-month futures history.
+
+        Continuous series are exposed at ``/v1/futures/continuous/{brent,wti}``.
 
         Args:
-            contract: Futures contract code
+            contract: A continuous slug (``"continuous/brent"`` /
+                ``"continuous/wti"``) or a friendly code that resolves to one
+                of the continuous families (``"BZ"`` -> Brent, ``"CL"`` -> WTI).
             months: Number of months of history (default: 12)
 
         Returns:
             List of continuous contract prices
 
         Example:
-            >>> continuous = client.futures.continuous("CL", months=24)
-            >>> for record in continuous:
+            >>> history = client.futures.continuous("continuous/wti", months=24)
+            >>> for record in history:
             ...     print(f"{record['date']}: ${record['price']:.2f}")
         """
+        slug = self._continuous_slug(contract)
         response = self.client.request(
             method="GET",
-            path=f"/v1/futures/{contract}/continuous",
+            path=f"/v1/futures/{slug}/historical",
             params={"months": months}
         )
 
@@ -217,6 +243,22 @@ class FuturesResource:
         if "data" in response:
             return response["data"]
         return response
+
+    @staticmethod
+    def _continuous_slug(contract: str) -> str:
+        """Resolve ``contract`` to a ``continuous/{brent,wti}`` slug."""
+        slug = normalize_futures_slug(contract)
+        if slug.startswith("continuous/"):
+            return slug
+        if slug in ("ice-brent",):
+            return "continuous/brent"
+        if slug in ("ice-wti",):
+            return "continuous/wti"
+        raise ValueError(
+            f"Continuous futures are only available for Brent and WTI, "
+            f"got {contract!r}. Use 'continuous/brent', 'continuous/wti', "
+            f"'BZ' or 'CL'."
+        )
 
     def _format_date(self, date_input: Union[str, date, datetime]) -> str:
         """Format date for API."""
