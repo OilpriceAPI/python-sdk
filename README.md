@@ -535,7 +535,7 @@ prices = asyncio.run(get_prices())
 ## 📡 Real-Time WebSocket Streaming (New in v1.8.0)
 
 Stream live oil and energy prices over WebSocket instead of polling. Streaming
-is a **Professional / Reservoir Mastery** feature and is exposed through the
+is a **Professional plan ($99/mo) or higher** feature and is exposed through the
 async client via `client.stream`.
 
 Install the optional `stream` extra:
