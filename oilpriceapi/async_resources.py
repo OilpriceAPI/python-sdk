@@ -3,10 +3,16 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
 
+from ._subscriptions_common import (
+    build_attribution_headers,
+    build_create_body,
+    unwrap_data,
+)
 from .exceptions import ValidationError
-from .models import DieselPrice, DieselStationsResponse, PriceAlert
+from .models import DieselPrice, DieselStationsResponse, PriceAlert, Subscription, SubscriptionEvent
 from .resource_validators import VALID_OPERATORS, format_date
 from .resources._futures_slug import normalize_futures_slug
+from .resources.subscriptions import SubscriptionEventsPage
 
 
 class AsyncDieselResource:
@@ -1403,3 +1409,83 @@ class AsyncDataSourcesResource:
         if "data" in response:
             return response["data"]
         return response
+
+
+class AsyncSubscriptionsResource:
+    """Async resource for agent-subscription CRUD and event polling (#3245)."""
+
+    def __init__(self, client: Any) -> None:
+        self.client = client
+
+    async def list(self) -> List[Subscription]:
+        """List all subscriptions for the authenticated user."""
+        response = await self.client.request(method="GET", path="/v1/subscriptions")
+        data = unwrap_data(response)
+        subs = data.get("subscriptions", [])
+        return [Subscription(**s) for s in subs]
+
+    async def create(
+        self,
+        codes: List[str],
+        interval: Union[str, int],
+        name: Optional[str] = None,
+        source: Optional[str] = None,
+        tool: Optional[str] = None,
+    ) -> Subscription:
+        """Create a new subscription (watch).
+
+        Args:
+            codes: Commodity codes to watch (e.g. ["BRENT_CRUDE_USD"]).
+            interval: Friendly interval ("5m", "1h", "daily") or seconds (int).
+            name: Optional human-friendly name.
+            source: Attribution source header (defaults to "sdk-python").
+            tool: Optional attribution tool name header.
+        """
+        body = build_create_body(codes, interval, name=name)
+        headers = build_attribution_headers(source=source, tool=tool)
+        response = await self.client.request(
+            method="POST",
+            path="/v1/subscriptions",
+            json_data=body,
+            headers=headers,
+        )
+        data = unwrap_data(response)
+        sub = data.get("subscription", data)
+        return Subscription(**sub)
+
+    async def delete(self, subscription_id: str) -> bool:
+        """Delete a subscription. Returns True on success."""
+        await self.client.request(
+            method="DELETE",
+            path=f"/v1/subscriptions/{subscription_id}",
+        )
+        return True
+
+    async def events(
+        self,
+        since: Optional[int] = None,
+        limit: Optional[int] = None,
+        watch_id: Optional[str] = None,
+    ) -> SubscriptionEventsPage:
+        """Poll for subscription events newer than a cursor.
+
+        Returns a SubscriptionEventsPage with events, cursor, and has_more.
+        """
+        params: Dict[str, Any] = {}
+        if since is not None:
+            params["since"] = since
+        if limit is not None:
+            params["limit"] = limit
+        if watch_id is not None:
+            params["watch_id"] = watch_id
+
+        response = await self.client.request(
+            method="GET",
+            path="/v1/subscriptions/events",
+            params=params,
+        )
+        data = unwrap_data(response)
+        events = [SubscriptionEvent(**e) for e in data.get("events", [])]
+        cursor = data.get("cursor")
+        has_more = bool(data.get("has_more", False))
+        return SubscriptionEventsPage(events=events, cursor=cursor, has_more=has_more)

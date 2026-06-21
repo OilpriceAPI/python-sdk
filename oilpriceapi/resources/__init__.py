@@ -20,6 +20,7 @@ from .historical import HistoricalResource
 from .prices import PricesResource
 from .rig_counts import RigCountsResource
 from .storage import StorageResource
+from .subscriptions import SubscriptionsResource
 from .webhooks import WebhooksResource
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     "WebhooksResource",
     "DataSourcesResource",
     "DemoResource",
+    "SubscriptionsResource",
 ]

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+from ._subscriptions_common import unwrap_data
 from .exceptions import (
     AuthenticationError,
     ConfigurationError,
@@ -29,7 +30,7 @@ from .exceptions import (
     TimeoutError,
     ValidationError,
 )
-from .models import DataConnectorPrice
+from .models import DataConnectorPrice, MarketBrief
 from .resources.alerts import AlertsResource
 from .resources.analytics import AnalyticsResource
 from .resources.bunker_fuels import BunkerFuelsResource
@@ -46,6 +47,7 @@ from .resources.historical import HistoricalResource
 from .resources.prices import PricesResource
 from .resources.rig_counts import RigCountsResource
 from .resources.storage import StorageResource
+from .resources.subscriptions import SubscriptionsResource
 from .resources.webhooks import WebhooksResource
 from .retry import RetryStrategy
 
@@ -176,6 +178,8 @@ class OilPriceAPI:
         self.ei = EnergyIntelligenceResource(self)
         self.webhooks = WebhooksResource(self)
         self.data_sources = DataSourcesResource(self)
+        # Agent watch subscriptions + event polling (#3245 Phase 2).
+        self.subscriptions = SubscriptionsResource(self)
         # Public, no-auth demo endpoints (/v1/demo/*).
         self.demo = DemoResource(self)
 
@@ -544,6 +548,38 @@ class OilPriceAPI:
         response = self.request('GET', '/v1/prices/data-connector', params=params)
         prices_data = response.get('data', {}).get('prices', [])
         return [DataConnectorPrice(**p) for p in prices_data]
+
+    def market_brief(
+        self,
+        codes: List[str],
+        narrative: bool = False,
+    ) -> MarketBrief:
+        """Get a multi-commodity structured (+ optional narrative) market brief.
+
+        Composes existing price/forecast data for the given commodity codes into
+        a single structured summary (#3245 Phase 1a). Counts as one request.
+
+        Args:
+            codes: Commodity codes to include (e.g. ["BRENT_CRUDE_USD", "WTI"]).
+            narrative: When True, request a natural-language narrative as well.
+
+        Returns:
+            A MarketBrief model.
+
+        Example:
+            >>> brief = client.market_brief(["BRENT_CRUDE_USD"], narrative=True)
+            >>> print(brief.commodities[0].price)
+        """
+        params: Dict[str, Any] = {"codes": ",".join(codes)}
+        if narrative:
+            params["narrative"] = "true"
+
+        response = self.request(
+            method="GET",
+            path="/v1/market-brief",
+            params=params,
+        )
+        return MarketBrief(**unwrap_data(response))
 
     def close(self):
         """Close the HTTP client and flush telemetry."""

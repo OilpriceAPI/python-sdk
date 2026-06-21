@@ -28,9 +28,15 @@ from oilpriceapi.models import (
     DieselPrice,
     DieselStation,
     DieselStationsResponse,
+    MarketBrief,
+    MarketBriefCommodity,
+    MarketBriefForecast,
     PriceAlert,
+    Subscription,
+    SubscriptionEvent,
     WebhookTestResponse,
 )
+from oilpriceapi.resources.subscriptions import SubscriptionEventsPage
 from oilpriceapi.streaming import (
     PriceStream,
     PriceUpdate,
@@ -56,6 +62,12 @@ __all__ = [
     "PriceAlert",
     "WebhookTestResponse",
     "DataConnectorPrice",
+    "MarketBrief",
+    "MarketBriefCommodity",
+    "MarketBriefForecast",
+    "Subscription",
+    "SubscriptionEvent",
+    "SubscriptionEventsPage",
     "PriceStream",
     "StreamUpdate",
     "PriceUpdate",
