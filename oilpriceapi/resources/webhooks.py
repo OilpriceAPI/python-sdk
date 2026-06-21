@@ -98,10 +98,12 @@ class WebhooksResource:
             ... )
             >>> print(f"Webhook created: {webhook['id']}")
         """
-        json_data = {
+        # The controller permits `status` ("active"/"inactive"/"paused"), NOT a
+        # boolean `enabled`. Map the friendly `enabled` flag to the wire param.
+        json_data: Dict[str, Any] = {
             "url": url,
             "events": events,
-            "enabled": enabled,
+            "status": "active" if enabled else "inactive",
         }
 
         if description:
@@ -155,7 +157,7 @@ class WebhooksResource:
             ... )
             >>> print(f"Webhook updated: {webhook['id']}")
         """
-        json_data = {}
+        json_data: Dict[str, Any] = {}
 
         if url is not None:
             json_data["url"] = url
@@ -166,7 +168,8 @@ class WebhooksResource:
         if secret is not None:
             json_data["secret"] = secret
         if enabled is not None:
-            json_data["enabled"] = enabled
+            # Controller permits `status`, not boolean `enabled`.
+            json_data["status"] = "active" if enabled else "inactive"
 
         # Add any additional kwargs
         json_data.update(kwargs)

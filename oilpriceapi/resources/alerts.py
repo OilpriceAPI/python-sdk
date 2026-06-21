@@ -389,7 +389,7 @@ class AlertsResource:
             )
 
         # Build update payload with only provided fields
-        update_data = {}
+        update_data: Dict[str, Any] = {}
 
         # Validate fields if provided
         if name is not None:

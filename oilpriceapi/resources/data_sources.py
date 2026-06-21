@@ -105,23 +105,26 @@ class DataSourcesResource:
             ... )
             >>> print(f"Data source created: {source['id']}")
         """
-        json_data = {
+        # Controller requires params nested under `data_source` and permits
+        # `status` ("active"/"paused"/"failed") and `scraper_config` — NOT a
+        # boolean `enabled` or a `config` key.
+        data_source: Dict[str, Any] = {
             "name": name,
             "source_type": source_type,
             "credentials": credentials,
-            "enabled": enabled,
+            "status": "active" if enabled else "paused",
         }
 
         if config:
-            json_data["config"] = config
+            data_source["scraper_config"] = config
 
-        # Add any additional kwargs
-        json_data.update(kwargs)
+        # Add any additional kwargs (caller can override wire keys directly)
+        data_source.update(kwargs)
 
         response = self.client.request(
             method="POST",
             path="/v1/data-sources",
-            json_data=json_data
+            json_data={"data_source": data_source}
         )
 
         # Parse response
@@ -159,24 +162,26 @@ class DataSourcesResource:
             ... )
             >>> print(f"Data source updated: {source['id']}")
         """
-        json_data = {}
+        # Controller requires params nested under `data_source`, with `status`
+        # and `scraper_config` (not boolean `enabled` / `config`).
+        data_source: Dict[str, Any] = {}
 
         if name is not None:
-            json_data["name"] = name
+            data_source["name"] = name
         if credentials is not None:
-            json_data["credentials"] = credentials
+            data_source["credentials"] = credentials
         if config is not None:
-            json_data["config"] = config
+            data_source["scraper_config"] = config
         if enabled is not None:
-            json_data["enabled"] = enabled
+            data_source["status"] = "active" if enabled else "paused"
 
         # Add any additional kwargs
-        json_data.update(kwargs)
+        data_source.update(kwargs)
 
         response = self.client.request(
             method="PATCH",
             path=f"/v1/data-sources/{source_id}",
-            json_data=json_data
+            json_data={"data_source": data_source}
         )
 
         # Parse response

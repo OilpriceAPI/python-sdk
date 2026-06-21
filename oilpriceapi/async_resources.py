@@ -527,58 +527,60 @@ class AsyncAnalyticsResource:
     def __init__(self, client):
         self.client = client
 
+    # Wire params mirror the sync AnalyticsResource: the controller reads
+    # code/code1/code2/period (NOT commodity/commodity1/commodity2/days).
     async def performance(self, commodity: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
-        params: Dict[str, Any] = {"days": days}
-        if commodity:
-            params["commodity"] = commodity
+        range_value = "7d" if days <= 7 else ("90d" if days >= 90 else "30d")
+        params: Dict[str, Any] = {"range": range_value}
         response = await self.client.request(
             method="GET", path="/v1/analytics/performance", params=params
         )
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
     async def statistics(self, commodity: str, days: int = 30) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/analytics/statistics",
-            params={"commodity": commodity, "days": days}
+            params={"code": commodity, "period": days}
         )
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
     async def correlation(self, commodity1: str, commodity2: str, days: int = 90) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/analytics/correlation",
-            params={"commodity1": commodity1, "commodity2": commodity2, "days": days}
+            params={"code1": commodity1, "code2": commodity2, "period": days}
         )
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
     async def trend(self, commodity: str, days: int = 30) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/analytics/trend",
-            params={"commodity": commodity, "days": days}
+            params={"code": commodity, "period": days}
         )
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
-    async def spread(self, commodity1: str, commodity2: str) -> Dict[str, Any]:
+    async def spread(self, spread: str, days: int = 30) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/analytics/spread",
-            params={"commodity1": commodity1, "commodity2": commodity2}
+            params={"spread": spread, "period": days}
         )
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
-    async def forecast(self, commodity: str) -> Dict[str, Any]:
+    async def forecast(self, commodity: str, method: str = "ema", days: int = 90) -> Dict[str, Any]:
         response = await self.client.request(
-            method="GET", path="/v1/analytics/forecast", params={"commodity": commodity}
+            method="GET", path="/v1/analytics/forecast",
+            params={"code": commodity, "method": method, "period": days}
         )
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
@@ -1199,7 +1201,12 @@ class AsyncWebhooksResource:
         enabled: bool = True,
         **kwargs
     ) -> Dict[str, Any]:
-        json_data: Dict[str, Any] = {"url": url, "events": events, "enabled": enabled}
+        # Controller permits `status` ("active"/"inactive"/"paused"), not boolean `enabled`.
+        json_data: Dict[str, Any] = {
+            "url": url,
+            "events": events,
+            "status": "active" if enabled else "inactive",
+        }
         if description:
             json_data["description"] = description
         if secret:
@@ -1230,7 +1237,8 @@ class AsyncWebhooksResource:
         if secret is not None:
             json_data["secret"] = secret
         if enabled is not None:
-            json_data["enabled"] = enabled
+            # Controller permits `status`, not boolean `enabled`.
+            json_data["status"] = "active" if enabled else "inactive"
         json_data.update(kwargs)
         response = await self.client.request(
             method="PATCH", path=f"/v1/webhooks/{webhook_id}", json_data=json_data
@@ -1282,15 +1290,18 @@ class AsyncDataSourcesResource:
         enabled: bool = True,
         **kwargs
     ) -> Dict[str, Any]:
-        json_data: Dict[str, Any] = {
+        # Controller requires nesting under `data_source` with `status` /
+        # `scraper_config` (not boolean `enabled` / `config`).
+        data_source: Dict[str, Any] = {
             "name": name, "source_type": source_type,
-            "credentials": credentials, "enabled": enabled
+            "credentials": credentials,
+            "status": "active" if enabled else "paused",
         }
         if config:
-            json_data["config"] = config
-        json_data.update(kwargs)
+            data_source["scraper_config"] = config
+        data_source.update(kwargs)
         response = await self.client.request(
-            method="POST", path="/v1/data-sources", json_data=json_data
+            method="POST", path="/v1/data-sources", json_data={"data_source": data_source}
         )
         if "data" in response:
             return response["data"]
@@ -1305,18 +1316,19 @@ class AsyncDataSourcesResource:
         enabled: Optional[bool] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        json_data: Dict[str, Any] = {}
+        data_source: Dict[str, Any] = {}
         if name is not None:
-            json_data["name"] = name
+            data_source["name"] = name
         if credentials is not None:
-            json_data["credentials"] = credentials
+            data_source["credentials"] = credentials
         if config is not None:
-            json_data["config"] = config
+            data_source["scraper_config"] = config
         if enabled is not None:
-            json_data["enabled"] = enabled
-        json_data.update(kwargs)
+            data_source["status"] = "active" if enabled else "paused"
+        data_source.update(kwargs)
         response = await self.client.request(
-            method="PATCH", path=f"/v1/data-sources/{source_id}", json_data=json_data
+            method="PATCH", path=f"/v1/data-sources/{source_id}",
+            json_data={"data_source": data_source}
         )
         if "data" in response:
             return response["data"]

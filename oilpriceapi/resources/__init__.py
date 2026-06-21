@@ -10,6 +10,7 @@ from .bunker_fuels import BunkerFuelsResource
 from .commodities import CommoditiesResource
 from .data_quality import DataQualityResource
 from .data_sources import DataSourcesResource
+from .demo import DemoResource
 from .diesel import DieselResource
 from .drilling import DrillingIntelligenceResource
 from .ei import EnergyIntelligenceResource
@@ -38,4 +39,5 @@ __all__ = [
     "EnergyIntelligenceResource",
     "WebhooksResource",
     "DataSourcesResource",
+    "DemoResource",
 ]

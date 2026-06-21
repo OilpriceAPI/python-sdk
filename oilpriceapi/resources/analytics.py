@@ -2,15 +2,28 @@
 Analytics Resource
 
 Price analytics and statistical analysis operations.
+
+Wire-parameter note
+--------------------
+The v1 analytics controller (``app/controllers/v1/analytics_controller.rb``)
+expects ``code`` / ``code1`` / ``code2`` and ``period`` query parameters — NOT
+``commodity`` / ``commodity1`` / ``commodity2`` / ``days``. The public method
+signatures keep the friendlier ``commodity`` / ``days`` names for backwards
+compatibility, but this resource maps them to the names the API actually reads.
+A mismatch here is the same bug class fixed in the Node SDK (it was sending
+``commodity1`` / ``commodity2`` which the controller silently ignored).
 """
 
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+if TYPE_CHECKING:
+    from ..client import OilPriceAPI
 
 
 class AnalyticsResource:
     """Resource for price analytics and statistics."""
 
-    def __init__(self, client):
+    def __init__(self, client: "OilPriceAPI") -> None:
         """Initialize analytics resource.
 
         Args:
@@ -21,35 +34,33 @@ class AnalyticsResource:
     def performance(
         self,
         commodity: Optional[str] = None,
-        days: int = 30
+        days: int = 30,
     ) -> Dict[str, Any]:
-        """Get price performance analysis.
+        """Get API usage performance analytics for the authenticated user.
 
         Args:
-            commodity: Commodity code (if None, returns all commodities)
-            days: Number of days for performance calculation
+            commodity: Accepted for backwards compatibility; the controller does
+                not filter performance by commodity.
+            days: Number of days for the performance window. Mapped to the
+                controller's ``range`` parameter (``7d`` / ``30d`` / ``90d``).
 
         Returns:
-            Performance metrics with returns, volatility, and trends
+            Performance metrics for the user's API usage.
 
         Example:
-            >>> perf = client.analytics.performance("BRENT_CRUDE_USD", days=30)
-            >>> print(f"30-day Return: {perf['return_pct']}%")
-            >>> print(f"Volatility: {perf['volatility']}")
-            >>> print(f"Trend: {perf['trend']}")
+            >>> perf = client.analytics.performance(days=30)
         """
-        params = {"days": days}
-        if commodity:
-            params["commodity"] = commodity
+        # Controller reads params[:range] ("7d"/"30d"/"90d"), not commodity/days.
+        range_value = "7d" if days <= 7 else ("90d" if days >= 90 else "30d")
+        params: Dict[str, Any] = {"range": range_value}
 
         response = self.client.request(
             method="GET",
             path="/v1/analytics/performance",
-            params=params
+            params=params,
         )
 
-        # Parse response
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
@@ -57,30 +68,25 @@ class AnalyticsResource:
         """Get statistical analysis for a commodity.
 
         Args:
-            commodity: Commodity code
-            days: Number of days for statistical analysis
+            commodity: Commodity code (sent to the API as ``code``)
+            days: Number of days for statistical analysis (sent as ``period``)
 
         Returns:
             Statistical metrics (mean, median, std dev, min, max, etc.)
 
         Example:
             >>> stats = client.analytics.statistics("WTI_USD", days=90)
-            >>> print(f"Mean: ${stats['mean']:.2f}")
-            >>> print(f"Std Dev: ${stats['std_dev']:.2f}")
-            >>> print(f"Min: ${stats['min']:.2f}")
-            >>> print(f"Max: ${stats['max']:.2f}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/analytics/statistics",
             params={
-                "commodity": commodity,
-                "days": days
-            }
+                "code": commodity,
+                "period": days,
+            },
         )
 
-        # Parse response
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
@@ -88,14 +94,14 @@ class AnalyticsResource:
         self,
         commodity1: str,
         commodity2: str,
-        days: int = 90
+        days: int = 90,
     ) -> Dict[str, Any]:
         """Get correlation analysis between two commodities.
 
         Args:
-            commodity1: First commodity code
-            commodity2: Second commodity code
-            days: Number of days for correlation calculation
+            commodity1: First commodity code (sent to the API as ``code1``)
+            commodity2: Second commodity code (sent to the API as ``code2``)
+            days: Number of days for correlation calculation (sent as ``period``)
 
         Returns:
             Correlation metrics and analysis
@@ -104,23 +110,21 @@ class AnalyticsResource:
             >>> corr = client.analytics.correlation(
             ...     "BRENT_CRUDE_USD",
             ...     "WTI_USD",
-            ...     days=90
+            ...     days=90,
             ... )
-            >>> print(f"Correlation: {corr['correlation']:.3f}")
-            >>> print(f"P-value: {corr['p_value']:.4f}")
         """
+        # The controller requires code1/code2/period (NOT commodity1/commodity2/days).
         response = self.client.request(
             method="GET",
             path="/v1/analytics/correlation",
             params={
-                "commodity1": commodity1,
-                "commodity2": commodity2,
-                "days": days
-            }
+                "code1": commodity1,
+                "code2": commodity2,
+                "period": days,
+            },
         )
 
-        # Parse response
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
@@ -128,84 +132,102 @@ class AnalyticsResource:
         """Get trend analysis for a commodity.
 
         Args:
-            commodity: Commodity code
-            days: Number of days for trend analysis
+            commodity: Commodity code (sent to the API as ``code``)
+            days: Number of days for trend analysis (sent as ``period``)
 
         Returns:
             Trend metrics with direction, strength, and momentum
 
         Example:
             >>> trend = client.analytics.trend("NATURAL_GAS_USD", days=30)
-            >>> print(f"Direction: {trend['direction']}")
-            >>> print(f"Strength: {trend['strength']}")
-            >>> print(f"Momentum: {trend['momentum']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/analytics/trend",
             params={
-                "commodity": commodity,
-                "days": days
-            }
+                "code": commodity,
+                "period": days,
+            },
         )
 
-        # Parse response
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
-    def spread(self, commodity1: str, commodity2: str) -> Dict[str, Any]:
-        """Get spread analysis between two commodities.
+    def spread(self, spread: str, days: int = 30) -> Dict[str, Any]:
+        """Get spread analysis for a named commodity spread.
+
+        The spread endpoint operates on a *named* spread (e.g. ``"wti_brent"``),
+        not an arbitrary pair of commodity codes. Call without ``spread`` set via
+        :meth:`available_spreads` to discover valid names.
 
         Args:
-            commodity1: First commodity code
-            commodity2: Second commodity code
+            spread: Spread name, e.g. ``"wti_brent"`` (sent to the API as ``spread``)
+            days: Number of days of history to analyze (sent as ``period``)
 
         Returns:
             Spread analysis with current spread and historical statistics
 
         Example:
-            >>> spread = client.analytics.spread("BRENT_CRUDE_USD", "WTI_USD")
-            >>> print(f"Current Spread: ${spread['current']:.2f}")
-            >>> print(f"Average Spread: ${spread['average']:.2f}")
-            >>> print(f"Spread Percentile: {spread['percentile']}")
+            >>> spread = client.analytics.spread("wti_brent")
         """
         response = self.client.request(
             method="GET",
             path="/v1/analytics/spread",
             params={
-                "commodity1": commodity1,
-                "commodity2": commodity2
-            }
+                "spread": spread,
+                "period": days,
+            },
         )
 
-        # Parse response
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response
 
-    def forecast(self, commodity: str) -> Dict[str, Any]:
+    def available_spreads(self) -> Dict[str, Any]:
+        """List the named spreads supported by the spread endpoint.
+
+        Returns:
+            Catalog of available spread names (the controller returns this when
+            no ``spread`` parameter is supplied).
+
+        Example:
+            >>> spreads = client.analytics.available_spreads()
+        """
+        response = self.client.request(
+            method="GET",
+            path="/v1/analytics/spread",
+            params={},
+        )
+
+        if isinstance(response, dict) and "data" in response:
+            return response["data"]
+        return response
+
+    def forecast(self, commodity: str, method: str = "ema", days: int = 90) -> Dict[str, Any]:
         """Get price forecast for a commodity.
 
         Args:
-            commodity: Commodity code
+            commodity: Commodity code (sent to the API as ``code``)
+            method: Forecast method (sent as ``method``), e.g. ``"ema"``
+            days: Number of days of history to base the forecast on (sent as ``period``)
 
         Returns:
             Forecast with predicted prices and confidence intervals
 
         Example:
             >>> forecast = client.analytics.forecast("BRENT_CRUDE_USD")
-            >>> print(f"7-day Forecast: ${forecast['7_day']['price']:.2f}")
-            >>> print(f"30-day Forecast: ${forecast['30_day']['price']:.2f}")
-            >>> print(f"Confidence: {forecast['confidence']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/analytics/forecast",
-            params={"commodity": commodity}
+            params={
+                "code": commodity,
+                "method": method,
+                "period": days,
+            },
         )
 
-        # Parse response
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             return response["data"]
         return response

@@ -250,7 +250,9 @@ class PricesResource:
             price = self.get(commodity)
             df = pd.DataFrame([price.model_dump()])
         elif commodities:
+            # return_failures defaults to False, so this returns a plain List[Price].
             prices = self.get_multiple(commodities)
+            assert isinstance(prices, list)
             df = pd.DataFrame([p.model_dump() for p in prices])
         else:
             prices = self.get_all(per_page=per_page)

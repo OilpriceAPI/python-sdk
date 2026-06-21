@@ -2,8 +2,10 @@
 Unit tests for DataSourcesResource
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import Mock, patch
+
 from oilpriceapi import OilPriceAPI
 
 
@@ -98,3 +100,41 @@ class TestDataSourcesResource:
             )
 
             assert result["status"] == "updated"
+
+    def test_create_nests_and_maps_wire_params(self, client):
+        """create() nests under `data_source` and maps enabled->status, config->scraper_config.
+
+        The controller does ``params.require(:data_source).permit(:status,
+        scraper_config: {})`` so flat / mis-named keys are dropped.
+        """
+        with patch.object(client, "request", return_value={"data": {"id": "ds_1"}}) as req:
+            client.data_sources.create(
+                name="Platts",
+                source_type="platts",
+                credentials={"api_key": "k"},
+                config={"fetch_interval": 300},
+                enabled=False,
+            )
+            _, kwargs = req.call_args
+            body = kwargs["json_data"]
+            assert "data_source" in body
+            ds = body["data_source"]
+            assert ds["status"] == "paused"
+            assert ds["scraper_config"] == {"fetch_interval": 300}
+            assert "enabled" not in ds
+            assert "config" not in ds
+
+    def test_update_nests_and_maps_wire_params(self, client):
+        """update() nests under `data_source` and maps enabled->status, config->scraper_config."""
+        with patch.object(client, "request", return_value={"data": {"id": "ds_1"}}) as req:
+            client.data_sources.update(
+                "ds_1",
+                config={"fetch_interval": 600},
+                enabled=True,
+            )
+            _, kwargs = req.call_args
+            ds = kwargs["json_data"]["data_source"]
+            assert ds["status"] == "active"
+            assert ds["scraper_config"] == {"fetch_interval": 600}
+            assert "enabled" not in ds
+            assert "config" not in ds
