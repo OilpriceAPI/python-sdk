@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oilpriceapi"
-version = "1.8.0"
+version = "1.8.1"
 description = "Official Python SDK for OilPriceAPI - Real-time and historical oil prices"
 authors = [
     {name = "OilPriceAPI", email = "support@oilpriceapi.com"}
@@ -186,6 +186,7 @@ markers = [
     "contract: marks tests as contract tests (validates API assumptions)",
     "slow: marks tests as slow running (deselect with '-m \"not slow\"')",
     "unit: marks tests as unit tests (fast, mocked)",
+    "live: marks tests that hit the real API (require OILPRICEAPI_TEST_KEY)",
     "live: marks tests that hit the public live demo API (no API key needed)",
 ]
 

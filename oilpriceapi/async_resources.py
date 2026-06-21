@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 from .exceptions import ValidationError
 from .models import DieselPrice, DieselStationsResponse, PriceAlert
 from .resource_validators import VALID_OPERATORS, format_date
+from .resources._futures_slug import normalize_futures_slug
 
 
 class AsyncDieselResource:
@@ -297,11 +298,24 @@ class AsyncCommoditiesResource:
 
 
 class AsyncFuturesResource:
+    """Async resource for futures contract operations.
+
+    Endpoints are keyed by *slug* (e.g. ``"ice-brent"``). Methods accept either
+    a slug or a friendly contract code (``"BZ"``, ``"CL"``, ``"NG"``, ...),
+    normalized via :func:`normalize_futures_slug`.
+    """
+
     def __init__(self, client):
         self.client = client
 
     async def latest(self, contract: str) -> Dict[str, Any]:
-        response = await self.client.request(method="GET", path=f"/v1/futures/{contract}")
+        """Get the latest futures curve. Accepts a slug or contract code.
+
+        Example:
+            >>> await client.futures.latest("ice-brent")  # or "BZ"
+        """
+        slug = normalize_futures_slug(contract)
+        response = await self.client.request(method="GET", path=f"/v1/futures/{slug}")
         if "data" in response:
             return response["data"]
         return response
@@ -312,31 +326,34 @@ class AsyncFuturesResource:
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None
     ) -> List[Dict[str, Any]]:
+        slug = normalize_futures_slug(contract)
         params = {}
         if start_date:
             params["start_date"] = format_date(start_date)
         if end_date:
             params["end_date"] = format_date(end_date)
         response = await self.client.request(
-            method="GET", path=f"/v1/futures/{contract}/historical", params=params
+            method="GET", path=f"/v1/futures/{slug}/historical", params=params
         )
         if "data" in response:
             return response["data"]
         return response
 
     async def ohlc(self, contract: str, date: Optional[str] = None) -> Dict[str, Any]:
+        slug = normalize_futures_slug(contract)
         params = {}
         if date:
             params["date"] = date
         response = await self.client.request(
-            method="GET", path=f"/v1/futures/{contract}/ohlc", params=params
+            method="GET", path=f"/v1/futures/{slug}/ohlc", params=params
         )
         if "data" in response:
             return response["data"]
         return response
 
     async def intraday(self, contract: str) -> List[Dict[str, Any]]:
-        response = await self.client.request(method="GET", path=f"/v1/futures/{contract}/intraday")
+        slug = normalize_futures_slug(contract)
+        response = await self.client.request(method="GET", path=f"/v1/futures/{slug}/intraday")
         if "data" in response:
             return response["data"]
         return response
@@ -351,18 +368,35 @@ class AsyncFuturesResource:
         return response
 
     async def curve(self, contract: str) -> List[Dict[str, Any]]:
-        response = await self.client.request(method="GET", path=f"/v1/futures/{contract}/curve")
+        slug = normalize_futures_slug(contract)
+        response = await self.client.request(method="GET", path=f"/v1/futures/{slug}/curve")
         if "data" in response:
             return response["data"]
         return response
 
     async def continuous(self, contract: str, months: int = 12) -> List[Dict[str, Any]]:
+        slug = self._continuous_slug(contract)
         response = await self.client.request(
-            method="GET", path=f"/v1/futures/{contract}/continuous", params={"months": months}
+            method="GET", path=f"/v1/futures/{slug}/historical", params={"months": months}
         )
         if "data" in response:
             return response["data"]
         return response
+
+    @staticmethod
+    def _continuous_slug(contract: str) -> str:
+        slug = normalize_futures_slug(contract)
+        if slug.startswith("continuous/"):
+            return slug
+        if slug == "ice-brent":
+            return "continuous/brent"
+        if slug == "ice-wti":
+            return "continuous/wti"
+        raise ValueError(
+            f"Continuous futures are only available for Brent and WTI, "
+            f"got {contract!r}. Use 'continuous/brent', 'continuous/wti', "
+            f"'BZ' or 'CL'."
+        )
 
 class AsyncStorageResource:
     def __init__(self, client):
