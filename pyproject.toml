@@ -51,6 +51,9 @@ pandas = [
     "numpy>=1.20.0",
 ]
 async = []
+stream = [
+    "websockets>=11.0",
+]
 cache = [
     "redis>=4.5.0",
     "cachetools>=5.3.0",
@@ -60,7 +63,7 @@ cli = [
     "rich>=13.0.0",
 ]
 all = [
-    "oilpriceapi[pandas,async,cache,cli]",
+    "oilpriceapi[pandas,async,stream,cache,cli]",
 ]
 dev = [
     "pytest>=7.0.0",
@@ -73,6 +76,9 @@ dev = [
     "mypy>=1.0.0,<3",
     "ruff>=0.0.261",
     "pre-commit>=3.0.0",
+    # WebSocket streaming extra — needed so the streaming unit tests can
+    # import `websockets` in CI.
+    "websockets>=11.0",
 ]
 
 [project.urls]

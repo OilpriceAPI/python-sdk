@@ -149,6 +149,11 @@ class AsyncOilPriceAPI:
         self.webhooks = AsyncWebhooksResource(self)
         self.data_sources = AsyncDataSourcesResource(self)
 
+        # Real-time WebSocket streaming namespace (requires the [stream] extra).
+        # Lazily imports `websockets` only when a stream is actually opened.
+        from .streaming import AsyncStreamNamespace
+        self.stream = AsyncStreamNamespace(self)
+
         # Initialize telemetry (opt-in, disabled by default)
         from .telemetry import Telemetry
         self._telemetry = Telemetry(enabled=enable_telemetry)
