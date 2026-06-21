@@ -4,13 +4,13 @@ Drilling Intelligence Resource
 Drilling and completion activity data operations.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 
 class DrillingIntelligenceResource:
     """Resource for drilling intelligence data."""
 
-    def __init__(self, client):
+    def __init__(self, client: Any) -> None:
         """Initialize drilling intelligence resource.
 
         Args:
@@ -18,7 +18,7 @@ class DrillingIntelligenceResource:
         """
         self.client = client
 
-    def list(self, **params) -> List[Dict[str, Any]]:
+    def list(self, **params: Any) -> List[Dict[str, Any]]:
         """Get all drilling intelligence data.
 
         Args:
@@ -40,8 +40,8 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
     def latest(self) -> Dict[str, Any]:
         """Get latest drilling intelligence data.
@@ -61,8 +61,8 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(Dict[str, Any], response["data"])
+        return cast(Dict[str, Any], response)
 
     def summary(self) -> Dict[str, Any]:
         """Get drilling intelligence summary.
@@ -82,10 +82,10 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(Dict[str, Any], response["data"])
+        return cast(Dict[str, Any], response)
 
-    def trends(self, **params) -> List[Dict[str, Any]]:
+    def trends(self, **params: Any) -> List[Dict[str, Any]]:
         """Get drilling activity trends.
 
         Args:
@@ -107,10 +107,10 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
-    def frac_spreads(self, **params) -> List[Dict[str, Any]]:
+    def frac_spreads(self, **params: Any) -> List[Dict[str, Any]]:
         """Get frac spread data.
 
         Args:
@@ -132,10 +132,10 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
-    def well_permits(self, **params) -> List[Dict[str, Any]]:
+    def well_permits(self, **params: Any) -> List[Dict[str, Any]]:
         """Get well permit data.
 
         Args:
@@ -157,10 +157,10 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
-    def duc_wells(self, **params) -> List[Dict[str, Any]]:
+    def duc_wells(self, **params: Any) -> List[Dict[str, Any]]:
         """Get DUC (Drilled but Uncompleted) wells data.
 
         Args:
@@ -182,10 +182,10 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
-    def completions(self, **params) -> List[Dict[str, Any]]:
+    def completions(self, **params: Any) -> List[Dict[str, Any]]:
         """Get well completion data.
 
         Args:
@@ -207,10 +207,10 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
-    def wells_drilled(self, **params) -> List[Dict[str, Any]]:
+    def wells_drilled(self, **params: Any) -> List[Dict[str, Any]]:
         """Get wells drilled data.
 
         Args:
@@ -232,8 +232,8 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
     def basin(self, name: str) -> Dict[str, Any]:
         """Get drilling data for a specific basin.
@@ -256,5 +256,5 @@ class DrillingIntelligenceResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(Dict[str, Any], response["data"])
+        return cast(Dict[str, Any], response)

@@ -4,13 +4,13 @@ Forecasts Resource
 EIA and agency price forecast operations.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 
 class ForecastsResource:
     """Resource for official price forecasts from EIA and other agencies."""
 
-    def __init__(self, client):
+    def __init__(self, client: Any) -> None:
         """Initialize forecasts resource.
 
         Args:
@@ -35,7 +35,7 @@ class ForecastsResource:
             >>> # Specific commodity
             >>> wti_forecasts = client.forecasts.monthly(commodity="WTI_USD")
         """
-        params = {}
+        params: Dict[str, Any] = {}
         if commodity:
             params["commodity"] = commodity
 
@@ -47,8 +47,8 @@ class ForecastsResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(Dict[str, Any], response["data"])
+        return cast(Dict[str, Any], response)
 
     def accuracy(self) -> Dict[str, Any]:
         """Get forecast accuracy metrics.
@@ -69,8 +69,8 @@ class ForecastsResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(Dict[str, Any], response["data"])
+        return cast(Dict[str, Any], response)
 
     def archive(self, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get archived forecasts.
@@ -86,7 +86,7 @@ class ForecastsResource:
             >>> for forecast in archive:
             ...     print(f"{forecast['date']}: {forecast['commodity']} = ${forecast['price']:.2f}")
         """
-        params = {}
+        params: Dict[str, Any] = {}
         if year:
             params["year"] = year
 
@@ -98,8 +98,8 @@ class ForecastsResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
     def get(self, period: str, commodity: Optional[str] = None) -> Dict[str, Any]:
         """Get forecast for a specific period.
@@ -116,7 +116,7 @@ class ForecastsResource:
             >>> print(f"March 2025 Brent Forecast: ${forecast['price']:.2f}")
             >>> print(f"Range: ${forecast['low']:.2f} - ${forecast['high']:.2f}")
         """
-        params = {}
+        params: Dict[str, Any] = {}
         if commodity:
             params["commodity"] = commodity
 
@@ -128,5 +128,5 @@ class ForecastsResource:
 
         # Parse response
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(Dict[str, Any], response["data"])
+        return cast(Dict[str, Any], response)
