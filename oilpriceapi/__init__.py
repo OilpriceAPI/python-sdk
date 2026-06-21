@@ -29,6 +29,13 @@ from oilpriceapi.models import (
     PriceAlert,
     WebhookTestResponse,
 )
+from oilpriceapi.streaming import (
+    PriceStream,
+    PriceUpdate,
+    RigCountUpdate,
+    StreamingNotInstalledError,
+    StreamUpdate,
+)
 
 __all__ = [
     "OilPriceAPI",
@@ -47,6 +54,11 @@ __all__ = [
     "PriceAlert",
     "WebhookTestResponse",
     "DataConnectorPrice",
+    "PriceStream",
+    "StreamUpdate",
+    "PriceUpdate",
+    "RigCountUpdate",
+    "StreamingNotInstalledError",
 ]
 
 from oilpriceapi.resources.webhooks import WebhooksResource
