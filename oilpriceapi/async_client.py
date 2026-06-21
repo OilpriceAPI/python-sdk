@@ -17,6 +17,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+from ._subscriptions_common import unwrap_data
 from .async_resources import (
     AsyncAlertsResource,
     AsyncAnalyticsResource,
@@ -31,6 +32,7 @@ from .async_resources import (
     AsyncFuturesResource,
     AsyncRigCountsResource,
     AsyncStorageResource,
+    AsyncSubscriptionsResource,
     AsyncWebhooksResource,
 )
 from .exceptions import (
@@ -42,7 +44,7 @@ from .exceptions import (
     ServerError,
     TimeoutError,
 )
-from .models import HistoricalPrice, HistoricalResponse, Price
+from .models import HistoricalPrice, HistoricalResponse, MarketBrief, Price
 from .retry import RetryStrategy
 
 
@@ -148,6 +150,8 @@ class AsyncOilPriceAPI:
         self.ei = AsyncEnergyIntelligenceResource(self)
         self.webhooks = AsyncWebhooksResource(self)
         self.data_sources = AsyncDataSourcesResource(self)
+        # Agent watch subscriptions + event polling (#3245 Phase 2).
+        self.subscriptions = AsyncSubscriptionsResource(self)
 
         # Real-time WebSocket streaming namespace (requires the [stream] extra).
         # Lazily imports `websockets` only when a stream is actually opened.
@@ -341,6 +345,34 @@ class AsyncOilPriceAPI:
                 except (ValueError, TypeError):
                     pass
         return None
+
+    async def market_brief(
+        self,
+        codes: List[str],
+        narrative: bool = False,
+    ) -> MarketBrief:
+        """Get a multi-commodity structured (+ optional narrative) market brief.
+
+        Composes existing price/forecast data for the given commodity codes into
+        a single structured summary (#3245 Phase 1a). Counts as one request.
+
+        Args:
+            codes: Commodity codes to include (e.g. ["BRENT_CRUDE_USD", "WTI"]).
+            narrative: When True, request a natural-language narrative as well.
+
+        Returns:
+            A MarketBrief model.
+        """
+        params: Dict[str, Any] = {"codes": ",".join(codes)}
+        if narrative:
+            params["narrative"] = "true"
+
+        response = await self.request(
+            method="GET",
+            path="/v1/market-brief",
+            params=params,
+        )
+        return MarketBrief(**unwrap_data(response))
 
     async def close(self):
         """Close the HTTP client and flush telemetry."""

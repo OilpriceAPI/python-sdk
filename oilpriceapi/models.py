@@ -357,6 +357,123 @@ class WebhookTestResponse(BaseModel):
     error: Optional[str] = Field(default=None, description="Error message if test failed")
 
 
+class MarketBriefForecast(BaseModel):
+    """1-month forecast block attached to a market-brief commodity."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    point: Optional[float] = Field(default=None, description="Central forecast value")
+    low: Optional[float] = Field(default=None, description="Lower bound of the forecast range")
+    high: Optional[float] = Field(default=None, description="Upper bound of the forecast range")
+    confidence: Optional[str] = Field(default=None, description="Confidence label (e.g. high, medium, low)")
+
+
+class MarketBriefCommodity(BaseModel):
+    """A single commodity entry within a market brief."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    code: str = Field(description="Canonical commodity code (e.g. BRENT_CRUDE_USD)")
+    name: Optional[str] = Field(default=None, description="Human-readable commodity name")
+    price: Optional[float] = Field(default=None, description="Latest price value")
+    currency: Optional[str] = Field(default=None, description="Currency code")
+    change_24h_pct: Optional[float] = Field(default=None, description="24-hour percentage change")
+    forecast_1m: Optional[MarketBriefForecast] = Field(default=None, description="1-month forecast block")
+    stale: Optional[bool] = Field(default=None, description="Whether the price is considered stale")
+
+
+class MarketBrief(BaseModel):
+    """Multi-commodity structured (+ optional narrative) market summary.
+
+    Returned by ``client.market_brief(...)`` / ``await client.market_brief(...)``.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    as_of: Optional[datetime] = Field(default=None, description="Timestamp the brief was composed")
+    codes: List[str] = Field(default_factory=list, description="Resolved commodity codes in the brief")
+    commodities: List[MarketBriefCommodity] = Field(
+        default_factory=list, description="Per-commodity structured data"
+    )
+    narrative: Optional[str] = Field(default=None, description="Optional natural-language narrative")
+
+    @field_validator("as_of", mode="before")
+    @classmethod
+    def parse_as_of(cls, v):
+        """Parse as_of timestamp from various formats."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except ValueError:
+                from dateutil import parser
+
+                return parser.parse(v)
+        return v
+
+
+class Subscription(BaseModel):
+    """An agent subscription ("watch") that periodically evaluates commodities."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    id: str = Field(description="Unique subscription identifier")
+    name: Optional[str] = Field(default=None, description="User-friendly subscription name")
+    codes: List[str] = Field(default_factory=list, description="Commodity codes being watched")
+    interval_seconds: Optional[int] = Field(default=None, description="Evaluation interval in seconds")
+    status: Optional[str] = Field(default=None, description="Subscription status (active, paused, etc.)")
+    deliver_webhook: Optional[bool] = Field(default=None, description="Whether events are delivered via webhook")
+    source: Optional[str] = Field(default=None, description="Attribution source (sdk-python, mcp, api, etc.)")
+    tool_name: Optional[str] = Field(default=None, description="Attribution tool name")
+    last_evaluated_at: Optional[datetime] = Field(default=None, description="Last evaluation timestamp")
+    next_run_at: Optional[datetime] = Field(default=None, description="Next scheduled evaluation timestamp")
+    created_at: Optional[datetime] = Field(default=None, description="Creation timestamp")
+
+    @field_validator("last_evaluated_at", "next_run_at", "created_at", mode="before")
+    @classmethod
+    def parse_datetimes(cls, v):
+        """Parse datetime fields from various formats."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except ValueError:
+                from dateutil import parser
+
+                return parser.parse(v)
+        return v
+
+
+class SubscriptionEvent(BaseModel):
+    """A single event emitted by a subscription, returned from the poll endpoint."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    seq: Optional[int] = Field(default=None, description="Monotonic per-user sequence cursor")
+    watch_id: Optional[str] = Field(default=None, description="Subscription (watch) that produced the event")
+    type: Optional[str] = Field(default=None, description="Event type")
+    code: Optional[str] = Field(default=None, description="Commodity code the event relates to")
+    payload: Optional[Dict[str, Any]] = Field(default=None, description="Event payload")
+    created_at: Optional[datetime] = Field(default=None, description="Event timestamp")
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def parse_created_at(cls, v):
+        """Parse created_at from various formats."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except ValueError:
+                from dateutil import parser
+
+                return parser.parse(v)
+        return v
+
+
 class DataConnectorPrice(BaseModel):
     """Price from connected data source (BYOS - Bring Your Own Subscription)."""
 

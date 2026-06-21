@@ -426,6 +426,75 @@ result = client.data_sources.test("123")
 print(f"Test status: {result['status']}")
 ```
 
+### Market Brief (New in v1.9.0)
+
+Get a multi-commodity structured summary (latest price, 24h change, and a
+1-month forecast per commodity) in a single request. Pass `narrative=True` to
+also receive a natural-language summary.
+
+```python
+brief = client.market_brief(["BRENT_CRUDE_USD", "WTI_USD"], narrative=True)
+
+print(f"As of: {brief.as_of}")
+for c in brief.commodities:
+    print(f"{c.code}: ${c.price} ({c.change_24h_pct:+.2f}% 24h)")
+    if c.forecast_1m:
+        print(f"  1m forecast: {c.forecast_1m.point} "
+              f"[{c.forecast_1m.low}–{c.forecast_1m.high}] ({c.forecast_1m.confidence})")
+
+if brief.narrative:
+    print(brief.narrative)
+```
+
+### Agent Subscriptions (New in v1.9.0)
+
+Create persistent "watches" that periodically evaluate commodities and emit
+events your agent can poll for. The `interval` accepts a friendly string
+(`"5m"`, `"1h"`, `"daily"`) or raw seconds.
+
+```python
+# Create a subscription
+sub = client.subscriptions.create(
+    codes=["BRENT_CRUDE_USD"],
+    interval="5m",            # also accepts "1h", "daily", or 300
+    name="Brent watch",
+)
+print(sub.id, sub.interval_seconds)  # -> 300
+
+# List subscriptions
+for s in client.subscriptions.list():
+    print(s.name, s.codes, s.status)
+
+# Poll for events using a cursor
+page = client.subscriptions.events(since=0)
+for event in page:
+    print(event.type, event.code)
+# Persist page.cursor and pass it as `since` on the next poll
+next_page = client.subscriptions.events(since=page.cursor)
+
+# Delete a subscription
+client.subscriptions.delete(sub.id)
+```
+
+Attribution headers are sent automatically (`X-OPA-Source` defaults to
+`sdk-python`). MCP tools can override them:
+
+```python
+client.subscriptions.create(
+    ["WTI_USD"], interval="1h", source="mcp", tool="claude-desktop"
+)
+```
+
+All of the above is mirrored on the async client:
+
+```python
+async with AsyncOilPriceAPI() as client:
+    brief = await client.market_brief(["BRENT_CRUDE_USD"])
+    sub = await client.subscriptions.create(["WTI_USD"], interval="daily")
+    page = await client.subscriptions.events(since=0)
+    await client.subscriptions.delete(sub.id)
+```
+
 ## 📊 Features
 
 - ✅ **Simple API** - Intuitive methods for all endpoints
@@ -444,6 +513,8 @@ print(f"Test status: {result['status']}")
 - ✅ **Energy Intelligence** - EIA data, OPEC production, drilling productivity
 - ✅ **Data Quality** - Real-time quality monitoring and reporting
 - ✅ **Data Sources** - Connector management with health checks and logging
+- ✅ **Market Brief** - Multi-commodity structured + narrative summary in one call 🧠
+- ✅ **Agent Subscriptions** - Persistent watches + event polling for AI agents 🤖
 - ✅ **Async Support** - High-performance async client
 - ✅ **WebSocket Streaming** - Real-time price stream via ActionCable (Professional+)
 - ✅ **Smart Caching** - Reduce API calls automatically
