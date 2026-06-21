@@ -174,7 +174,7 @@ jobs:
 
 **Time**: 2-3 hours
 **Complexity**: Low (straightforward API calls)
-**Blocker**: Need test API key with Production Boost access
+**Blocker**: Need test API key with Professional plan ($99/mo) access
 
 ## Success Metrics
 
