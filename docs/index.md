@@ -210,9 +210,10 @@ Choose the plan that fits your needs:
 **[Start free →](https://oilpriceapi.com/auth/signup)**
 
 ### Paid Plans
-- **Exploration**: $15/month - 10,000 requests
-- **Production Boost**: $45/month - 50,000 requests
-- **Reservoir Mastery**: $129/month - 250,000 requests
+- **Developer**: $19/month - 10,000 requests
+- **Starter**: $49/month - 50,000 requests (adds webhooks)
+- **Professional**: $99/month - 100,000 requests (adds webhooks + WebSocket streaming)
+- **Scale**: $299/month - 1,000,000 requests
 
 **All plans include:**
 - ✅ Real-time price updates every 5 minutes

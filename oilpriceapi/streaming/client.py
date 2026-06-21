@@ -155,7 +155,7 @@ class PriceStream:
             if msg_type == "reject_subscription":
                 raise ConnectionError(
                     "Subscription rejected — check your plan tier and API key "
-                    "(WebSocket streaming requires Reservoir Mastery)."
+                    "(WebSocket streaming requires the Professional plan ($99/mo) or higher)."
                 )
             # Ignore pings / pre-confirmation noise.
 
