@@ -69,7 +69,7 @@ class TestAsyncPricesResource:
         """Test getting a single price async."""
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value=mock_price_response)
+        mock_response.json = Mock(return_value=mock_price_response)
         mock_request.return_value = mock_response
 
         async with AsyncOilPriceAPI(api_key=api_key) as client:
@@ -87,7 +87,7 @@ class TestAsyncPricesResource:
         async def make_response(code, price_value):
             mock_response = AsyncMock()
             mock_response.status_code = 200
-            mock_response.json = AsyncMock(return_value={
+            mock_response.json = Mock(return_value={
                 "status": "success",
                 "data": {
                     "code": code,
@@ -129,7 +129,7 @@ class TestAsyncHistoricalResource:
         """Test getting historical data async."""
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value=mock_historical_response)
+        mock_response.json = Mock(return_value=mock_historical_response)
         mock_request.return_value = mock_response
 
         async with AsyncOilPriceAPI(api_key=api_key) as client:
@@ -150,7 +150,7 @@ class TestAsyncHistoricalResource:
         # Mock two pages
         page1_response = AsyncMock()
         page1_response.status_code = 200
-        page1_response.json = AsyncMock(return_value={
+        page1_response.json = Mock(return_value={
             "status": "success",
             "data": {
                 "prices": [
@@ -177,7 +177,7 @@ class TestAsyncHistoricalResource:
 
         page2_response = AsyncMock()
         page2_response.status_code = 200
-        page2_response.json = AsyncMock(return_value={
+        page2_response.json = Mock(return_value={
             "status": "success",
             "data": {
                 "prices": [
@@ -223,7 +223,7 @@ class TestAsyncErrorHandling:
         """Test authentication error handling."""
         mock_response = AsyncMock()
         mock_response.status_code = 401
-        mock_response.json = AsyncMock(return_value={"error": "Invalid API key"})
+        mock_response.json = Mock(return_value={"error": "Invalid API key"})
         mock_request.return_value = mock_response
 
         async with AsyncOilPriceAPI(api_key=api_key) as client:
@@ -241,7 +241,7 @@ class TestAsyncErrorHandling:
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": "1705320000",
         }
-        mock_response.json = AsyncMock(return_value={"error": "Rate limit exceeded"})
+        mock_response.json = Mock(return_value={"error": "Rate limit exceeded"})
         mock_request.return_value = mock_response
 
         async with AsyncOilPriceAPI(api_key=api_key) as client:
@@ -256,7 +256,7 @@ class TestAsyncErrorHandling:
         """Test data not found error."""
         mock_response = AsyncMock()
         mock_response.status_code = 404
-        mock_response.json = AsyncMock(return_value={
+        mock_response.json = Mock(return_value={
             "error": "Commodity not found",
             "commodity": "INVALID_CODE",
         })
@@ -273,15 +273,15 @@ class TestAsyncErrorHandling:
         # First two calls fail, third succeeds
         fail_response1 = AsyncMock()
         fail_response1.status_code = 500
-        fail_response1.json = AsyncMock(return_value={"error": "Server error"})
+        fail_response1.json = Mock(return_value={"error": "Server error"})
 
         fail_response2 = AsyncMock()
         fail_response2.status_code = 502
-        fail_response2.json = AsyncMock(return_value={"error": "Bad gateway"})
+        fail_response2.json = Mock(return_value={"error": "Bad gateway"})
 
         success_response = AsyncMock()
         success_response.status_code = 200
-        success_response.json = AsyncMock(return_value={
+        success_response.json = Mock(return_value={
             "status": "success",
             "data": {
                 "code": "BRENT_CRUDE_USD",
@@ -312,7 +312,7 @@ class TestAsyncConcurrency:
         """Test multiple concurrent historical data requests."""
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value=mock_historical_response)
+        mock_response.json = Mock(return_value=mock_historical_response)
         mock_request.return_value = mock_response
 
         async with AsyncOilPriceAPI(api_key=api_key) as client:
@@ -336,9 +336,9 @@ class TestAsyncConcurrency:
             mock_resp = AsyncMock()
             mock_resp.status_code = 200
             if is_historical:
-                mock_resp.json = AsyncMock(return_value=mock_historical_response)
+                mock_resp.json = Mock(return_value=mock_historical_response)
             else:
-                mock_resp.json = AsyncMock(return_value=mock_price_response)
+                mock_resp.json = Mock(return_value=mock_price_response)
             return mock_resp
 
         mock_request.side_effect = [

@@ -17,7 +17,7 @@ class Price(BaseModel):
 
     commodity: str = Field(description="Commodity code (e.g., BRENT_CRUDE_USD)")
     value: float = Field(description="Current price value")
-    currency: str = Field(description="Currency code")
+    currency: Optional[str] = Field(default=None, description="Currency code (may be absent in minimal API responses)")
     unit: str = Field(description="Unit of measurement")
     timestamp: datetime = Field(description="Price timestamp")
     change: Optional[float] = Field(default=None, description="Price change amount")
@@ -57,7 +57,8 @@ class Price(BaseModel):
         if self.change_percent is not None:
             arrow = "↑" if self.is_up else "↓" if self.is_down else "→"
             change_str = f" {arrow} {abs(self.change_percent):.2f}%"
-        return f"{self.commodity}: {self.currency}{self.value:.2f}{change_str}"
+        currency_str = self.currency or ""
+        return f"{self.commodity}: {currency_str}{self.value:.2f}{change_str}"
 
 
 class PriceResponse(BaseModel):
@@ -89,7 +90,7 @@ class HistoricalPrice(BaseModel):
     date: datetime = Field(alias="created_at")
     commodity: str = Field(alias="commodity_name")
     value: float = Field(alias="price")
-    currency: str = Field(description="Currency code from API response")
+    currency: Optional[str] = Field(default=None, description="Currency code from API response (may be absent)")
     unit: str = Field(alias="unit_of_measure")
     type_name: Optional[str] = Field(default="spot_price")
 
