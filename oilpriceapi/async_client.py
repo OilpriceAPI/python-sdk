@@ -74,7 +74,7 @@ class AsyncOilPriceAPI:
         base_url: Optional[str] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        retry_on: Optional[list] = None,
+        retry_on: Optional[List[int]] = None,
         headers: Optional[Dict[str, str]] = None,
         max_connections: int = 100,
         max_keepalive_connections: int = 20,
@@ -129,7 +129,7 @@ class AsyncOilPriceAPI:
             self.headers.update(headers)
 
         # Client will be created in __aenter__ or when needed
-        self._client = None
+        self._client: Optional[httpx.AsyncClient] = None
 
         # Initialize resources
         self.prices = AsyncPricesResource(self)
@@ -188,9 +188,10 @@ class AsyncOilPriceAPI:
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
         **kwargs
-    ) -> Union[Dict[str, Any], list]:
+    ) -> Union[Dict[str, Any], List[Any]]:
         """Make async HTTP request to API."""
         await self._ensure_client()
+        assert self._client is not None  # set by _ensure_client
 
         # Ensure path starts with / for proper urljoin behavior
         if not path.startswith('/'):
@@ -200,7 +201,7 @@ class AsyncOilPriceAPI:
         # Retry logic
         import time as _time
         start_time = _time.time()
-        last_exception = None
+        last_exception: Optional[OilPriceAPIError] = None
         for attempt in range(self.max_retries):
             try:
                 logger.debug(f"Async API request: {method} {url} (attempt {attempt + 1}/{self.max_retries})")
@@ -327,7 +328,7 @@ class AsyncOilPriceAPI:
         except json.JSONDecodeError:
             return {"error": response.text or "Unknown error"}
 
-    def _parse_rate_limit_reset(self, headers: Dict[str, str]) -> Optional[datetime]:
+    def _parse_rate_limit_reset(self, headers: httpx.Headers) -> Optional[datetime]:
         """Parse rate limit reset time."""
         reset_header = headers.get("X-RateLimit-Reset")
         if reset_header:
@@ -372,7 +373,7 @@ class AsyncPricesResource:
             params={"by_code": commodity}
         )
 
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             price_data = response["data"]
         else:
             price_data = response
@@ -436,7 +437,7 @@ class AsyncPricesResource:
             path="/v1/prices/all"
         )
 
-        if "data" in response:
+        if isinstance(response, dict) and "data" in response:
             prices_data = response["data"]
         else:
             prices_data = response
@@ -482,9 +483,9 @@ class AsyncHistoricalResource:
 
         # Parse response - handle nested structure
         # API returns: {"status": "success", "data": {"prices": [...]}}
-        if "data" in response and isinstance(response["data"], dict) and "prices" in response["data"]:
+        if isinstance(response, dict) and isinstance(response.get("data"), dict) and "prices" in response["data"]:
             prices_data = response["data"]["prices"]
-        elif "data" in response and isinstance(response["data"], list):
+        elif isinstance(response, dict) and isinstance(response.get("data"), list):
             prices_data = response["data"]
         else:
             prices_data = response if isinstance(response, list) else []
@@ -547,7 +548,7 @@ class AsyncHistoricalResource:
         end_date: Optional[str] = None,
         interval: str = "daily",
         per_page: int = 100,
-    ) -> AsyncGenerator:
+    ) -> AsyncGenerator[List[HistoricalPrice], None]:
         """Async iterate through pages of historical data.
 
         Memory-efficient async iterator for large datasets.

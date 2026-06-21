@@ -9,10 +9,13 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
 import httpx
+
+if TYPE_CHECKING:
+    from .visualization import PriceVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,7 @@ from .resources.bunker_fuels import BunkerFuelsResource
 from .resources.commodities import CommoditiesResource
 from .resources.data_quality import DataQualityResource
 from .resources.data_sources import DataSourcesResource
+from .resources.demo import DemoResource
 from .resources.diesel import DieselResource
 from .resources.drilling import DrillingIntelligenceResource
 from .resources.ei import EnergyIntelligenceResource
@@ -89,7 +93,7 @@ class OilPriceAPI:
         base_url: Optional[str] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        retry_on: Optional[list] = None,
+        retry_on: Optional[List[int]] = None,
         headers: Optional[Dict[str, str]] = None,
         app_url: Optional[str] = None,
         app_name: Optional[str] = None,
@@ -172,8 +176,11 @@ class OilPriceAPI:
         self.ei = EnergyIntelligenceResource(self)
         self.webhooks = WebhooksResource(self)
         self.data_sources = DataSourcesResource(self)
+        # Public, no-auth demo endpoints (/v1/demo/*).
+        self.demo = DemoResource(self)
 
         # Initialize visualization (optional)
+        self.viz: Optional["PriceVisualizer"]
         try:
             from .visualization import PriceVisualizer
             self.viz = PriceVisualizer(self)
@@ -226,7 +233,7 @@ class OilPriceAPI:
         effective_timeout = timeout if timeout is not None else self.timeout
 
         # Retry logic using retry strategy
-        last_exception = None
+        last_exception: Optional[OilPriceAPIError] = None
         start_time = time.time()
         for attempt in range(self.max_retries):
             try:
@@ -365,7 +372,7 @@ class OilPriceAPI:
         json_data: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         **kwargs
-    ) -> tuple:
+    ) -> Tuple[Dict[str, Any], httpx.Headers]:
         """Make HTTP request and return (json_body, headers) tuple.
 
         Identical to request() but also returns response headers so callers
@@ -381,7 +388,7 @@ class OilPriceAPI:
 
         effective_timeout = timeout if timeout is not None else self.timeout
 
-        last_exception = None
+        last_exception: Optional[OilPriceAPIError] = None
         for attempt in range(self.max_retries):
             try:
                 response = self._client.request(
@@ -482,7 +489,7 @@ class OilPriceAPI:
         except json.JSONDecodeError:
             return {"error": response.text or "Unknown error"}
 
-    def _parse_rate_limit_reset(self, headers: Dict[str, str]) -> Optional[datetime]:
+    def _parse_rate_limit_reset(self, headers: httpx.Headers) -> Optional[datetime]:
         """Parse rate limit reset time from headers."""
         reset_header = headers.get("X-RateLimit-Reset")
         if reset_header:

@@ -2,8 +2,10 @@
 Unit tests for WebhooksResource
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import Mock, patch
+
 from oilpriceapi import OilPriceAPI
 
 
@@ -78,3 +80,28 @@ class TestWebhooksResource:
 
             assert len(events) == 1
             assert events[0]["type"] == "price.updated"
+
+    def test_create_maps_enabled_to_status(self, client):
+        """create() sends `status` ("active"/"inactive"), not boolean `enabled`.
+
+        The webhooks controller permits `status` and silently drops `enabled`.
+        """
+        with patch.object(client, "request", return_value={"data": {"id": "wh_1"}}) as req:
+            client.webhooks.create(
+                url="https://example.com/wh",
+                events=["price.updated"],
+                enabled=False,
+            )
+            _, kwargs = req.call_args
+            body = kwargs["json_data"]
+            assert body["status"] == "inactive"
+            assert "enabled" not in body
+
+    def test_update_maps_enabled_to_status(self, client):
+        """update() maps enabled -> status."""
+        with patch.object(client, "request", return_value={"data": {"id": "wh_1"}}) as req:
+            client.webhooks.update("wh_1", enabled=True)
+            _, kwargs = req.call_args
+            body = kwargs["json_data"]
+            assert body["status"] == "active"
+            assert "enabled" not in body

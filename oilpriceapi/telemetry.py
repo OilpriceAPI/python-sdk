@@ -41,7 +41,7 @@ import sys
 import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import httpx
@@ -79,7 +79,7 @@ class Telemetry:
         self.debug = debug
 
         # Event buffer
-        self._events = []
+        self._events: List[Dict[str, Any]] = []
         self._lock = threading.Lock()
         self._last_flush = time.time()
 
@@ -108,7 +108,9 @@ class Telemetry:
     def _get_sdk_version(self) -> str:
         """Get SDK version."""
         try:
-            from oilpriceapi import __version__
+            # Read from the version module directly. Importing `__version__` from
+            # the top-level package trips no_implicit_reexport under strict mypy.
+            from oilpriceapi.version import __version__
             return __version__
         except ImportError:
             return "unknown"
@@ -233,7 +235,7 @@ def configure_telemetry(
     """
     global _global_telemetry
 
-    kwargs = {"enabled": enabled, "debug": debug}
+    kwargs: Dict[str, Any] = {"enabled": enabled, "debug": debug}
     if endpoint:
         kwargs["endpoint"] = endpoint
 

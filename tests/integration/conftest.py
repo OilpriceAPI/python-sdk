@@ -5,8 +5,16 @@ Shared configuration for integration tests.
 import os
 import pytest
 from pathlib import Path
-from dotenv import dotenv_values
 from oilpriceapi import OilPriceAPI
+
+try:
+    from dotenv import dotenv_values
+except ImportError:
+    # python-dotenv is optional. The live demo contract tests need no .env /
+    # API key, so don't make the whole integration suite uncollectable when it
+    # isn't installed.
+    def dotenv_values(_path):  # type: ignore[misc]
+        return {}
 
 # Load .env file from project root
 project_root = Path(__file__).parent.parent.parent
