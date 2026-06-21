@@ -445,6 +445,7 @@ print(f"Test status: {result['status']}")
 - ✅ **Data Quality** - Real-time quality monitoring and reporting
 - ✅ **Data Sources** - Connector management with health checks and logging
 - ✅ **Async Support** - High-performance async client
+- ✅ **WebSocket Streaming** - Real-time price stream via ActionCable (Professional+)
 - ✅ **Smart Caching** - Reduce API calls automatically
 - ✅ **Rate Limit Handling** - Automatic retries with backoff
 - ✅ **Error Handling** - Comprehensive exception classes
@@ -530,6 +531,70 @@ async def get_prices():
 # Run async function
 prices = asyncio.run(get_prices())
 ```
+
+## 📡 Real-Time WebSocket Streaming (New in v1.8.0)
+
+Stream live oil and energy prices over WebSocket instead of polling. Streaming
+is a **Professional / Reservoir Mastery** feature and is exposed through the
+async client via `client.stream`.
+
+Install the optional `stream` extra:
+
+```bash
+pip install 'oilpriceapi[stream]'
+```
+
+```python
+import asyncio
+from oilpriceapi import AsyncOilPriceAPI
+
+async def watch_prices():
+    async with AsyncOilPriceAPI() as client:
+        # Opens an ActionCable subscription to EnergyPricesChannel at /cable.
+        async with client.stream.prices(commodities=["BRENT_CRUDE_USD"]) as stream:
+            async for update in stream:
+                if update.type == "price_update":
+                    brent = update.price_update.prices.oil.brent
+                    print(f"Brent: ${brent.original_price} "
+                          f"({brent.original_currency}) @ {update.price_update.timestamp}")
+                elif update.type == "rig_count_update":
+                    rc = update.rig_count_update.rig_count
+                    print(f"Rig count [{rc.region}]: {rc.count}")
+
+asyncio.run(watch_prices())
+```
+
+Each `update` is a typed `StreamUpdate`:
+
+| `update.type`      | Populated model           | Contents                                  |
+| ------------------ | ------------------------- | ----------------------------------------- |
+| `welcome`          | `update.price_update`     | Initial price snapshot on subscribe       |
+| `price_update`     | `update.price_update`     | Latest Brent/WTI + UK/US/EU natural gas   |
+| `rig_count_update` | `update.rig_count_update` | Drilling rig count update (premium tiers) |
+
+`update.raw` always holds the decoded payload dict for forward compatibility.
+
+**Features:**
+
+- ActionCable JSON subprotocol (welcome → subscribe → confirm → messages, pings handled)
+- Token auth via query param + `Authorization` header
+- Auto-reconnect with exponential backoff + jitter (`auto_reconnect`, `max_reconnect_attempts`)
+- Clean teardown (unsubscribe + close) on context-manager exit
+- Pydantic-typed update models
+
+```python
+# Tune reconnection behavior:
+stream = client.stream.prices(
+    commodities=["BRENT_CRUDE_USD", "WTI_USD"],
+    auto_reconnect=True,
+    max_reconnect_attempts=10,
+    reconnect_base_delay=1.0,
+    reconnect_max_delay=30.0,
+)
+```
+
+> WebSocket streaming requires a Professional+ plan. Subscriptions from
+> lower tiers are rejected during the ActionCable handshake.
 
 ## 🧪 Testing
 
