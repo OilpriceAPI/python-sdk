@@ -5,6 +5,7 @@ Resource modules for different API endpoints.
 """
 
 from .alerts import AlertsResource
+from .analysis import AnalysisResource
 from .analytics import AnalyticsResource
 from .bunker_fuels import BunkerFuelsResource
 from .commodities import CommoditiesResource
@@ -24,6 +25,7 @@ from .subscriptions import SubscriptionsResource
 from .webhooks import WebhooksResource
 
 __all__ = [
+    "AnalysisResource",
     "PricesResource",
     "HistoricalResource",
     "DieselResource",

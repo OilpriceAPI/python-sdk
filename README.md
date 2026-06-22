@@ -13,7 +13,7 @@
 
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - Real-time and historical oil prices for Brent Crude, WTI, Natural Gas, and more.
 
-> **📝 Documentation Status**: This README reflects v1.5.0 features. All code examples shown are tested and working. Advanced features like technical indicators and CLI tools are planned for future releases - see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for roadmap.
+> **📝 Documentation Status**: All code examples shown are tested and working. Technical indicators are available as of v1.9.0 (see [Technical Indicators](#technical-indicators-new-in-v190)); see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for the roadmap.
 
 **Quick start:**
 
@@ -62,6 +62,37 @@ df = client.prices.to_dataframe(
 print(f"Retrieved {len(df)} data points")
 print(df.head())
 ```
+
+### Technical Indicators (New in v1.9.0)
+
+Add technical analysis indicators to any price DataFrame. Implemented in pure
+pandas/numpy, so no extra dependencies beyond the optional `[pandas]` extra.
+
+```python
+# Get historical data
+df = client.prices.to_dataframe(
+    commodity="BRENT_CRUDE_USD",
+    start="2024-01-01",
+    interval="daily",
+)
+
+# Method 1: DataFrame helper (non-mutating, returns a new DataFrame)
+df = client.analysis.with_indicators(
+    df,
+    indicators=["sma_20", "sma_50", "rsi", "bollinger_bands", "macd"],
+)
+# Adds columns: sma_20, sma_50, rsi, bb_upper, bb_middle, bb_lower,
+#               macd, macd_signal, macd_histogram
+print(df.tail())
+
+# Method 2: Direct calculation on a Series
+df["sma_20"] = client.analysis.sma(df["value"], period=20)
+df["ema_12"] = client.analysis.ema(df["value"], period=12)
+df["rsi"] = client.analysis.rsi(df["value"], period=14)
+bands = client.analysis.bollinger_bands(df["value"], period=20, std=2)
+```
+
+Supported indicators: SMA, EMA, RSI, MACD, Bollinger Bands, and ATR.
 
 ### Diesel Prices (New in v1.3.0)
 
@@ -500,6 +531,7 @@ async with AsyncOilPriceAPI() as client:
 - ✅ **Simple API** - Intuitive methods for all endpoints
 - ✅ **Type Safe** - Full type hints for IDE autocomplete
 - ✅ **Pandas Integration** - First-class DataFrame support
+- ✅ **Technical Indicators** - SMA, EMA, RSI, MACD, Bollinger Bands, ATR (pure pandas/numpy)
 - ✅ **Price Alerts** - Automated monitoring with webhook notifications 🔔
 - ✅ **Diesel Prices** - State averages + station-level pricing ⛽
 - ✅ **Futures Contracts** - OHLC, curves, spreads, and continuous data
