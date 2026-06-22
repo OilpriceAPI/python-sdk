@@ -119,6 +119,8 @@ class AsyncOilPriceAPI:
             "User-Agent": f"{SDK_NAME}/{SDK_VERSION} python/{python_version}",
             "X-SDK-Name": SDK_NAME,
             "X-SDK-Version": SDK_VERSION,
+            "X-SDK-Language": "python",
+            "X-Client-Type": "sdk",
         }
 
         # Add optional telemetry headers (10% bonus for app_url!)
