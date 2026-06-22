@@ -17,9 +17,9 @@ from oilpriceapi.exceptions import AuthenticationError, DataNotFoundError
 class TestLiveAPIIntegration:
     """Integration tests with live API."""
 
-    def test_get_current_price(self, live_client):
+    def test_get_current_price(self, live_client, live_call):
         """Test getting current price from live API."""
-        price = live_client.prices.get("BRENT_CRUDE_USD")
+        price = live_call(live_client.prices.get, "BRENT_CRUDE_USD")
 
         assert price is not None
         assert price.commodity == "BRENT_CRUDE_USD"
@@ -27,22 +27,23 @@ class TestLiveAPIIntegration:
         assert price.currency == "USD"
         assert isinstance(price.timestamp, datetime)
 
-    def test_get_multiple_prices(self, live_client):
+    def test_get_multiple_prices(self, live_client, live_call):
         """Test getting multiple prices."""
         commodities = ["BRENT_CRUDE_USD", "WTI_USD", "NATURAL_GAS_USD"]
-        prices = live_client.prices.get_multiple(commodities)
+        prices = live_call(live_client.prices.get_multiple, commodities)
 
         assert len(prices) >= 1  # At least some should succeed
         for price in prices:
             assert price.value > 0
             assert price.commodity in commodities
 
-    def test_get_historical_data(self, live_client):
+    def test_get_historical_data(self, live_client, live_call):
         """Test getting historical data."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
 
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="BRENT_CRUDE_USD",
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
@@ -55,10 +56,10 @@ class TestLiveAPIIntegration:
             assert price.value > 0
             assert price.commodity == "BRENT_CRUDE_USD"
 
-    def test_invalid_commodity(self, live_client):
+    def test_invalid_commodity(self, live_client, live_call):
         """Test handling of invalid commodity."""
         with pytest.raises(DataNotFoundError):
-            live_client.prices.get("TOTALLY_INVALID_COMMODITY_XYZ")
+            live_call(live_client.prices.get, "TOTALLY_INVALID_COMMODITY_XYZ")
 
     @pytest.mark.skip(reason="API currently doesn't validate API keys for read operations")
     def test_invalid_api_key(self):
@@ -70,10 +71,10 @@ class TestLiveAPIIntegration:
         with pytest.raises(AuthenticationError):
             bad_client.prices.get("BRENT_CRUDE_USD")
 
-    def test_context_manager(self, api_key):
+    def test_context_manager(self, api_key, live_call):
         """Test client works as context manager."""
         with OilPriceAPI(api_key=api_key) as client:
-            price = client.prices.get("BRENT_CRUDE_USD")
+            price = live_call(client.prices.get, "BRENT_CRUDE_USD")
             assert price is not None
 
 
@@ -81,10 +82,11 @@ class TestLiveAPIIntegration:
 class TestLiveAPIPerformance:
     """Performance tests (marked slow)."""
 
-    def test_pagination_performance(self, live_client):
+    def test_pagination_performance(self, live_client, live_call):
         """Test pagination doesn't cause issues."""
         # Get a reasonable amount of data
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="BRENT_CRUDE_USD",
             start_date="2024-01-01",
             end_date="2024-01-31",
@@ -97,10 +99,11 @@ class TestLiveAPIPerformance:
         not os.getenv("RUN_EXPENSIVE_TESTS"),
         reason="Expensive test - set RUN_EXPENSIVE_TESTS=1 to run"
     )
-    def test_get_all_historical_large_dataset(self, live_client):
+    def test_get_all_historical_large_dataset(self, live_client, live_call):
         """Test get_all with large dataset (expensive)."""
         # This could use many API calls
-        all_data = live_client.historical.get_all(
+        all_data = live_call(
+            live_client.historical.get_all,
             commodity="BRENT_CRUDE_USD",
             start_date="2024-01-01",
             end_date="2024-02-01",

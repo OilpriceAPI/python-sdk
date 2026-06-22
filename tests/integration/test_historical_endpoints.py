@@ -13,20 +13,21 @@ import pytest
 import time
 from datetime import datetime, timedelta
 from oilpriceapi import OilPriceAPI
-from oilpriceapi.exceptions import TimeoutError
+from oilpriceapi.exceptions import RateLimitError, TimeoutError
 
 
 @pytest.mark.integration
 class TestHistoricalEndpointSelection:
     """Test that SDK selects correct endpoints for different date ranges."""
 
-    def test_1_day_query_uses_past_day_endpoint(self, live_client):
+    def test_1_day_query_uses_past_day_endpoint(self, live_client, live_call):
         """Verify 1-day queries use /v1/prices/past_day endpoint."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=1)
 
         start_time = time.time()
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
@@ -41,13 +42,14 @@ class TestHistoricalEndpointSelection:
         # Should be fast (using optimized endpoint)
         assert duration < 10, f"1-day query took {duration}s, expected <10s"
 
-    def test_7_day_query_uses_past_week_endpoint(self, live_client):
+    def test_7_day_query_uses_past_week_endpoint(self, live_client, live_call):
         """Verify 7-day queries use /v1/prices/past_week endpoint."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
 
         start_time = time.time()
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
@@ -65,13 +67,14 @@ class TestHistoricalEndpointSelection:
         assert duration < 30, f"7-day query took {duration}s, expected <30s"
         print(f"✓ 7-day query completed in {duration:.2f}s (optimized endpoint)")
 
-    def test_30_day_query_uses_past_month_endpoint(self, live_client):
+    def test_30_day_query_uses_past_month_endpoint(self, live_client, live_call):
         """Verify 30-day queries use /v1/prices/past_month endpoint."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=30)
 
         start_time = time.time()
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
@@ -89,14 +92,15 @@ class TestHistoricalEndpointSelection:
         assert duration < 60, f"30-day query took {duration}s, expected <60s"
         print(f"✓ 30-day query completed in {duration:.2f}s (optimized endpoint)")
 
-    def test_365_day_query_uses_past_year_endpoint(self, live_client):
+    def test_365_day_query_uses_past_year_endpoint(self, live_client, live_call):
         """
         Verify 365-day queries use /v1/prices/past_year endpoint.
 
         This is the EXACT query that failed for Idan in v1.4.1.
         """
         start_time = time.time()
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date="2024-01-01",
             end_date="2024-12-31",
@@ -129,13 +133,14 @@ class TestHistoricalEndpointSelection:
 class TestHistoricalTimeoutBehavior:
     """Test timeout handling for historical queries."""
 
-    def test_custom_timeout_is_respected(self, live_client):
+    def test_custom_timeout_is_respected(self, live_client, live_call):
         """Test that custom timeout parameter works."""
         # Try a multi-year query with custom timeout
         start_time = time.time()
 
         try:
-            history = live_client.historical.get(
+            history = live_call(
+                live_client.historical.get,
                 commodity="WTI_USD",
                 start_date="2020-01-01",
                 end_date="2024-12-31",
@@ -154,11 +159,12 @@ class TestHistoricalTimeoutBehavior:
             # Still assert we tried with the right timeout
             assert duration >= 120, "Should have used longer timeout"
 
-    def test_timeout_scales_with_date_range(self, live_client):
+    def test_timeout_scales_with_date_range(self, live_client, live_call):
         """Verify timeout automatically scales for larger date ranges."""
         # Small query should have short timeout
         start_time = time.time()
-        history_week = live_client.historical.get(
+        history_week = live_call(
+            live_client.historical.get,
             commodity="BRENT_CRUDE_USD",
             start_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
             end_date=datetime.now().strftime("%Y-%m-%d"),
@@ -171,7 +177,8 @@ class TestHistoricalTimeoutBehavior:
 
         # Large query should have longer timeout
         start_time = time.time()
-        history_year = live_client.historical.get(
+        history_year = live_call(
+            live_client.historical.get,
             commodity="BRENT_CRUDE_USD",
             start_date="2024-01-01",
             end_date="2024-12-31",
@@ -193,13 +200,14 @@ class TestHistoricalPerformanceBaselines:
     These tests document expected response times and alert on regressions.
     """
 
-    def test_1_week_query_performance_baseline(self, live_client):
+    def test_1_week_query_performance_baseline(self, live_client, live_call):
         """1-week queries should complete in <30s."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
 
         start_time = time.time()
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
@@ -213,13 +221,14 @@ class TestHistoricalPerformanceBaselines:
         # Record baseline for monitoring
         print(f"📊 Performance baseline: 1-week query = {duration:.2f}s")
 
-    def test_1_month_query_performance_baseline(self, live_client):
+    def test_1_month_query_performance_baseline(self, live_client, live_call):
         """1-month queries should complete in <60s."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=30)
 
         start_time = time.time()
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
@@ -232,14 +241,15 @@ class TestHistoricalPerformanceBaselines:
 
         print(f"📊 Performance baseline: 1-month query = {duration:.2f}s")
 
-    def test_1_year_query_performance_baseline(self, live_client):
+    def test_1_year_query_performance_baseline(self, live_client, live_call):
         """
         1-year queries should complete in <120s.
 
         This test documents the exact scenario that failed for Idan.
         """
         start_time = time.time()
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date="2024-01-01",
             end_date="2024-12-31",
@@ -262,9 +272,10 @@ class TestHistoricalPerformanceBaselines:
 class TestHistoricalDataQuality:
     """Test data quality for historical queries."""
 
-    def test_year_query_returns_complete_data(self, live_client):
+    def test_year_query_returns_complete_data(self, live_client, live_call):
         """Verify 1-year query returns complete dataset."""
-        history = live_client.historical.get(
+        history = live_call(
+            live_client.historical.get,
             commodity="WTI_USD",
             start_date="2024-01-01",
             end_date="2024-12-31",
@@ -281,12 +292,13 @@ class TestHistoricalDataQuality:
         dates = [p.date for p in history.data]
         assert dates == sorted(dates, reverse=True), "Data should be sorted by date (descending)"
 
-    def test_historical_data_matches_commodity(self, live_client):
+    def test_historical_data_matches_commodity(self, live_client, live_call):
         """Verify all returned data matches requested commodity."""
         commodities = ["WTI_USD", "BRENT_CRUDE_USD", "NATURAL_GAS_USD"]
 
         for commodity_code in commodities:
-            history = live_client.historical.get(
+            history = live_call(
+                live_client.historical.get,
                 commodity=commodity_code,
                 start_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
                 end_date=datetime.now().strftime("%Y-%m-%d"),
@@ -322,7 +334,14 @@ class TestHistoricalStressTests:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             futures = [executor.submit(query_historical, c) for c in commodities]
-            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+            try:
+                results = [
+                    f.result() for f in concurrent.futures.as_completed(futures)
+                ]
+            except RateLimitError:
+                pytest.skip(
+                    "rate-limited (shared CI key) - skipping live assertion"
+                )
 
         assert len(results) == 3
         for result in results:
