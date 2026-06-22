@@ -15,6 +15,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Performance Guide: PERFORMANCE_GUIDE.md
   - API Reference:
       - Client: reference/client.md
       - Async Client: reference/async_client.md

@@ -525,6 +525,8 @@ async with AsyncOilPriceAPI() as client:
 
 **[Complete SDK Documentation →](docs/index.md)** | **[Online Docs →](https://docs.oilpriceapi.com/sdk/python)**
 
+**[⚡ Performance Guide →](docs/PERFORMANCE_GUIDE.md)** — expected response times, recommended timeouts, optimization best practices, and troubleshooting for slow queries.
+
 ### Authentication
 
 ```python
