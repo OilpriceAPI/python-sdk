@@ -32,6 +32,7 @@ from .exceptions import (
 )
 from .models import DataConnectorPrice, MarketBrief
 from .resources.alerts import AlertsResource
+from .resources.analysis import AnalysisResource
 from .resources.analytics import AnalyticsResource
 from .resources.bunker_fuels import BunkerFuelsResource
 from .resources.commodities import CommoditiesResource
@@ -174,6 +175,7 @@ class OilPriceAPI:
         self.rig_counts = RigCountsResource(self)
         self.bunker_fuels = BunkerFuelsResource(self)
         self.analytics = AnalyticsResource(self)
+        self.analysis = AnalysisResource(self)
         self.forecasts = ForecastsResource(self)
         self.data_quality = DataQualityResource(self)
         self.drilling = DrillingIntelligenceResource(self)
