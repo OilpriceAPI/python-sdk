@@ -1,25 +1,36 @@
 # OilPriceAPI Python SDK
 
-> **Real-time oil and commodity price data for Python** - Professional-grade API at 98% less cost than Bloomberg Terminal
+> **Real-time oil, gas, LNG, carbon and fuel prices in your Python app in under 60 seconds** — typed client, pandas DataFrames, async + WebSocket streaming, and technical indicators built in.
 
-[![PyPI version](https://badge.fury.io/py/oilpriceapi.svg)](https://badge.fury.io/py/oilpriceapi)
+[![PyPI version](https://img.shields.io/pypi/v/oilpriceapi)](https://pypi.org/project/oilpriceapi/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/oilpriceapi)](https://pypistats.org/packages/oilpriceapi)
 [![Python](https://img.shields.io/pypi/pyversions/oilpriceapi.svg)](https://pypi.org/project/oilpriceapi/)
 [![Tests](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml)
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[Get Free API Key](https://www.oilpriceapi.com/signup?utm_source=pypi&utm_medium=sdk&utm_campaign=readme)** • **[Documentation](https://docs.oilpriceapi.com/)** • **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)**
+**[Get a Free API Key](https://www.oilpriceapi.com/auth/signup?utm_source=python-sdk)** · **[Documentation](https://docs.oilpriceapi.com)** · **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=python-sdk-limit)** · **[Quick start ↓](#-quick-start)**
 
-The official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - Real-time and historical oil prices for Brent Crude, WTI, Natural Gas, and more.
+The official Python SDK for [OilPriceAPI](https://oilpriceapi.com), the commodity price API behind fintech dashboards, fleet & logistics tools, maritime compliance platforms and energy analytics products — serving **2M+ API requests every month**.
 
 > **📝 Documentation Status**: All code examples shown are tested and working. Technical indicators are available as of v1.10.0 (see [Technical Indicators](#technical-indicators-new-in-v1100)); see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for the roadmap.
 
-**Quick start:**
+## What can you get?
 
-```bash
-pip install oilpriceapi
-```
+110+ commodities across the energy complex. The ones our customers poll the most:
+
+| Code              | What it is                 | Typical use                                 |
+| ----------------- | -------------------------- | ------------------------------------------- |
+| `BRENT_CRUDE_USD` | Brent crude (global)       | dashboards, market context, deal models     |
+| `WTI_USD`         | WTI crude (US)             | trading tools, macro models                 |
+| `NATURAL_GAS_USD` | Henry Hub natural gas      | energy analytics, procurement               |
+| `DUTCH_TTF_EUR`   | TTF gas (Europe)           | European energy, LNG analytics              |
+| `JKM_LNG_USD`     | JKM LNG (Asia)             | LNG trading & shipping                      |
+| `EU_CARBON_EUR`   | EU ETS carbon allowances   | CBAM reporting, maritime compliance, ESG    |
+| `DIESEL_USD`      | Diesel (Gulf Coast)        | fleet fuel-surcharge calculators, logistics |
+| `JET_FUEL_USD`    | Jet fuel                   | aviation ops & charter pricing              |
+| `VLSFO_USD`       | Marine bunker fuel (0.5%S) | voyage costing, bunker procurement          |
+| `GOLD_USD`        | Gold                       | macro & portfolio context                   |
 
 ## 🚀 Quick Start
 
@@ -723,6 +734,20 @@ stream = client.stream.prices(
 > WebSocket streaming requires a Professional+ plan. Subscriptions from
 > lower tiers are rejected during the ActionCable handshake.
 
+## The whole OilPriceAPI toolbox
+
+Same data, every stack:
+
+| Tool                                                                                | Install                                        |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [Node/TypeScript SDK](https://github.com/OilpriceAPI/oilpriceapi-node)              | `npm install oilpriceapi`                      |
+| [Go SDK](https://github.com/OilpriceAPI/oilpriceapi-go)                             | `go get github.com/OilpriceAPI/oilpriceapi-go` |
+| [PHP SDK](https://github.com/OilpriceAPI/oilpriceapi-php)                           | `composer require oilpriceapi/oilpriceapi`     |
+| [MCP server](https://github.com/OilpriceAPI/mcp-server) (Claude, Cursor, AI agents) | `npx -y oilpriceapi-mcp`                       |
+| [WordPress plugin](https://github.com/OilpriceAPI/oilpriceapi-wordpress-plugin)     | wordpress.org, no code                         |
+| [Google Sheets Add-on](https://github.com/OilpriceAPI/google-sheets-addin)          | custom spreadsheet functions                   |
+| [Excel Add-in](https://github.com/OilpriceAPI/excel-energy-addin)                   | energy prices in Excel                         |
+
 ## 🧪 Testing
 
 The SDK uses standard Python testing frameworks. Example using pytest:
@@ -848,16 +873,6 @@ Contributions are welcome! Please see our [Contributing Guide](https://github.co
 - 💰 **Free tier** with 100 requests (lifetime) to get started
 
 **[Start Free →](https://www.oilpriceapi.com/signup?utm_source=pypi&utm_medium=sdk&utm_campaign=readme)** | **[View Pricing →](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)** | **[Read Docs →](https://docs.oilpriceapi.com)**
-
----
-
-## Also Available As
-
-- **[Node.js SDK](https://www.npmjs.com/package/oilpriceapi)** - TypeScript/JavaScript SDK for Node.js
-- **[Go SDK](https://github.com/OilpriceAPI/oilpriceapi-go)** - Idiomatic Go client
-- **[MCP Server](https://www.npmjs.com/package/oilpriceapi-mcp)** - Model Context Protocol server for Claude, Cursor, and VS Code
-- **[Google Sheets Add-on](https://github.com/OilpriceAPI/google-sheets-addin)** - Custom functions for spreadsheets
-- **[Excel Add-in](https://github.com/OilpriceAPI/excel-energy-addin)** - Energy price comparison in Excel
 
 ---
 

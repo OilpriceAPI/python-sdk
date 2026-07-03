@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-07-03
+
+### Changed
+
+- docs: registry storefront README — hero, "What can you get?" commodity table, and cross-SDK toolbox table so the PyPI page matches the other OilPriceAPI SDKs. No code changes.
+
 ## [1.10.0] - 2026-07-03
 
 ### Added
