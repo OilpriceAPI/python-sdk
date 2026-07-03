@@ -94,11 +94,13 @@ class TestDemoCommoditiesContract:
         assert isinstance(catalog, dict)  # grouped by category
 
         meta = data["meta"]
-        # Contract: 442 commodities in the catalog, meta.total agrees with the
-        # flattened catalog size.
+        # Contract: meta.total agrees with the flattened catalog size and the
+        # catalog is large (400+). Do NOT pin the exact count — the live
+        # catalog legitimately grows/shrinks (442 when written, 436 on
+        # 2026-07-03), and an exact pin turns catalog curation into failures.
         flattened = sum(len(v) for v in catalog.values())
         assert meta["total"] == flattened
-        assert meta["total"] == 442
+        assert meta["total"] >= 400
 
         # meta.free_commodities is present and matches the 9 free-tier codes.
         assert "free_commodities" in meta
