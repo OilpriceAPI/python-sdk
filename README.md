@@ -9,11 +9,11 @@
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[Get Free API Key](https://www.oilpriceapi.com/signup?utm_source=pypi&utm_medium=sdk&utm_campaign=readme)** • **[Documentation](https://docs.oilpriceapi.com/sdk/python)** • **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)**
+**[Get Free API Key](https://www.oilpriceapi.com/signup?utm_source=pypi&utm_medium=sdk&utm_campaign=readme)** • **[Documentation](https://docs.oilpriceapi.com/)** • **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)**
 
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - Real-time and historical oil prices for Brent Crude, WTI, Natural Gas, and more.
 
-> **📝 Documentation Status**: All code examples shown are tested and working. Technical indicators are available as of v1.9.0 (see [Technical Indicators](#technical-indicators-new-in-v190)); see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for the roadmap.
+> **📝 Documentation Status**: All code examples shown are tested and working. Technical indicators are available as of v1.10.0 (see [Technical Indicators](#technical-indicators-new-in-v1100)); see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for the roadmap.
 
 **Quick start:**
 
@@ -63,7 +63,7 @@ print(f"Retrieved {len(df)} data points")
 print(df.head())
 ```
 
-### Technical Indicators (New in v1.9.0)
+### Technical Indicators (New in v1.10.0)
 
 Add technical analysis indicators to any price DataFrame. Implemented in pure
 pandas/numpy, so no extra dependencies beyond the optional `[pandas]` extra.
@@ -555,7 +555,7 @@ async with AsyncOilPriceAPI() as client:
 
 ## 📚 Documentation
 
-**[Complete SDK Documentation →](docs/index.md)** | **[Online Docs →](https://docs.oilpriceapi.com/sdk/python)**
+**[Complete SDK Documentation →](docs/index.md)** | **[Online Docs →](https://docs.oilpriceapi.com/)**
 
 **[⚡ Performance Guide →](docs/PERFORMANCE_GUIDE.md)** — expected response times, recommended timeouts, optimization best practices, and troubleshooting for slow queries.
 
@@ -802,7 +802,7 @@ Contributions are welcome! Please see our [Contributing Guide](https://github.co
 
 - 📧 Email: support@oilpriceapi.com
 - 🐛 Issues: [GitHub Issues](https://github.com/oilpriceapi/python-sdk/issues)
-- 📖 Docs: [Documentation](https://docs.oilpriceapi.com/sdk/python)
+- 📖 Docs: [Documentation](https://docs.oilpriceapi.com/)
 
 ## 🔗 Links
 
