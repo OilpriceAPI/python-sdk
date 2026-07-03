@@ -5,7 +5,14 @@ Shared configuration for contract tests.
 import os
 import pytest
 from pathlib import Path
-from dotenv import dotenv_values
+try:
+    from dotenv import dotenv_values
+except ImportError:
+    # python-dotenv is optional (not in the [dev] extra). In CI the API key
+    # comes from the environment, so don't make the contract suite
+    # uncollectable when dotenv isn't installed.
+    def dotenv_values(_path):  # type: ignore[misc]
+        return {}
 from oilpriceapi import OilPriceAPI
 
 # Load .env file from project root
@@ -16,15 +23,17 @@ env_path = project_root / '.env'
 env_vars = dotenv_values(env_path)
 
 # Get API credentials
-API_KEY = env_vars.get('OILPRICEAPI_KEY')
-BASE_URL = env_vars.get('OILPRICEAPI_BASE_URL', 'https://api.oilpriceapi.com')
+# Prefer .env for local dev, fall back to the environment for CI
+# (weekly-health.yml sets OILPRICEAPI_KEY from the OILPRICEAPI_TEST_KEY secret).
+API_KEY = env_vars.get('OILPRICEAPI_KEY') or os.environ.get('OILPRICEAPI_KEY')
+BASE_URL = env_vars.get('OILPRICEAPI_BASE_URL') or os.environ.get('OILPRICEAPI_BASE_URL', 'https://api.oilpriceapi.com')
 
 
 @pytest.fixture(scope="session")
 def api_key():
     """Provide API key for tests."""
     if not API_KEY:
-        pytest.skip("OILPRICEAPI_KEY not found in .env file")
+        pytest.skip("OILPRICEAPI_KEY not found in .env file or environment")
     return API_KEY
 
 
