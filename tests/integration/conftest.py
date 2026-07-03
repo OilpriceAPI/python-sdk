@@ -26,8 +26,10 @@ env_path = project_root / '.env'
 env_vars = dotenv_values(env_path)
 
 # Get API credentials
-API_KEY = env_vars.get('OILPRICEAPI_KEY')
-BASE_URL = env_vars.get('OILPRICEAPI_BASE_URL', 'https://api.oilpriceapi.com')
+# Prefer .env for local dev, fall back to the environment for CI
+# (weekly-health.yml sets OILPRICEAPI_KEY from the OILPRICEAPI_TEST_KEY secret).
+API_KEY = env_vars.get('OILPRICEAPI_KEY') or os.environ.get('OILPRICEAPI_KEY')
+BASE_URL = env_vars.get('OILPRICEAPI_BASE_URL') or os.environ.get('OILPRICEAPI_BASE_URL', 'https://api.oilpriceapi.com')
 
 # CI shares a single 1-request/second API key across repositories, so live
 # tests can collide and get HTTP 429 (RateLimitError) through no fault of the
@@ -52,7 +54,7 @@ def _throttle_live_calls():
 def api_key():
     """Provide API key for tests."""
     if not API_KEY:
-        pytest.skip("OILPRICEAPI_KEY not found in .env file")
+        pytest.skip("OILPRICEAPI_KEY not found in .env file or environment")
     return API_KEY
 
 

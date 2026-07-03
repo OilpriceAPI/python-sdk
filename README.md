@@ -48,6 +48,28 @@ for price in prices:
     print(f"{price.commodity}: ${price.value:.2f}")
 ```
 
+### Beyond Oil — Gas, LNG, Carbon & Fuels
+
+The same client covers EU ETS carbon, European gas (TTF), LNG (JKM), and marine/road/aviation fuels — for maritime compliance (EU ETS / FuelEU Maritime), fleet & logistics fuel costing, LNG and European gas analytics, and CBAM reporting.
+
+```python
+# EU ETS carbon allowances (EUAs) — spot price in EUR
+eua = client.prices.get("EU_CARBON_EUR")
+print(f"EU carbon: €{eua.value:.2f}")  # €XX.XX per tonne CO2
+
+# Dutch TTF natural gas — futures curve via slug helpers
+# (other slugs: "lng-jkm", "eua-carbon", "uk-carbon", "natural-gas")
+ttf = client.futures.latest("ttf-gas")
+print(ttf["front_month"]["last_price"])  # front-month, €XX.XX/MWh
+
+# Marine bunker fuels (VLSFO / MGO / IFO380) at a specific port
+rotterdam = client.bunker_fuels.port("RTM")  # 3-letter port codes: SIN, RTM, FUJ, ...
+for fuel in rotterdam["prices"]:
+    print(f"{fuel['grade']}: ${fuel['price']}/{fuel['unit']}")  # VLSFO: $XXX.XX/MT
+```
+
+Spot codes for these markets also work with `client.prices.get()` / `get_multiple()`: `DUTCH_TTF_EUR`, `JKM_LNG_USD`, `VLSFO_USD`, `JET_FUEL_USD`, `DIESEL_USD`, `NATURAL_GAS_USD`. (Futures and bunker endpoints require a plan with futures data — spot prices work on every tier.)
+
 ### Historical Data with Pandas
 
 ```python
