@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-03
+
 ### Added
 
 - **Analysis Resource (Technical Indicators)**: `client.analysis` with `with_indicators(df, indicators=[...])` DataFrame helper and direct methods `sma()`, `ema()`, `rsi()`, `macd()`, `bollinger_bands()`, `atr()`. Pure pandas/numpy implementation, no new dependencies. Closes #3.
