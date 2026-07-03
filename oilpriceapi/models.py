@@ -5,7 +5,7 @@ Pydantic models for API responses.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -365,7 +365,12 @@ class MarketBriefForecast(BaseModel):
     point: Optional[float] = Field(default=None, description="Central forecast value")
     low: Optional[float] = Field(default=None, description="Lower bound of the forecast range")
     high: Optional[float] = Field(default=None, description="Upper bound of the forecast range")
-    confidence: Optional[str] = Field(default=None, description="Confidence label (e.g. high, medium, low)")
+    # The API historically sent a label ("high"/"medium"/"low") but now sends a
+    # numeric score (e.g. 0.65) — accept both. Caught by the live contract
+    # tests on 2026-07-03, first run with a real key.
+    confidence: Optional[Union[str, float]] = Field(
+        default=None, description="Confidence label (e.g. high) or numeric score (e.g. 0.65)"
+    )
 
 
 class MarketBriefCommodity(BaseModel):

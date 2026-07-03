@@ -9,7 +9,7 @@
 [![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[Get a Free API Key](https://www.oilpriceapi.com/auth/signup?utm_source=python-sdk)** · **[Documentation](https://docs.oilpriceapi.com)** · **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=python-sdk-limit)** · **[Quick start ↓](#-quick-start)**
+**[Get a Free API Key](https://www.oilpriceapi.com/auth/signup?utm_source=python-sdk)** · **[Documentation](https://docs.oilpriceapi.com)** · **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=python-sdk-limit)** · **[API Explorer](https://api.oilpriceapi.com/swagger)** · **[Quick start ↓](#-quick-start)**
 
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com), the commodity price API behind fintech dashboards, fleet & logistics tools, maritime compliance platforms and energy analytics products — serving **2M+ API requests every month**.
 
@@ -849,6 +849,8 @@ Contributions are welcome! Please see our [Contributing Guide](https://github.co
 
 - 📧 Email: support@oilpriceapi.com
 - 🐛 Issues: [GitHub Issues](https://github.com/oilpriceapi/python-sdk/issues)
+- 🧭 Interactive API Explorer: [api.oilpriceapi.com/swagger](https://api.oilpriceapi.com/swagger) — try every endpoint in the browser (works in demo mode, no key needed)
+- 📜 OpenAPI spec: [swagger.json](https://api.oilpriceapi.com/swagger.json) — generate clients, mock servers, or import into Postman/Insomnia
 - 📖 Docs: [Documentation](https://docs.oilpriceapi.com/)
 
 ## 🔗 Links

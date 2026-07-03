@@ -219,3 +219,20 @@ class TestMarketBrief:
         _, kwargs = mock_req.call_args
         assert kwargs["params"]["codes"] == "WTI_USD,BRENT_CRUDE_USD"
         assert kwargs["params"]["narrative"] == "true"
+
+
+class TestMarketBriefForecastConfidence:
+    """#2026-07-03 live-contract catch: API sends numeric confidence (0.65),
+    SDK previously required a string label — accept both."""
+
+    def test_confidence_accepts_float(self):
+        from oilpriceapi.models import MarketBriefForecast
+
+        f = MarketBriefForecast(point=71.5, low=65.0, high=78.0, confidence=0.65)
+        assert f.confidence == 0.65
+
+    def test_confidence_accepts_label(self):
+        from oilpriceapi.models import MarketBriefForecast
+
+        f = MarketBriefForecast(confidence="high")
+        assert f.confidence == "high"
