@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-07-10
+
+### Changed
+
+- Loosen `source` typing and align examples with the API's masked source labels: the response `source` now returns `market_reporting` for non-government series (government labels like `EIA`/`opec.org` are unchanged). Model `source` fields remain a free `str` (no venue enum); test fixtures no longer use venue names such as `ICE`. See oilpriceapi-api#4175.
+
 ## [1.10.1] - 2026-07-03
 
 ### Changed

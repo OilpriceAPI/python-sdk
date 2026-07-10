@@ -25,7 +25,7 @@ class TestCommoditiesResource:
             "unit": "barrel",
             "currency": "USD",
             "description": "North Sea Brent crude oil benchmark",
-            "source": "ICE",
+            "source": "market_reporting",
             "active": True
         }
 
