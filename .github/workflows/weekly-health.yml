@@ -10,7 +10,12 @@ jobs:
     name: Integration Health Check
     runs-on: ubuntu-latest
     env:
+      # Both names on purpose: the integration/contract conftests read
+      # OILPRICEAPI_KEY, while the live futures/subscriptions/well-production
+      # tests read OILPRICEAPI_TEST_KEY. Exporting only one silently skipped
+      # the other half of the suite (#48).
       OILPRICEAPI_KEY: ${{ secrets.OILPRICEAPI_TEST_KEY }}
+      OILPRICEAPI_TEST_KEY: ${{ secrets.OILPRICEAPI_TEST_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -25,9 +30,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e '.[dev]'
 
-      # OILPRICEAPI_TEST_KEY currently resolves empty at runtime (see PR).
+      # Tier 1 (#48): keyless demo smoke — no secret, no gate, cannot
+      # silently skip even if the repo secret disappears.
+      - name: Keyless demo smoke (always runs)
+        run: pytest tests/integration/test_demo_contract.py -m live --no-cov -v --timeout=60
+
       # Guard at the shell level so the job passes loudly (::warning::) instead
-      # of failing or silently skipping every test.
+      # of failing or silently skipping every test if the secret is empty.
       - name: Run integration tests
         run: |
           if [ -z "$OILPRICEAPI_KEY" ]; then
