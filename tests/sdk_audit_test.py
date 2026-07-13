@@ -43,7 +43,13 @@ class PythonSDKAuditor:
     """Comprehensive Python SDK audit runner"""
 
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.getenv('OILPRICEAPI_KEY') or '94cc54816ff442c372de223e8c33bee7f10a099ed96733d0dd2eeba449f8fb78'
+        # Key comes from the environment ONLY — never hardcode credentials
+        # in this public repo.
+        self.api_key = (
+            api_key
+            or os.getenv('OILPRICEAPI_KEY')
+            or os.getenv('OILPRICEAPI_TEST_KEY')
+        )
         self.results: List[TestResult] = []
         self.client = None
 
@@ -51,7 +57,7 @@ class PythonSDKAuditor:
         """Run all SDK audit tests"""
         print("🧪 Python SDK Audit Test Suite")
         print("=" * 60)
-        print(f"API Key: {self.api_key[:20]}...")
+        print("API Key: set (value masked)")
         print("=" * 60)
         print("")
 
@@ -466,6 +472,11 @@ class PythonSDKAuditor:
 def main():
     """Main entry point"""
     auditor = PythonSDKAuditor()
+    if not auditor.api_key:
+        # Same pattern as the live integration suite: skip cleanly when no
+        # key is available instead of failing (or shipping a fallback key).
+        print("OILPRICEAPI_KEY / OILPRICEAPI_TEST_KEY not set; skipping SDK audit.")
+        sys.exit(0)
     exit_code = auditor.run_all_tests()
     sys.exit(exit_code)
 
