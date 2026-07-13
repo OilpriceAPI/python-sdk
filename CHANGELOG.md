@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Well Production Resource (beta)**: `client.well_production` (and async mirror) covering `/v1/well-production*` — `summary()`, `states()`, `state()`, `well()`, `top_producers()`, `cycle_time()`, `cycle_time_cohorts()`. Per-well data is beta and limited to states with collected regulatory data; endpoints are gated on the Drilling Intelligence feature (403 `ENTERPRISE_REQUIRED`). Closes #50.
+
+### Security
+
+- Removed a committed API-key fallback from `tests/sdk_audit_test.py`; the audit script now reads `OILPRICEAPI_KEY`/`OILPRICEAPI_TEST_KEY` from the environment only and skips cleanly when unset.
+
 ## [1.10.2] - 2026-07-10
 
 ### Changed

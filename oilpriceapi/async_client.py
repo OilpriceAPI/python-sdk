@@ -34,6 +34,7 @@ from .async_resources import (
     AsyncStorageResource,
     AsyncSubscriptionsResource,
     AsyncWebhooksResource,
+    AsyncWellProductionResource,
 )
 from .exceptions import (
     AuthenticationError,
@@ -149,6 +150,8 @@ class AsyncOilPriceAPI:
         self.forecasts = AsyncForecastsResource(self)
         self.data_quality = AsyncDataQualityResource(self)
         self.drilling = AsyncDrillingIntelligenceResource(self)
+        # US well production aggregates + per-well beta data (#50).
+        self.well_production = AsyncWellProductionResource(self)
         self.ei = AsyncEnergyIntelligenceResource(self)
         self.webhooks = AsyncWebhooksResource(self)
         self.data_sources = AsyncDataSourcesResource(self)

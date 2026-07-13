@@ -52,6 +52,10 @@
 
 ::: oilpriceapi.resources.drilling.DrillingIntelligenceResource
 
+## Well Production (Beta)
+
+::: oilpriceapi.resources.well_production.WellProductionResource
+
 ## Webhooks
 
 ::: oilpriceapi.resources.webhooks.WebhooksResource

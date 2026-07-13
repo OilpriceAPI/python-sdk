@@ -50,6 +50,7 @@ from .resources.rig_counts import RigCountsResource
 from .resources.storage import StorageResource
 from .resources.subscriptions import SubscriptionsResource
 from .resources.webhooks import WebhooksResource
+from .resources.well_production import WellProductionResource
 from .retry import RetryStrategy
 
 
@@ -179,6 +180,8 @@ class OilPriceAPI:
         self.forecasts = ForecastsResource(self)
         self.data_quality = DataQualityResource(self)
         self.drilling = DrillingIntelligenceResource(self)
+        # US well production aggregates + per-well beta data (#50).
+        self.well_production = WellProductionResource(self)
         self.ei = EnergyIntelligenceResource(self)
         self.webhooks = WebhooksResource(self)
         self.data_sources = DataSourcesResource(self)
