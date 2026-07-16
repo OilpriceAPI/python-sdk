@@ -372,6 +372,38 @@ print(f"Permian rigs: {permian['rig_count']}")
 completions = client.drilling.completions()
 ```
 
+### Well Production (Beta)
+
+US well production data. State/national monthly aggregates come from the
+EIA API; per-well history and cycle-time analytics are **beta** and only
+cover states where regulatory data has been collected — this is not a
+complete US well-level production dataset. Requires a plan with the
+Drilling Intelligence feature (403 `ENTERPRISE_REQUIRED` otherwise).
+
+```python
+# National overview + top producing states
+overview = client.well_production.summary()
+for state in overview["top_states"]:
+    print(f"{state['state']}: {state['oil_bbl']:,} bbl ({state['period']})")
+
+# State-level production for a month
+states = client.well_production.states(period="2026-04")
+
+# Production history for one state
+tx = client.well_production.state("TX", start_date="2026-01-01")
+
+# Per-well history (beta; 14-digit API number, dashes OK)
+well = client.well_production.well("42-285-34329-00-00")
+
+# Top producing wells in a state (beta)
+top = client.well_production.top_producers("NM", limit=10, months=12)
+
+# Permit-to-production cycle times (beta)
+ct = client.well_production.cycle_time(state="TX")
+print(f"Median cycle: {ct['cycle_time_stats']['median_days']} days")
+cohorts = client.well_production.cycle_time_cohorts(state="TX", group_by="quarter")
+```
+
 ### Webhooks (New in v1.5.0)
 
 ```python
@@ -573,6 +605,7 @@ async with AsyncOilPriceAPI() as client:
 - ✅ **Bunker Fuels** - Marine fuel prices across major ports
 - ✅ **Price Analytics** - Performance, correlations, trends, and forecasts
 - ✅ **Drilling Intelligence** - DUC wells, permits, completions, and basin data
+- ✅ **Well Production (beta)** - State/national production aggregates, per-well history, cycle times
 - ✅ **Webhooks** - Manage event subscriptions and notifications
 - ✅ **EIA Forecasts** - Official monthly price forecasts with accuracy tracking
 - ✅ **Energy Intelligence** - EIA data, OPEC production, drilling productivity

@@ -23,6 +23,7 @@ from .rig_counts import RigCountsResource
 from .storage import StorageResource
 from .subscriptions import SubscriptionsResource
 from .webhooks import WebhooksResource
+from .well_production import WellProductionResource
 
 __all__ = [
     "AnalysisResource",
@@ -44,4 +45,5 @@ __all__ = [
     "DataSourcesResource",
     "DemoResource",
     "SubscriptionsResource",
+    "WellProductionResource",
 ]

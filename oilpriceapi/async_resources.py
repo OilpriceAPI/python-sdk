@@ -10,7 +10,7 @@ from ._subscriptions_common import (
 )
 from .exceptions import ValidationError
 from .models import DieselPrice, DieselStationsResponse, PriceAlert, Subscription, SubscriptionEvent
-from .resource_validators import VALID_OPERATORS, format_date
+from .resource_validators import VALID_OPERATORS, format_date, normalize_api_number
 from .resources._futures_slug import normalize_futures_slug
 from .resources.subscriptions import SubscriptionEventsPage
 
@@ -767,6 +767,135 @@ class AsyncDrillingIntelligenceResource:
     async def basin(self, name: str) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path=f"/v1/drilling-intelligence/basin/{name}"
+        )
+        if "data" in response:
+            return response["data"]
+        return response
+
+
+class AsyncWellProductionResource:
+    """Async resource for US well production data (beta).
+
+    Mirror of ``oilpriceapi.resources.well_production.WellProductionResource``.
+    """
+
+    def __init__(self, client):
+        self.client = client
+
+    async def summary(self) -> Dict[str, Any]:
+        response = await self.client.request(method="GET", path="/v1/well-production")
+        if "data" in response:
+            return response["data"]
+        return response
+
+    async def states(self, period: Optional[str] = None, **params) -> Dict[str, Any]:
+        if period is not None:
+            params["period"] = period
+        response = await self.client.request(
+            method="GET", path="/v1/well-production/states", params=params
+        )
+        if "data" in response:
+            return response["data"]
+        return response
+
+    async def state(
+        self,
+        code: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        **params,
+    ) -> Dict[str, Any]:
+        if start_date is not None:
+            params["start_date"] = start_date
+        if end_date is not None:
+            params["end_date"] = end_date
+        response = await self.client.request(
+            method="GET", path=f"/v1/well-production/states/{code}", params=params
+        )
+        if "data" in response:
+            return response["data"]
+        return response
+
+    async def well(self, api_number: str) -> Dict[str, Any]:
+        normalized = normalize_api_number(api_number)
+        response = await self.client.request(
+            method="GET", path=f"/v1/well-production/wells/{normalized}"
+        )
+        if "data" in response:
+            return response["data"]
+        return response
+
+    async def top_producers(
+        self,
+        state_code: str = "TX",
+        limit: int = 20,
+        months: Optional[int] = None,
+        **params,
+    ) -> Dict[str, Any]:
+        params["state_code"] = state_code
+        params["limit"] = limit
+        if months is not None:
+            params["months"] = months
+        response = await self.client.request(
+            method="GET", path="/v1/well-production/top-producers", params=params
+        )
+        if "data" in response:
+            return response["data"]
+        return response
+
+    async def cycle_time(
+        self,
+        state: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        operator: Optional[str] = None,
+        formation: Optional[str] = None,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
+        radius_miles: Optional[float] = None,
+        **params,
+    ) -> Dict[str, Any]:
+        filters = {
+            "state": state,
+            "start_date": start_date,
+            "end_date": end_date,
+            "operator": operator,
+            "formation": formation,
+            "lat": lat,
+            "lng": lng,
+            "radius_miles": radius_miles,
+        }
+        params.update({k: v for k, v in filters.items() if v is not None})
+        response = await self.client.request(
+            method="GET", path="/v1/well-production/cycle-time", params=params
+        )
+        if "data" in response:
+            return response["data"]
+        return response
+
+    async def cycle_time_cohorts(
+        self,
+        state: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
+        radius_miles: Optional[float] = None,
+        group_by: Optional[str] = None,
+        **params,
+    ) -> Dict[str, Any]:
+        filters = {
+            "state": state,
+            "start_date": start_date,
+            "end_date": end_date,
+            "lat": lat,
+            "lng": lng,
+            "radius_miles": radius_miles,
+            "group_by": group_by,
+        }
+        params.update({k: v for k, v in filters.items() if v is not None})
+        response = await self.client.request(
+            method="GET", path="/v1/well-production/cycle-time/cohorts", params=params
         )
         if "data" in response:
             return response["data"]

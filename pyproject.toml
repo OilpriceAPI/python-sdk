@@ -159,7 +159,11 @@ disable_error_code = ["no-untyped-def", "no-any-return", "no-untyped-call"]
 
 # Modules already fully strict-clean — keep them strict so they can't regress.
 [[tool.mypy.overrides]]
-module = ["oilpriceapi.resources.forecasts", "oilpriceapi.resources.drilling"]
+module = [
+    "oilpriceapi.resources.forecasts",
+    "oilpriceapi.resources.drilling",
+    "oilpriceapi.resources.well_production",
+]
 disable_error_code = []
 
 # models.py optionally imports `dateutil` for a fallback timestamp parse. The

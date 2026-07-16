@@ -53,3 +53,36 @@ def format_date(date_input: Union[str, date, datetime]) -> str:
         return date_input.isoformat()
     else:
         raise ValueError(f"Invalid date type: {type(date_input)}")
+
+
+# ---------------------------------------------------------------------------
+# Well production API numbers
+# ---------------------------------------------------------------------------
+
+API_NUMBER_LENGTH = 14
+
+
+def normalize_api_number(api_number: str) -> str:
+    """Normalise a well API number to the 14-digit form the API expects.
+
+    Strips any non-digit separators (dashes, spaces) and validates the
+    length client-side so callers get an immediate, descriptive error
+    instead of a 400 round-trip.
+
+    Args:
+        api_number: A well API number, e.g. ``"42285343290000"`` or
+            ``"42-285-34329-00-00"``.
+
+    Returns:
+        The 14-digit API number string.
+
+    Raises:
+        ValueError: If the value does not contain exactly 14 digits.
+    """
+    digits = "".join(ch for ch in str(api_number) if ch.isdigit())
+    if len(digits) != API_NUMBER_LENGTH:
+        raise ValueError(
+            f"API number must be {API_NUMBER_LENGTH} digits, "
+            f"got {len(digits)} from {api_number!r}"
+        )
+    return digits
