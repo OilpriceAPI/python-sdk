@@ -1,0 +1,26 @@
+# Dependabot configuration.
+#
+# Runtime deps in pyproject.toml are floor-pinned ranges (>=), so pip users
+# already resolve to the latest compatible releases; the value here is
+# keeping GitHub Actions pinned-by-tag workflows and the dev toolchain
+# (pytest/mypy/ruff/etc.) from drifting silently.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
