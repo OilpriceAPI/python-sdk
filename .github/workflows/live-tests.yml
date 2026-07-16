@@ -1,8 +1,13 @@
 name: Live API Tests
 
-# Runs the live/integration suite against the real OilPriceAPI.
-# Gated on the OILPRICEAPI_TEST_KEY repo secret so forks (which don't have it)
-# don't fail.
+# Two-tier live smoke (#48):
+#
+#   1. Keyless demo smoke — hits the public /v1/demo/* endpoints with NO
+#      secret. Runs unconditionally on every push/PR, so route health and
+#      envelope-shape coverage can never silently skip (this tier caught
+#      the 442->436 catalog change keyless).
+#   2. Keyed live tests — auth path + gated endpoints, only when the
+#      OILPRICEAPI_TEST_KEY secret is available (skips loudly on forks).
 
 on:
   push:
@@ -15,8 +20,6 @@ jobs:
   live-tests:
     name: Live API tests
     runs-on: ubuntu-latest
-    # Only run when the secret is available (skips on forks / PRs from forks).
-    if: ${{ github.event_name == 'workflow_dispatch' || github.repository == 'OilpriceAPI/python-sdk' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -31,12 +34,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e '.[dev]'
 
-      - name: Run live integration tests
+      # Tier 1: always runs — no secret, no gate, cannot silently skip.
+      - name: Keyless demo smoke (always runs)
+        run: pytest tests/integration/test_demo_contract.py -m live --no-cov -v
+
+      # Tier 2: full live suite, gated on the repo secret (forks skip loudly).
+      - name: Keyed live tests
         env:
           OILPRICEAPI_TEST_KEY: ${{ secrets.OILPRICEAPI_TEST_KEY }}
         run: |
           if [ -z "$OILPRICEAPI_TEST_KEY" ]; then
-            echo "OILPRICEAPI_TEST_KEY not set; skipping live tests."
+            echo "::warning::OILPRICEAPI_TEST_KEY not available (fork?); keyed live tests skipped. Keyless demo smoke above still ran."
             exit 0
           fi
           pytest tests/integration -m live --no-cov -v

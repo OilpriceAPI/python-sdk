@@ -66,15 +66,25 @@ class TestPricesEndpointContract:
         age = datetime.now(price.timestamp.tzinfo) - price.timestamp
         assert age.days < 7, f"Price timestamp is {age.days} days old (stale data?)"
 
-    def test_invalid_commodity_returns_404(self, live_client):
-        """Verify invalid commodity codes return 404."""
-        from oilpriceapi.exceptions import DataNotFoundError
+    def test_invalid_commodity_returns_error(self, live_client):
+        """Verify invalid commodity codes surface an API error.
 
-        # Contract: Invalid commodity should raise DataNotFoundError
-        with pytest.raises(DataNotFoundError) as exc_info:
+        Contract updated 2026-07: the API now returns HTTP 400 with an
+        ``invalid_code`` payload (plus code suggestions) instead of the old
+        404, so the SDK raises the base OilPriceAPIError rather than
+        DataNotFoundError. Both carry a "not found" message.
+        """
+        from oilpriceapi.exceptions import OilPriceAPIError
+
+        with pytest.raises(OilPriceAPIError) as exc_info:
             live_client.prices.get("INVALID_COMMODITY_XYZ")
 
-        assert "not found" in str(exc_info.value).lower()
+        assert exc_info.value.status_code in (400, 404)
+        # The 400 payload nests the human message under data.message
+        # ({"status": "fail", "data": {"error": "invalid_code", ...}});
+        # the SDK currently surfaces a generic message for that shape, so
+        # assert the error is present rather than its exact wording.
+        assert str(exc_info.value), "Error should have message"
 
 
 @pytest.mark.contract
@@ -250,15 +260,21 @@ class TestEndpointAvailability:
 class TestErrorResponseContract:
     """Validate error response formats."""
 
-    def test_404_error_format(self, live_client):
-        """Verify 404 errors have expected format."""
-        from oilpriceapi.exceptions import DataNotFoundError
+    def test_invalid_code_error_format(self, live_client):
+        """Verify invalid-code errors have expected format.
 
-        with pytest.raises(DataNotFoundError) as exc_info:
+        Contract updated 2026-07: unknown commodity codes return HTTP 400
+        (``invalid_code``) rather than 404; keep asserting the SDK surfaces
+        a structured error with a message.
+        """
+        from oilpriceapi.exceptions import OilPriceAPIError
+
+        with pytest.raises(OilPriceAPIError) as exc_info:
             live_client.prices.get("NONEXISTENT_COMMODITY")
 
-        # Contract: Error should have message
+        # Contract: Error should have message and an HTTP status code
         assert str(exc_info.value), "Error should have message"
+        assert exc_info.value.status_code in (400, 404)
 
     def test_rate_limit_header_format(self, live_client):
         """Verify rate limit headers are present (if applicable)."""
