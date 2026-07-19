@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-19
+
+### Changed
+
+- Replaced the PyPI storefront with reviewed source-timestamped wording and
+  removed unsupported fixed catalog, traffic, cadence, and entitlement claims.
+- Made the canonical first-request snippet fail closed unless symbol, numeric
+  value, currency, unit, source, and an exact API timestamp field are present.
+- Added a storefront claim guard and corrected the history snippet's declared
+  endpoint to match its executable request path.
+
 ### Added
 
 - **Well Production Resource (beta)**: `client.well_production` (and async mirror) covering `/v1/well-production*` — `summary()`, `states()`, `state()`, `well()`, `top_producers()`, `cycle_time()`, `cycle_time_cohorts()`. Per-well data is beta and limited to states with collected regulatory data; endpoints are gated on the Drilling Intelligence feature (403 `ENTERPRISE_REQUIRED`). Closes #50.

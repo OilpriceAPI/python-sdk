@@ -48,7 +48,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "price": 72.5,
                     "currency": "USD",
                     "unit": "barrel",
+                    "source": "market_reporting",
                     "created_at": "2026-01-15T12:00:00Z",
+                    "data_status": "current",
                 },
             }
         else:
@@ -119,7 +121,19 @@ def test_exact_manifest_files_execute_against_fixtures(monkeypatch: Any) -> None
 
     try:
         cases = [
-            ("latest_price", "success", {"commodity": "BRENT_CRUDE_USD", "value_type": "float"}),
+            (
+                "latest_price",
+                "success",
+                {
+                    "commodity": "BRENT_CRUDE_USD",
+                    "currency": "USD",
+                    "unit": "barrel",
+                    "source": "market_reporting",
+                    "timestamp_field": "created_at",
+                    "value_type": "float",
+                    "freshness": "current",
+                },
+            ),
             ("history", "success", {"commodity": "BRENT_CRUDE_USD", "count": 1}),
             ("authentication_error", "authentication", {"handled": True, "status_code": 401}),
             ("entitlement_error", "entitlement", {"handled": True, "status_code": 403}),

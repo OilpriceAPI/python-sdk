@@ -34,6 +34,9 @@ jobs:
       - name: Type check with mypy
         run: mypy oilpriceapi/ --ignore-missing-imports
 
+      - name: Validate public storefront claims
+        run: python scripts/validate_storefront_claims.py
+
       - name: Run unit tests
         run: pytest tests/ --ignore=tests/integration --ignore=tests/contract -m 'not slow' --cov=oilpriceapi --cov-report=xml -v
 
