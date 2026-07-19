@@ -48,3 +48,14 @@ jobs:
             exit 0
           fi
           pytest tests/integration -m live --no-cov -v
+
+      - name: Run canonical success snippets against production
+        env:
+          OILPRICEAPI_KEY: ${{ secrets.OILPRICEAPI_TEST_KEY }}
+        run: |
+          if [ -z "$OILPRICEAPI_KEY" ]; then
+            echo "::warning::OILPRICEAPI_TEST_KEY not available; canonical snippet smoke skipped."
+            exit 0
+          fi
+          python examples/snippets/latest_price.py
+          python examples/snippets/history.py

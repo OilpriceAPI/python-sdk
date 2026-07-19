@@ -70,6 +70,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-timeout>=2.1.0",
+    "jsonschema>=4.17.0,<4.24",
     "black>=23.0.0",
     # Pin <3 defensively: mypy 2.x tightened defaults and rejected the old
     # python_version="3.8" config, which contributed to CI going red.

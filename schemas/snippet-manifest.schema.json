@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.oilpriceapi.com/schemas/sdk-snippet-manifest-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "package", "source_commit", "examples"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "language", "minimum_runtime"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "language": {"const": "python"},
+        "minimum_runtime": {"const": "3.8"}
+      }
+    },
+    "examples": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path", "kind", "endpoint", "docs_url", "expected_response_shape", "code", "sha256"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^python\\."},
+          "path": {"type": "string", "pattern": "^examples/snippets/.*\\.py$"},
+          "kind": {"enum": ["success", "recovery"]},
+          "endpoint": {"type": "string", "pattern": "^GET /v1/"},
+          "http_status": {"type": "integer", "enum": [401, 403, 429]},
+          "docs_url": {"type": "string", "pattern": "^https://docs\\.oilpriceapi\\.com/"},
+          "expected_response_shape": {"type": "object", "minProperties": 2, "additionalProperties": {"type": "string"}},
+          "code": {"type": "string", "minLength": 80},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}
