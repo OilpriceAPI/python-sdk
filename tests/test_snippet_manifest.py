@@ -102,6 +102,9 @@ def test_manifest_validates_and_checksum_matches(tmp_path: Path) -> None:
         for example in manifest["examples"]
         if "http_status" in example
     } == {401, 403, 429}
+    for example in manifest["examples"]:
+        assert "OILPRICEAPI_KEY" in example["code"]
+        assert "_shared" not in example["code"]
     assert output.with_suffix(".json.sha256").read_text().endswith(
         "  oilpriceapi-python-snippets-v1.json\n"
     )
