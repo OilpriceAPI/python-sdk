@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0.0",
+  "package": {
+    "name": "oilpriceapi",
+    "language": "python",
+    "minimum_runtime": "3.8"
+  },
+  "examples": [
+    {
+      "id": "python.latest-price",
+      "path": "examples/snippets/latest_price.py",
+      "kind": "success",
+      "endpoint": "GET /v1/prices/latest",
+      "docs_url": "https://docs.oilpriceapi.com/quick-start/python",
+      "expected_response_shape": {
+        "commodity": "string",
+        "currency": "string|null",
+        "value_type": "string",
+        "timestamp_type": "string"
+      }
+    },
+    {
+      "id": "python.history",
+      "path": "examples/snippets/history.py",
+      "kind": "success",
+      "endpoint": "GET /v1/prices/past_day",
+      "docs_url": "https://docs.oilpriceapi.com/quick-start/python",
+      "expected_response_shape": {
+        "commodity": "string",
+        "count": "integer",
+        "value_type": "string"
+      }
+    },
+    {
+      "id": "python.authentication-error",
+      "path": "examples/snippets/authentication_error.py",
+      "kind": "recovery",
+      "endpoint": "GET /v1/prices/latest",
+      "http_status": 401,
+      "docs_url": "https://docs.oilpriceapi.com/guides/authentication",
+      "expected_response_shape": {"handled": "boolean", "status_code": "integer"}
+    },
+    {
+      "id": "python.entitlement-error",
+      "path": "examples/snippets/entitlement_error.py",
+      "kind": "recovery",
+      "endpoint": "GET /v1/prices/latest",
+      "http_status": 403,
+      "docs_url": "https://docs.oilpriceapi.com/guides/error-codes",
+      "expected_response_shape": {"handled": "boolean", "status_code": "integer"}
+    },
+    {
+      "id": "python.rate-limit-error",
+      "path": "examples/snippets/rate_limit_error.py",
+      "kind": "recovery",
+      "endpoint": "GET /v1/prices/latest",
+      "http_status": 429,
+      "docs_url": "https://docs.oilpriceapi.com/guides/error-codes",
+      "expected_response_shape": {"handled": "boolean", "status_code": "integer"}
+    },
+    {
+      "id": "python.timeout-error",
+      "path": "examples/snippets/timeout_error.py",
+      "kind": "recovery",
+      "endpoint": "GET /v1/prices/latest",
+      "docs_url": "https://docs.oilpriceapi.com/guides/error-codes",
+      "expected_response_shape": {"handled": "boolean", "error_type": "string"}
+    }
+  ]
+}

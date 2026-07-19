@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +36,20 @@ jobs:
 
       - name: Run unit tests
         run: pytest tests/ --ignore=tests/integration --ignore=tests/contract -m 'not slow' --cov=oilpriceapi --cov-report=xml -v
+
+      - name: Build executable snippet manifest
+        run: |
+          python scripts/generate_snippet_manifest.py \
+            --source-commit "$GITHUB_SHA" \
+            --output artifacts/snippets/oilpriceapi-python-snippets-v1.json
+
+      - name: Upload snippet manifest
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oilpriceapi-python-snippets-${{ github.sha }}
+          path: artifacts/snippets/
+          if-no-files-found: error
 
       - name: Upload coverage
         if: matrix.python-version == '3.12'

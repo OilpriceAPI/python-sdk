@@ -11,6 +11,12 @@
 
 **[Get a Free API Key](https://www.oilpriceapi.com/auth/signup?utm_source=python-sdk)** · **[Documentation](https://docs.oilpriceapi.com)** · **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=python-sdk-limit)** · **[API Explorer](https://api.oilpriceapi.com/swagger)** · **[Quick start ↓](#-quick-start)**
 
+Canonical website and documentation snippets live in `examples/snippets/` and
+are executed in CI against deterministic fixtures. `scripts/generate_snippet_manifest.py`
+packages those exact files with runtime, package, response-shape, source-commit,
+and SHA-256 metadata. Release builds attach the manifest and checksum so
+downstream sites can pin reviewed SDK examples instead of copying code by hand.
+
 The official Python SDK for [OilPriceAPI](https://oilpriceapi.com), the commodity price API behind fintech dashboards, fleet & logistics tools, maritime compliance platforms and energy analytics products — serving **2M+ API requests every month**.
 
 > **📝 Documentation Status**: All code examples shown are tested and working. Technical indicators are available as of v1.10.0 (see [Technical Indicators](#technical-indicators-new-in-v1100)); see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for the roadmap.

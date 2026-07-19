@@ -11,6 +11,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+artifacts/
 downloads/
 eggs/
 .eggs/
@@ -162,6 +163,8 @@ cython_debug/
 !pyproject.toml
 !setup.py
 !.env.example
+!schemas/*.json
+!examples/snippets/*.json
 
 # Keep example notebooks and GitHub Pages docs
 !examples/*.ipynb
