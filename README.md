@@ -1,920 +1,223 @@
 # OilPriceAPI Python SDK
 
-> **Real-time oil, gas, LNG, carbon and fuel prices in your Python app in under 60 seconds** — typed client, pandas DataFrames, async + WebSocket streaming, and technical indicators built in.
+Official Python client for source-timestamped OilPriceAPI energy data. It
+provides typed synchronous and asynchronous clients, bounded retries, explicit
+errors, optional pandas helpers, and executable example manifests.
 
 [![PyPI version](https://img.shields.io/pypi/v/oilpriceapi)](https://pypi.org/project/oilpriceapi/)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/oilpriceapi)](https://pypistats.org/packages/oilpriceapi)
 [![Python](https://img.shields.io/pypi/pyversions/oilpriceapi.svg)](https://pypi.org/project/oilpriceapi/)
-[![Tests](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/oilpriceapi/python-sdk/actions/workflows/test.yml)
-[![Coverage](https://codecov.io/gh/oilpriceapi/python-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/oilpriceapi/python-sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/OilpriceAPI/python-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/OilpriceAPI/python-sdk/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**[Get a Free API Key](https://www.oilpriceapi.com/auth/signup?utm_source=python-sdk)** · **[Documentation](https://docs.oilpriceapi.com)** · **[Pricing](https://www.oilpriceapi.com/pricing?utm_source=python-sdk-limit)** · **[API Explorer](https://api.oilpriceapi.com/swagger)** · **[Quick start ↓](#-quick-start)**
+Mutable offer, catalog, freshness, entitlement, and data-rights wording is
+governed by the reviewed
+[`product-facts.json`](https://api.oilpriceapi.com/product-facts.json) contract.
+Latest available values include source timestamps; cadence, history depth, and
+access vary by source, market hours, dataset, and account entitlement.
 
-Canonical website and documentation snippets live in `examples/snippets/` and
-are executed in CI against deterministic fixtures. `scripts/generate_snippet_manifest.py`
-packages those exact files with runtime, package, response-shape, source-commit,
-and SHA-256 metadata. Release builds attach the manifest and checksum so
-downstream sites can pin reviewed SDK examples instead of copying code by hand.
-
-The official Python SDK for [OilPriceAPI](https://oilpriceapi.com), the commodity price API behind fintech dashboards, fleet & logistics tools, maritime compliance platforms and energy analytics products — serving **2M+ API requests every month**.
-
-> **📝 Documentation Status**: All code examples shown are tested and working. Technical indicators are available as of v1.10.0 (see [Technical Indicators](#technical-indicators-new-in-v1100)); see our [GitHub Issues](https://github.com/OilpriceAPI/python-sdk/issues) for the roadmap.
-
-## What can you get?
-
-110+ commodities across the energy complex. The ones our customers poll the most:
-
-| Code              | What it is                 | Typical use                                 |
-| ----------------- | -------------------------- | ------------------------------------------- |
-| `BRENT_CRUDE_USD` | Brent crude (global)       | dashboards, market context, deal models     |
-| `WTI_USD`         | WTI crude (US)             | trading tools, macro models                 |
-| `NATURAL_GAS_USD` | Henry Hub natural gas      | energy analytics, procurement               |
-| `DUTCH_TTF_EUR`   | TTF gas (Europe)           | European energy, LNG analytics              |
-| `JKM_LNG_USD`     | JKM LNG (Asia)             | LNG trading & shipping                      |
-| `EU_CARBON_EUR`   | EU ETS carbon allowances   | CBAM reporting, maritime compliance, ESG    |
-| `DIESEL_USD`      | Diesel (Gulf Coast)        | fleet fuel-surcharge calculators, logistics |
-| `JET_FUEL_USD`    | Jet fuel                   | aviation ops & charter pricing              |
-| `VLSFO_USD`       | Marine bunker fuel (0.5%S) | voyage costing, bunker procurement          |
-| `GOLD_USD`        | Gold                       | macro & portfolio context                   |
-
-## 🚀 Quick Start
-
-### Installation
+## Install
 
 ```bash
-pip install oilpriceapi
+python -m pip install oilpriceapi
 ```
 
-### Basic Usage
+Optional extras are installed only when the application uses them:
+
+```bash
+python -m pip install "oilpriceapi[pandas]"
+python -m pip install "oilpriceapi[stream]"
+```
+
+An installed helper does not imply that every dataset or workflow is enabled
+for an account. Confirm access in the current API response and documentation.
+
+## Authenticate
+
+Create an API key in the [OilPriceAPI dashboard](https://www.oilpriceapi.com/auth/signup)
+and provide it through the environment. Do not put a key in source code, a
+notebook cell, a URL, logs, screenshots, or issue text.
+
+```bash
+export OILPRICEAPI_KEY="your-key-from-the-dashboard"
+```
+
+The API authentication header is `Authorization: Token YOUR_API_KEY`.
+
+## First Request With Source Context
+
+The canonical first request is
+`GET /v1/prices/latest?by_code=BRENT_CRUDE_USD`. This example fails closed if
+the response omits the context needed to interpret the value:
 
 ```python
+import math
+import os
+
 from oilpriceapi import OilPriceAPI
 
-# Initialize client (uses OILPRICEAPI_KEY env var by default)
-client = OilPriceAPI()
+with OilPriceAPI(api_key=os.environ["OILPRICEAPI_KEY"], max_retries=1) as client:
+    payload = client.request(
+        "GET",
+        "/v1/prices/latest",
+        params={"by_code": "BRENT_CRUDE_USD"},
+        timeout=30,
+    )
 
-# Get latest Brent Crude price
-brent = client.prices.get("BRENT_CRUDE_USD")
-print(f"Brent Crude: ${brent.value:.2f}")
-# Output: Brent Crude: $71.45
+record = payload.get("data")
+if not isinstance(record, dict):
+    raise RuntimeError("EMPTY_RESPONSE: no price record returned")
 
-# Get multiple prices
-prices = client.prices.get_multiple(["BRENT_CRUDE_USD", "WTI_USD", "NATURAL_GAS_USD"])
-for price in prices:
-    print(f"{price.commodity}: ${price.value:.2f}")
-```
+price = record.get("price")
+if isinstance(price, bool) or not isinstance(price, (int, float)) or not math.isfinite(price):
+    raise RuntimeError("MALFORMED_RESPONSE: price is not a finite number")
 
-### Beyond Oil — Gas, LNG, Carbon & Fuels
+source = record.get("source")
+metadata = record.get("metadata")
+if not source and isinstance(metadata, dict):
+    source = metadata.get("source")
 
-The same client covers EU ETS carbon, European gas (TTF), LNG (JKM), and marine/road/aviation fuels — for maritime compliance (EU ETS / FuelEU Maritime), fleet & logistics fuel costing, LNG and European gas analytics, and CBAM reporting.
-
-```python
-# EU ETS carbon allowances (EUAs) — spot price in EUR
-eua = client.prices.get("EU_CARBON_EUR")
-print(f"EU carbon: €{eua.value:.2f}")  # €XX.XX per tonne CO2
-
-# Dutch TTF natural gas — futures curve via slug helpers
-# (other slugs: "lng-jkm", "eua-carbon", "uk-carbon", "natural-gas")
-ttf = client.futures.latest("ttf-gas")
-print(ttf["front_month"]["last_price"])  # front-month, €XX.XX/MWh
-
-# Marine bunker fuels (VLSFO / MGO / IFO380) at a specific port
-rotterdam = client.bunker_fuels.port("RTM")  # 3-letter port codes: SIN, RTM, FUJ, ...
-for fuel in rotterdam["prices"]:
-    print(f"{fuel['grade']}: ${fuel['price']}/{fuel['unit']}")  # VLSFO: $XXX.XX/MT
-```
-
-Spot codes for these markets also work with `client.prices.get()` / `get_multiple()`: `DUTCH_TTF_EUR`, `JKM_LNG_USD`, `VLSFO_USD`, `JET_FUEL_USD`, `DIESEL_USD`, `NATURAL_GAS_USD`. (Futures and bunker endpoints require a plan with futures data — spot prices work on every tier.)
-
-### Historical Data with Pandas
-
-```python
-# Get historical data as DataFrame
-df = client.prices.to_dataframe(
-    commodity="BRENT_CRUDE_USD",
-    start="2024-01-01",
-    end="2024-12-31",
-    interval="daily"
+timestamp_field = next(
+    (
+        field
+        for field in ("as_of", "source_timestamp", "created_at", "updated_at")
+        if isinstance(record.get(field), str) and record[field].strip()
+    ),
+    None,
 )
 
-print(f"Retrieved {len(df)} data points")
-print(df.head())
-```
-
-### Technical Indicators (New in v1.10.0)
-
-Add technical analysis indicators to any price DataFrame. Implemented in pure
-pandas/numpy, so no extra dependencies beyond the optional `[pandas]` extra.
-
-```python
-# Get historical data
-df = client.prices.to_dataframe(
-    commodity="BRENT_CRUDE_USD",
-    start="2024-01-01",
-    interval="daily",
-)
-
-# Method 1: DataFrame helper (non-mutating, returns a new DataFrame)
-df = client.analysis.with_indicators(
-    df,
-    indicators=["sma_20", "sma_50", "rsi", "bollinger_bands", "macd"],
-)
-# Adds columns: sma_20, sma_50, rsi, bb_upper, bb_middle, bb_lower,
-#               macd, macd_signal, macd_histogram
-print(df.tail())
-
-# Method 2: Direct calculation on a Series
-df["sma_20"] = client.analysis.sma(df["value"], period=20)
-df["ema_12"] = client.analysis.ema(df["value"], period=12)
-df["rsi"] = client.analysis.rsi(df["value"], period=14)
-bands = client.analysis.bollinger_bands(df["value"], period=20, std=2)
-```
-
-Supported indicators: SMA, EMA, RSI, MACD, Bollinger Bands, and ATR.
-
-### Diesel Prices (New in v1.3.0)
-
-```python
-# Get state average diesel price (free tier)
-ca_price = client.diesel.get_price("CA")
-print(f"California diesel: ${ca_price.price:.2f}/gallon")
-print(f"Source: {ca_price.source}")
-print(f"Updated: {ca_price.updated_at}")
-
-# Get nearby diesel stations (paid tiers)
-result = client.diesel.get_stations(
-    lat=37.7749,   # San Francisco
-    lng=-122.4194,
-    radius=8047    # 5 miles in meters
-)
-
-print(f"Regional average: ${result.regional_average.price:.2f}/gallon")
-print(f"Found {len(result.stations)} stations")
-
-# Find cheapest station
-cheapest = min(result.stations, key=lambda s: s.diesel_price)
-print(f"Cheapest: {cheapest.name} at {cheapest.formatted_price}")
-print(f"Savings: ${abs(cheapest.price_delta):.2f}/gal vs average")
-
-# Get diesel prices as DataFrame
-df = client.diesel.to_dataframe(states=["CA", "TX", "NY", "FL"])
-print(df[["state", "price", "updated_at"]])
-
-# Station data as DataFrame
-df_stations = client.diesel.to_dataframe(
-    lat=34.0522,   # Los Angeles
-    lng=-118.2437,
-    radius=5000
-)
-print(df_stations[["name", "diesel_price", "price_vs_average"]])
-```
-
-### Price Alerts (New in v1.5.0)
-
-```python
-# Create a price alert with webhook notification
-alert = client.alerts.create(
-    name="Brent High Alert",
-    commodity_code="BRENT_CRUDE_USD",
-    condition_operator="greater_than",
-    condition_value=85.00,
-    webhook_url="https://your-server.com/webhook",  # Optional
-    enabled=True,
-    cooldown_minutes=60  # Min time between triggers
-)
-
-print(f"Alert created: {alert.id}")
-print(f"Monitoring: {alert.commodity_code}")
-print(f"Condition: {alert.condition_operator} ${alert.condition_value}")
-
-# List all alerts
-alerts = client.alerts.list()
-for alert in alerts:
-    print(f"{alert.name}: {alert.enabled} ({alert.trigger_count} triggers)")
-
-# Update an alert
-updated = client.alerts.update(
-    alert.id,
-    condition_value=90.00,
-    enabled=False
-)
-
-# Test webhook endpoint
-test_result = client.alerts.test_webhook("https://your-server.com/webhook")
-if test_result.success:
-    print(f"Webhook OK: {test_result.status_code} in {test_result.response_time_ms}ms")
-else:
-    print(f"Webhook failed: {test_result.error}")
-
-# Delete an alert
-client.alerts.delete(alert.id)
-
-# Get alerts as DataFrame
-df = client.alerts.to_dataframe()
-print(df[["name", "commodity_code", "condition_value", "trigger_count"]])
-```
-
-**Supported operators:**
-
-- `greater_than` - Price exceeds threshold
-- `less_than` - Price falls below threshold
-- `equals` - Price matches threshold
-- `greater_than_or_equal` - Price meets or exceeds threshold
-- `less_than_or_equal` - Price meets or falls below threshold
-
-**Webhook Payload:**
-
-```json
-{
-  "alert_id": "550e8400-e29b-41d4-a716-446655440000",
-  "alert_name": "Brent High Alert",
-  "commodity_code": "BRENT_CRUDE_USD",
-  "current_price": 86.5,
-  "condition_operator": "greater_than",
-  "condition_value": 85.0,
-  "triggered_at": "2025-12-15T10:30:00Z"
+required_text = {
+    "code": record.get("code"),
+    "currency": record.get("currency"),
+    "unit": record.get("unit"),
+    "source": source,
 }
-```
-
-### Commodities Catalog (New in v1.5.0)
-
-```python
-# Get all available commodities
-commodities = client.commodities.list()
-for commodity in commodities:
-    print(f"{commodity['code']}: {commodity['name']}")
-
-# Get details for specific commodity
-brent = client.commodities.get("BRENT_CRUDE_USD")
-print(f"Category: {brent['category']}")
-print(f"Unit: {brent['unit']}")
-
-# Get commodities grouped by category
-categories = client.commodities.categories()
-crude_oils = categories.get('Crude Oil', [])
-```
-
-### Futures Contracts (New in v1.5.0)
-
-```python
-# Get latest front month WTI futures
-price = client.futures.latest("CL.1")
-print(f"WTI Front Month: ${price['price']:.2f}")
-
-# Get OHLC data
-ohlc = client.futures.ohlc("CL.1")
-print(f"Open: ${ohlc['open']:.2f}, High: ${ohlc['high']:.2f}")
-
-# Get futures curve
-curve = client.futures.curve("CL")
-for point in curve:
-    print(f"{point['month']}: ${point['price']:.2f}")
-
-# Spread analysis between contracts
-spread = client.futures.spreads("CL.1", "CL.2")
-print(f"Calendar Spread: ${spread['current_spread']:.2f}")
-```
-
-### Oil Storage & Inventory (New in v1.5.0)
-
-```python
-# Get Cushing, OK inventory
-cushing = client.storage.cushing()
-print(f"Cushing Inventory: {cushing['value']} barrels")
-print(f"Weekly Change: {cushing['change']} barrels")
-
-# Strategic Petroleum Reserve
-spr = client.storage.spr()
-print(f"SPR Inventory: {spr['value']} barrels")
-
-# Regional storage (PADD regions)
-regional = client.storage.regional(region="PADD3")
-print(f"Gulf Coast: {regional['value']} barrels")
-
-# Historical storage data
-history = client.storage.history("cushing", start_date="2024-01-01")
-```
-
-### Rig Counts (New in v1.5.0)
-
-```python
-# Get latest rig counts
-rig_counts = client.rig_counts.latest()
-print(f"Oil Rigs: {rig_counts['oil']}")
-print(f"Gas Rigs: {rig_counts['gas']}")
-print(f"Total: {rig_counts['total']}")
-
-# Get rig count summary with changes
-summary = client.rig_counts.summary()
-print(f"Week Change: {summary['week_change']}")
-print(f"Year Change: {summary['year_change']}")
-
-# Historical rig counts
-history = client.rig_counts.historical(start_date="2024-01-01")
-```
-
-### Bunker Fuels (New in v1.5.0)
-
-```python
-# Get bunker prices for Singapore
-singapore = client.bunker_fuels.port("SINGAPORE")
-print(f"VLSFO: ${singapore['vlsfo']['price']}")
-print(f"MGO: ${singapore['mgo']['price']}")
-
-# Compare prices across ports
-comparison = client.bunker_fuels.compare(["SINGAPORE", "ROTTERDAM", "HOUSTON"])
-for port, data in comparison.items():
-    print(f"{port}: ${data['vlsfo']['price']}")
-
-# Spread analysis
-spreads = client.bunker_fuels.spreads()
-print(f"VLSFO-MGO Spread: ${spreads['vlsfo_mgo']:.2f}")
-```
-
-### Price Analytics (New in v1.5.0)
-
-```python
-# Get 30-day performance
-perf = client.analytics.performance("BRENT_CRUDE_USD", days=30)
-print(f"30-day Return: {perf['return_pct']}%")
-print(f"Volatility: {perf['volatility']}")
-
-# Statistical analysis
-stats = client.analytics.statistics("WTI_USD", days=90)
-print(f"Mean: ${stats['mean']:.2f}, Std Dev: ${stats['std_dev']:.2f}")
-
-# Correlation between commodities
-corr = client.analytics.correlation("BRENT_CRUDE_USD", "WTI_USD", days=90)
-print(f"Correlation: {corr['correlation']:.3f}")
-
-# Trend analysis
-trend = client.analytics.trend("NATURAL_GAS_USD", days=30)
-print(f"Direction: {trend['direction']}, Strength: {trend['strength']}")
-
-# Price forecast
-forecast = client.analytics.forecast("BRENT_CRUDE_USD")
-print(f"7-day Forecast: ${forecast['7_day']['price']:.2f}")
-```
-
-### Drilling Intelligence (New in v1.5.0)
-
-```python
-# Get latest drilling data
-latest = client.drilling.latest()
-print(f"Total rigs: {latest['total_rigs']}")
-print(f"Frac spreads: {latest['frac_spreads']}")
-
-# DUC (Drilled but Uncompleted) wells
-ducs = client.drilling.duc_wells()
-for duc in ducs:
-    print(f"{duc['basin']}: {duc['count']} DUCs")
-
-# Basin-specific data
-permian = client.drilling.basin("permian")
-print(f"Permian rigs: {permian['rig_count']}")
-
-# Completion trends
-completions = client.drilling.completions()
-```
-
-### Well Production (Beta)
-
-US well production data. State/national monthly aggregates come from the
-EIA API; per-well history and cycle-time analytics are **beta** and only
-cover states where regulatory data has been collected — this is not a
-complete US well-level production dataset. Requires a plan with the
-Drilling Intelligence feature (403 `ENTERPRISE_REQUIRED` otherwise).
-
-```python
-# National overview + top producing states
-overview = client.well_production.summary()
-for state in overview["top_states"]:
-    print(f"{state['state']}: {state['oil_bbl']:,} bbl ({state['period']})")
-
-# State-level production for a month
-states = client.well_production.states(period="2026-04")
-
-# Production history for one state
-tx = client.well_production.state("TX", start_date="2026-01-01")
-
-# Per-well history (beta; 14-digit API number, dashes OK)
-well = client.well_production.well("42-285-34329-00-00")
-
-# Top producing wells in a state (beta)
-top = client.well_production.top_producers("NM", limit=10, months=12)
-
-# Permit-to-production cycle times (beta)
-ct = client.well_production.cycle_time(state="TX")
-print(f"Median cycle: {ct['cycle_time_stats']['median_days']} days")
-cohorts = client.well_production.cycle_time_cohorts(state="TX", group_by="quarter")
-```
-
-### Webhooks (New in v1.5.0)
-
-```python
-# Create webhook for price updates
-webhook = client.webhooks.create(
-    url="https://myapp.com/webhook",
-    events=["price.updated", "alert.triggered"],
-    description="Price alerts webhook",
-    enabled=True
-)
-print(f"Webhook created: {webhook['id']}")
-
-# List all webhooks
-webhooks = client.webhooks.list()
-for wh in webhooks:
-    print(f"{wh['url']}: {wh['events']}")
-
-# Test webhook endpoint
-result = client.webhooks.test(webhook['id'])
-print(f"Test status: {result['status']}")
-
-# View webhook event history
-events = client.webhooks.events(webhook['id'])
-for event in events:
-    print(f"{event['created_at']}: {event['type']} - {event['status']}")
-
-# Delete webhook
-client.webhooks.delete(webhook['id'])
-```
-
-### EIA Forecasts (New in v1.5.0)
-
-```python
-# Get monthly EIA forecasts
-forecasts = client.forecasts.monthly()
-for forecast in forecasts:
-    print(f"{forecast['period']}: ${forecast['price']:.2f}")
-
-# Get specific commodity forecast
-wti_forecast = client.forecasts.get("2025-03", commodity="WTI_USD")
-print(f"March 2025 WTI: ${wti_forecast['price']:.2f}")
-print(f"Range: ${wti_forecast['low']:.2f} - ${wti_forecast['high']:.2f}")
-
-# Check forecast accuracy
-accuracy = client.forecasts.accuracy()
-print(f"30-day Accuracy: {accuracy['30_day']['accuracy']}%")
-```
-
-### Data Quality Monitoring (New in v1.5.0)
-
-```python
-# Get overall data quality summary
-summary = client.data_quality.summary()
-print(f"Overall Quality Score: {summary['score']}")
-print(f"Total Issues: {summary['total_issues']}")
-
-# Get quality report for specific commodity
-report = client.data_quality.report("BRENT_CRUDE_USD")
-print(f"Quality Score: {report['quality_score']}%")
-print(f"Completeness: {report['completeness']}%")
-print(f"Last Update: {report['last_update']}")
-
-# Get all quality reports
-reports = client.data_quality.reports()
-for report in reports:
-    print(f"{report['commodity']}: {report['quality_score']}%")
-```
-
-### Energy Intelligence (New in v1.5.0)
-
-```python
-# Access EI sub-resources for government energy data
-# EI rig counts
-ei_rigs = client.ei.rig_counts.latest()
-print(f"Total rigs: {ei_rigs['total']}")
-
-# EI oil inventories (EIA weekly data)
-inventories = client.ei.oil_inventories.latest()
-print(f"Crude stocks: {inventories['crude']} barrels")
-
-# OPEC production data
-opec = client.ei.opec_production.latest()
-for country, data in opec.items():
-    print(f"{country}: {data['production']} bbl/day")
-
-# Drilling productivity
-productivity = client.ei.drilling_productivity.latest()
-print(f"Permian: {productivity['permian']['boe_per_rig']} BOE/rig")
-
-# Well timeline data
-timeline = client.ei.well_timeline("42-123-45678")
-for event in timeline['events']:
-    print(f"{event['date']}: {event['type']}")
-```
-
-### Data Sources (New in v1.5.0)
-
-```python
-# List all configured data sources
-sources = client.data_sources.list()
-for source in sources:
-    print(f"{source['name']}: {source['type']} - {source['status']}")
-
-# Check health of a data source
-health = client.data_sources.health("123")
-print(f"Status: {health['status']}")
-print(f"Last successful fetch: {health['last_success']}")
-
-# View data source logs
-logs = client.data_sources.logs("123", limit=100)
-for log in logs:
-    print(f"{log['timestamp']}: {log['level']} - {log['message']}")
-
-# Test connection
-result = client.data_sources.test("123")
-print(f"Test status: {result['status']}")
-```
-
-### Market Brief (New in v1.9.0)
-
-Get a multi-commodity structured summary (latest price, 24h change, and a
-1-month forecast per commodity) in a single request. Pass `narrative=True` to
-also receive a natural-language summary.
-
-```python
-brief = client.market_brief(["BRENT_CRUDE_USD", "WTI_USD"], narrative=True)
-
-print(f"As of: {brief.as_of}")
-for c in brief.commodities:
-    print(f"{c.code}: ${c.price} ({c.change_24h_pct:+.2f}% 24h)")
-    if c.forecast_1m:
-        print(f"  1m forecast: {c.forecast_1m.point} "
-              f"[{c.forecast_1m.low}–{c.forecast_1m.high}] ({c.forecast_1m.confidence})")
-
-if brief.narrative:
-    print(brief.narrative)
-```
-
-### Agent Subscriptions (New in v1.9.0)
-
-Create persistent "watches" that periodically evaluate commodities and emit
-events your agent can poll for. The `interval` accepts a friendly string
-(`"5m"`, `"1h"`, `"daily"`) or raw seconds.
-
-```python
-# Create a subscription
-sub = client.subscriptions.create(
-    codes=["BRENT_CRUDE_USD"],
-    interval="5m",            # also accepts "1h", "daily", or 300
-    name="Brent watch",
-)
-print(sub.id, sub.interval_seconds)  # -> 300
-
-# List subscriptions
-for s in client.subscriptions.list():
-    print(s.name, s.codes, s.status)
-
-# Poll for events using a cursor
-page = client.subscriptions.events(since=0)
-for event in page:
-    print(event.type, event.code)
-# Persist page.cursor and pass it as `since` on the next poll
-next_page = client.subscriptions.events(since=page.cursor)
-
-# Delete a subscription
-client.subscriptions.delete(sub.id)
-```
-
-Attribution headers are sent automatically (`X-OPA-Source` defaults to
-`sdk-python`). MCP tools can override them:
-
-```python
-client.subscriptions.create(
-    ["WTI_USD"], interval="1h", source="mcp", tool="claude-desktop"
+if timestamp_field is None or any(
+    not isinstance(value, str) or not value.strip()
+    for value in required_text.values()
+):
+    raise RuntimeError("MALFORMED_RESPONSE: source context is incomplete")
+
+print(
+    {
+        **required_text,
+        "price": float(price),
+        "api_timestamp_field": timestamp_field,
+        "api_timestamp": record[timestamp_field],
+        "freshness": record.get("data_status") or record.get("freshness"),
+    }
 )
 ```
 
-All of the above is mirrored on the async client:
+The reviewed standalone form is
+[`examples/snippets/latest_price.py`](examples/snippets/latest_price.py). CI
+executes it against production-shaped fixtures and publishes its code and
+checksum in the release snippet manifest.
+
+## Typed Client
+
+For applications that only need the normalized core fields:
 
 ```python
-async with AsyncOilPriceAPI() as client:
-    brief = await client.market_brief(["BRENT_CRUDE_USD"])
-    sub = await client.subscriptions.create(["WTI_USD"], interval="daily")
-    page = await client.subscriptions.events(since=0)
-    await client.subscriptions.delete(sub.id)
-```
+import os
 
-## 📊 Features
-
-- ✅ **Simple API** - Intuitive methods for all endpoints
-- ✅ **Type Safe** - Full type hints for IDE autocomplete
-- ✅ **Pandas Integration** - First-class DataFrame support
-- ✅ **Technical Indicators** - SMA, EMA, RSI, MACD, Bollinger Bands, ATR (pure pandas/numpy)
-- ✅ **Price Alerts** - Automated monitoring with webhook notifications 🔔
-- ✅ **Diesel Prices** - State averages + station-level pricing ⛽
-- ✅ **Futures Contracts** - OHLC, curves, spreads, and continuous data
-- ✅ **Storage & Inventory** - Cushing, SPR, and regional PADD data
-- ✅ **Rig Counts** - Baker Hughes rig counts with historical trends
-- ✅ **Bunker Fuels** - Marine fuel prices across major ports
-- ✅ **Price Analytics** - Performance, correlations, trends, and forecasts
-- ✅ **Drilling Intelligence** - DUC wells, permits, completions, and basin data
-- ✅ **Well Production (beta)** - State/national production aggregates, per-well history, cycle times
-- ✅ **Webhooks** - Manage event subscriptions and notifications
-- ✅ **EIA Forecasts** - Official monthly price forecasts with accuracy tracking
-- ✅ **Energy Intelligence** - EIA data, OPEC production, drilling productivity
-- ✅ **Data Quality** - Real-time quality monitoring and reporting
-- ✅ **Data Sources** - Connector management with health checks and logging
-- ✅ **Market Brief** - Multi-commodity structured + narrative summary in one call 🧠
-- ✅ **Agent Subscriptions** - Persistent watches + event polling for AI agents 🤖
-- ✅ **Async Support** - High-performance async client
-- ✅ **WebSocket Streaming** - Real-time price stream via ActionCable (Professional+)
-- ✅ **Smart Caching** - Reduce API calls automatically
-- ✅ **Rate Limit Handling** - Automatic retries with backoff
-- ✅ **Error Handling** - Comprehensive exception classes
-
-## 📚 Documentation
-
-**[Complete SDK Documentation →](docs/index.md)** | **[Online Docs →](https://docs.oilpriceapi.com/)**
-
-**[⚡ Performance Guide →](docs/PERFORMANCE_GUIDE.md)** — expected response times, recommended timeouts, optimization best practices, and troubleshooting for slow queries.
-
-### Authentication
-
-```python
-# Method 1: Environment variable (recommended)
-export OILPRICEAPI_KEY="your_api_key"
-client = OilPriceAPI()
-
-# Method 2: Direct initialization
-client = OilPriceAPI(api_key="your_api_key")
-
-# Method 3: With configuration
-client = OilPriceAPI(
-    api_key="your_api_key",
-    timeout=30,
-    max_retries=3,
-    cache="memory",
-    cache_ttl=300
-)
-```
-
-### Available Commodities
-
-**Oil & Gas:**
-
-- `BRENT_CRUDE_USD` - Brent Crude Oil
-- `WTI_USD` - West Texas Intermediate
-- `NATURAL_GAS_USD` - Natural Gas
-- `DIESEL_USD` - Diesel
-- `GASOLINE_USD` - Gasoline
-- `HEATING_OIL_USD` - Heating Oil
-
-**Coal (8 Endpoints):**
-
-- `CAPP_COAL_USD` - Central Appalachian Coal (US Spot)
-- `PRB_COAL_USD` - Powder River Basin Coal (US Spot)
-- `ILLINOIS_COAL_USD` - Illinois Basin Coal (US Spot)
-- `NEWCASTLE_COAL_USD` - Newcastle API6 (International Futures)
-- `COKING_COAL_USD` - Metallurgical Coal (International Futures)
-- `CME_COAL_USD` - CME Coal Futures
-- `NYMEX_APPALACHIAN_USD` - NYMEX Central Appalachian (Historical 2004-2016)
-- `NYMEX_WESTERN_RAIL_USD` - NYMEX Powder River Basin (Historical 2009-2017)
-
-[View all 107+ commodities](https://docs.oilpriceapi.com/commodities)
-
-### Error Handling
-
-```python
-from oilpriceapi.exceptions import OilPriceAPIError, RateLimitError, DataNotFoundError
-
-try:
-    price = client.prices.get("INVALID_CODE")
-except DataNotFoundError as e:
-    print(f"Commodity not found: {e}")
-except RateLimitError as e:
-    print(f"Rate limited. Resets in {e.seconds_until_reset}s")
-except OilPriceAPIError as e:
-    print(f"API error: {e}")
-```
-
-## ⚡ Async Support
-
-```python
-import asyncio
-from oilpriceapi import AsyncOilPriceAPI
-
-async def get_prices():
-    async with AsyncOilPriceAPI() as client:
-        prices = await asyncio.gather(
-            client.prices.get("BRENT_CRUDE_USD"),
-            client.prices.get("WTI_USD"),
-            client.prices.get("NATURAL_GAS_USD")
-        )
-        return prices
-
-# Run async function
-prices = asyncio.run(get_prices())
-```
-
-## 📡 Real-Time WebSocket Streaming (New in v1.8.0)
-
-Stream live oil and energy prices over WebSocket instead of polling. Streaming
-is a **Professional plan ($99/mo) or higher** feature and is exposed through the
-async client via `client.stream`.
-
-Install the optional `stream` extra:
-
-```bash
-pip install 'oilpriceapi[stream]'
-```
-
-```python
-import asyncio
-from oilpriceapi import AsyncOilPriceAPI
-
-async def watch_prices():
-    async with AsyncOilPriceAPI() as client:
-        # Opens an ActionCable subscription to EnergyPricesChannel at /cable.
-        async with client.stream.prices(commodities=["BRENT_CRUDE_USD"]) as stream:
-            async for update in stream:
-                if update.type == "price_update":
-                    brent = update.price_update.prices.oil.brent
-                    print(f"Brent: ${brent.original_price} "
-                          f"({brent.original_currency}) @ {update.price_update.timestamp}")
-                elif update.type == "rig_count_update":
-                    rc = update.rig_count_update.rig_count
-                    print(f"Rig count [{rc.region}]: {rc.count}")
-
-asyncio.run(watch_prices())
-```
-
-Each `update` is a typed `StreamUpdate`:
-
-| `update.type`      | Populated model           | Contents                                  |
-| ------------------ | ------------------------- | ----------------------------------------- |
-| `welcome`          | `update.price_update`     | Initial price snapshot on subscribe       |
-| `price_update`     | `update.price_update`     | Latest Brent/WTI + UK/US/EU natural gas   |
-| `rig_count_update` | `update.rig_count_update` | Drilling rig count update (premium tiers) |
-
-`update.raw` always holds the decoded payload dict for forward compatibility.
-
-**Features:**
-
-- ActionCable JSON subprotocol (welcome → subscribe → confirm → messages, pings handled)
-- Token auth via query param + `Authorization` header
-- Auto-reconnect with exponential backoff + jitter (`auto_reconnect`, `max_reconnect_attempts`)
-- Clean teardown (unsubscribe + close) on context-manager exit
-- Pydantic-typed update models
-
-```python
-# Tune reconnection behavior:
-stream = client.stream.prices(
-    commodities=["BRENT_CRUDE_USD", "WTI_USD"],
-    auto_reconnect=True,
-    max_reconnect_attempts=10,
-    reconnect_base_delay=1.0,
-    reconnect_max_delay=30.0,
-)
-```
-
-> WebSocket streaming requires a Professional+ plan. Subscriptions from
-> lower tiers are rejected during the ActionCable handshake.
-
-## The whole OilPriceAPI toolbox
-
-Same data, every stack:
-
-| Tool                                                                                | Install                                        |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [Node/TypeScript SDK](https://github.com/OilpriceAPI/oilpriceapi-node)              | `npm install oilpriceapi`                      |
-| [Go SDK](https://github.com/OilpriceAPI/oilpriceapi-go)                             | `go get github.com/OilpriceAPI/oilpriceapi-go` |
-| [PHP SDK](https://github.com/OilpriceAPI/oilpriceapi-php)                           | `composer require oilpriceapi/oilpriceapi`     |
-| [MCP server](https://github.com/OilpriceAPI/mcp-server) (Claude, Cursor, AI agents) | `npx -y oilpriceapi-mcp`                       |
-| [WordPress plugin](https://github.com/OilpriceAPI/oilpriceapi-wordpress-plugin)     | wordpress.org, no code                         |
-| [Google Sheets Add-on](https://github.com/OilpriceAPI/google-sheets-addin)          | custom spreadsheet functions                   |
-| [Excel Add-in](https://github.com/OilpriceAPI/excel-energy-addin)                   | energy prices in Excel                         |
-
-## 🧪 Testing
-
-The SDK uses standard Python testing frameworks. Example using pytest:
-
-```python
-import pytest
 from oilpriceapi import OilPriceAPI
 
-def test_get_price():
-    client = OilPriceAPI(api_key="your_test_key")
+with OilPriceAPI(api_key=os.environ["OILPRICEAPI_KEY"]) as client:
     price = client.prices.get("BRENT_CRUDE_USD")
 
-    assert price is not None
-    assert price.value > 0
-    assert price.commodity == "BRENT_CRUDE_USD"
+print(
+    price.commodity,
+    price.value,
+    price.currency,
+    price.unit,
+    price.timestamp.isoformat(),
+)
 ```
 
-## 📈 Examples
+Use the raw first-request pattern when downstream logic requires the exact
+source and timestamp-field semantics from the API response.
 
-### Quick Examples
+## Recovery
 
-```python
-# Example 1: Get multiple commodity prices
-from oilpriceapi import OilPriceAPI
-
-client = OilPriceAPI()
-commodities = ["BRENT_CRUDE_USD", "WTI_USD", "NATURAL_GAS_USD"]
-prices = client.prices.get_multiple(commodities)
-
-for price in prices:
-    print(f"{price.commodity}: ${price.value:.2f}")
-```
+The package exposes typed errors for the customer-recoverable boundaries:
 
 ```python
-# Example 2: Historical data analysis with pandas
-import pandas as pd
-from oilpriceapi import OilPriceAPI
-
-client = OilPriceAPI()
-df = client.prices.to_dataframe(
-    commodity="BRENT_CRUDE_USD",
-    start="2024-01-01",
-    end="2024-12-31"
+from oilpriceapi import (
+    AuthenticationError,
+    OilPriceAPIError,
+    RateLimitError,
+    TimeoutError,
 )
 
-# Calculate simple moving average
-df['SMA_20'] = df['price'].rolling(window=20).mean()
-print(df[['created_at', 'price', 'SMA_20']].tail())
+try:
+    price = client.prices.get("BRENT_CRUDE_USD")
+except AuthenticationError:
+    print("Replace the missing, expired, or revoked API key.")
+except RateLimitError as error:
+    print("Wait for the API-provided reset window.", error.seconds_until_reset)
+except TimeoutError:
+    print("Retry once, then check https://status.oilpriceapi.com.")
+except OilPriceAPIError as error:
+    if error.status_code in (402, 403):
+        print("Review dataset access for this account.")
+    else:
+        raise
 ```
 
-```python
-# Example 3: Price alerts with webhooks
-from oilpriceapi import OilPriceAPI
+Executable recovery examples cover 401, 403, 429, and timeout responses under
+[`examples/snippets/`](examples/snippets/). Empty or malformed successful
+responses should stop analysis rather than inventing a price, unit, currency,
+source, or timestamp.
 
-client = OilPriceAPI()
+## Capabilities
 
-# Create alert when oil exceeds $85
-alert = client.alerts.create(
-    name="High Oil Price Alert",
-    commodity_code="BRENT_CRUDE_USD",
-    condition_operator="greater_than",
-    condition_value=85.00,
-    webhook_url="https://your-app.com/webhook",
-    enabled=True
-)
+The client includes resources for latest and historical values plus additional
+dataset and workflow families. Availability is determined by the live API and
+account entitlement, not by the presence of a helper method in the package.
 
-print(f"Alert created: {alert.id}")
-```
+- Use [API documentation](https://docs.oilpriceapi.com) for current paths and parameters.
+- Use the [commodity catalog](https://www.oilpriceapi.com/commodities) to inspect codes.
+- Use [pricing](https://www.oilpriceapi.com/pricing) to review current account options.
+- Use the [data usage policy](https://www.oilpriceapi.com/legal/data-usage) before redistributing data.
 
-## 🔧 Development
+Standard plans provide API access, normalization, monitoring, and delivery;
+they do not transfer ownership of underlying source data or unrestricted raw
+data redistribution rights.
+
+## Reproducible Examples
+
+Website and documentation snippets are maintained in `examples/snippets/`.
+Every release attaches a versioned manifest containing the package version,
+minimum runtime, source commit, expected response shape, exact code, and SHA-256
+for each example.
 
 ```bash
-# Clone repository
-git clone https://github.com/oilpriceapi/python-sdk
-cd python-sdk
-
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Format code
-black .
-
-# Type checking
-mypy oilpriceapi
+python scripts/generate_snippet_manifest.py \
+  --source-commit "$(git rev-parse HEAD)" \
+  --output artifacts/snippets/oilpriceapi-python-snippets-v1.json
 ```
 
-## 📝 License
+## Development
 
-MIT License - see [LICENSE](https://github.com/OilpriceAPI/python-sdk/blob/main/LICENSE) file for details.
+The [performance guide](docs/PERFORMANCE_GUIDE.md) documents timeout,
+connection-pooling, batching, retry, and troubleshooting behavior without
+making a universal latency promise.
 
-## 🤝 Contributing
+```bash
+python -m pip install -e '.[dev]'
+python scripts/validate_storefront_claims.py
+pytest tests/ --ignore=tests/integration --ignore=tests/contract -m 'not slow'
+python -m build
+```
 
-Contributions are welcome! Please see our [Contributing Guide](https://github.com/OilpriceAPI/python-sdk/blob/main/CONTRIBUTING.md) for details.
+Live tests require an explicitly supplied non-customer test credential. Unit
+and snippet tests use local fixtures and do not print or persist credentials.
 
-## 💬 Support
+## Support
 
-- 📧 Email: support@oilpriceapi.com
-- 🐛 Issues: [GitHub Issues](https://github.com/oilpriceapi/python-sdk/issues)
-- 🧭 Interactive API Explorer: [api.oilpriceapi.com/swagger](https://api.oilpriceapi.com/swagger) — try every endpoint in the browser (works in demo mode, no key needed)
-- 📜 OpenAPI spec: [swagger.json](https://api.oilpriceapi.com/swagger.json) — generate clients, mock servers, or import into Postman/Insomnia
-- 📖 Docs: [Documentation](https://docs.oilpriceapi.com/)
+- [API documentation](https://docs.oilpriceapi.com)
+- [Service status](https://status.oilpriceapi.com)
+- [Product facts](https://api.oilpriceapi.com/product-facts.json)
+- [GitHub issues](https://github.com/OilpriceAPI/python-sdk/issues)
 
-## 🔗 Links
-
-- [OilPriceAPI Website](https://oilpriceapi.com)
-- [API Documentation](https://docs.oilpriceapi.com)
-- [Pricing](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)
-- [Status Page](https://status.oilpriceapi.com)
-
----
-
-## 🌟 Why OilPriceAPI?
-
-[OilPriceAPI](https://oilpriceapi.com) provides professional-grade commodity price data at **98% less cost than Bloomberg Terminal** ($24,000/year vs $45/month). Trusted by energy traders, financial analysts, and developers worldwide.
-
-### Key Benefits
-
-- ⚡ **Real-time data** updated every 5 minutes
-- 📊 **Historical data** for trend analysis and backtesting
-- 🔒 **99.9% uptime** with enterprise-grade reliability
-- 🚀 **5-minute integration** with this Python SDK
-- 💰 **Free tier** with 100 requests (lifetime) to get started
-
-**[Start Free →](https://www.oilpriceapi.com/signup?utm_source=pypi&utm_medium=sdk&utm_campaign=readme)** | **[View Pricing →](https://www.oilpriceapi.com/pricing?utm_source=pypi&utm_medium=sdk&utm_campaign=pricing)** | **[Read Docs →](https://docs.oilpriceapi.com)**
-
----
-
-Made with care by the OilPriceAPI Team
+Licensed under the [MIT License](LICENSE).

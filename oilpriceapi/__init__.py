@@ -1,7 +1,7 @@
 """
 OilPriceAPI Python SDK
 
-The official Python SDK for OilPriceAPI - Real-time and historical oil prices.
+The official Python SDK for source-timestamped OilPriceAPI energy data.
 """
 
 from typing import Optional

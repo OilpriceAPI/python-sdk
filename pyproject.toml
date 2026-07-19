@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oilpriceapi"
-version = "1.10.2"
-description = "Official Python SDK for OilPriceAPI - Real-time and historical oil prices"
+version = "1.11.0"
+description = "Official Python SDK for source-timestamped OilPriceAPI energy data"
 authors = [
     {name = "OilPriceAPI", email = "support@oilpriceapi.com"}
 ]
@@ -16,7 +16,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 keywords = [
     "oil", "prices", "api", "commodities", "energy",
-    "brent", "wti", "natural gas", "trading", "finance"
+    "brent", "wti", "natural gas", "source timestamps", "finance"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

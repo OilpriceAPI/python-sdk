@@ -14,16 +14,20 @@
       "docs_url": "https://docs.oilpriceapi.com/quick-start/python",
       "expected_response_shape": {
         "commodity": "string",
-        "currency": "string|null",
+        "currency": "string",
+        "unit": "string",
+        "source": "string",
+        "api_timestamp": "string",
+        "timestamp_field": "string",
         "value_type": "string",
-        "timestamp_type": "string"
+        "freshness": "string|null"
       }
     },
     {
       "id": "python.history",
       "path": "examples/snippets/history.py",
       "kind": "success",
-      "endpoint": "GET /v1/prices/past_day",
+      "endpoint": "GET /v1/prices/past_year",
       "docs_url": "https://docs.oilpriceapi.com/quick-start/python",
       "expected_response_shape": {
         "commodity": "string",
