@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 import json
+import os
 from typing import Dict, Union
-
-from _shared import base_url
 
 from oilpriceapi import OilPriceAPI
 
 
 def run() -> Dict[str, Union[str, None]]:
-    with OilPriceAPI(base_url=base_url(), max_retries=1) as client:
+    with OilPriceAPI(
+        api_key=os.environ["OILPRICEAPI_KEY"],
+        base_url=os.environ.get("OILPRICEAPI_BASE_URL"),
+        max_retries=1,
+    ) as client:
         price = client.prices.get("BRENT_CRUDE_USD")
 
     return {
