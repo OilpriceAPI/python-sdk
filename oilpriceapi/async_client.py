@@ -42,6 +42,7 @@ from .exceptions import (
     error_from_response,
 )
 from .models import HistoricalPrice, HistoricalResponse, MarketBrief, Price
+from .resource_validators import format_date
 from .retry import RetryStrategy
 
 
@@ -464,10 +465,10 @@ class AsyncHistoricalResource:
             "by_type": type_name,
         }
 
-        if start_date:
-            params["start_date"] = start_date
-        if end_date:
-            params["end_date"] = end_date
+        if start_date is not None:
+            params["start_date"] = format_date(start_date)
+        if end_date is not None:
+            params["end_date"] = format_date(end_date)
 
         response = await self.client.request(
             method="GET", path="/v1/prices/past_year", params=params

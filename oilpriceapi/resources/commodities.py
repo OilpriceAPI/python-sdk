@@ -6,6 +6,8 @@ Commodity catalog and category operations.
 
 from typing import Any, Dict, List
 
+from ..resource_validators import extract_commodity_catalog, search_commodity_catalog
+
 
 class CommoditiesResource:
     """Resource for commodity catalog operations."""
@@ -34,10 +36,7 @@ class CommoditiesResource:
             path="/v1/commodities"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return extract_commodity_catalog(response)
 
     def get(self, code: str) -> Dict[str, Any]:
         """Get details for a single commodity.
@@ -63,6 +62,28 @@ class CommoditiesResource:
         if "data" in response:
             return response["data"]
         return response
+
+    def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Search the API's current commodity catalog.
+
+        The catalog is fetched on every call so results do not depend on a
+        stale code list bundled with the SDK. Network and API errors retain
+        their normal typed exceptions.
+
+        Args:
+            query: Words from a code, name, category, description, currency,
+                unit, or source.
+            limit: Maximum results, from 1 to 100.
+
+        Returns:
+            Ranked commodity objects, or an empty list when nothing matches.
+
+        Example:
+            >>> matches = client.commodities.search("brent crude")
+            >>> for item in matches:
+            ...     print(item["code"])
+        """
+        return search_commodity_catalog(self.list(), query=query, limit=limit)
 
     def categories(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get commodities grouped by category.

@@ -2,8 +2,10 @@
 Unit tests for CommoditiesResource
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import Mock, patch
+
 from oilpriceapi import OilPriceAPI
 
 
@@ -58,6 +60,20 @@ class TestCommoditiesResource:
 
             assert len(commodities) == 1
             assert commodities[0]["code"] == "BRENT_CRUDE_USD"
+
+    def test_list_commodities_current_nested_response(self, client, mock_commodity):
+        """Test the production data.commodities response envelope."""
+        response = {
+            "data": {
+                "commodities": [mock_commodity],
+                "metadata": {"total": 1},
+            }
+        }
+
+        with patch.object(client, "request", return_value=response):
+            commodities = client.commodities.list()
+
+        assert commodities == [mock_commodity]
 
     def test_get_commodity(self, client, mock_commodity):
         """Test getting a specific commodity"""

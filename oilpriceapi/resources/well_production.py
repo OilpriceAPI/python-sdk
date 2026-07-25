@@ -17,7 +17,7 @@ the Drilling Intelligence feature; other plans receive a 403
 
 from typing import Any, Dict, Optional, cast
 
-from ..resource_validators import normalize_api_number
+from ..resource_validators import format_date, normalize_api_number
 
 
 class WellProductionResource:
@@ -114,9 +114,9 @@ class WellProductionResource:
             ...     print(f"{month['period']}: {month['oil_bbl']} bbl")
         """
         if start_date is not None:
-            params["start_date"] = start_date
+            params["start_date"] = format_date(start_date)
         if end_date is not None:
-            params["end_date"] = end_date
+            params["end_date"] = format_date(end_date)
         response = self.client.request(
             method="GET",
             path=f"/v1/well-production/states/{code}",
@@ -236,8 +236,8 @@ class WellProductionResource:
         """
         filters: Dict[str, Any] = {
             "state": state,
-            "start_date": start_date,
-            "end_date": end_date,
+            "start_date": format_date(start_date) if start_date is not None else None,
+            "end_date": format_date(end_date) if end_date is not None else None,
             "operator": operator,
             "formation": formation,
             "lat": lat,
@@ -290,8 +290,8 @@ class WellProductionResource:
         """
         filters: Dict[str, Any] = {
             "state": state,
-            "start_date": start_date,
-            "end_date": end_date,
+            "start_date": format_date(start_date) if start_date is not None else None,
+            "end_date": format_date(end_date) if end_date is not None else None,
             "lat": lat,
             "lng": lng,
             "radius_miles": radius_miles,

@@ -10,7 +10,13 @@ from ._subscriptions_common import (
 )
 from .exceptions import ValidationError
 from .models import DieselPrice, DieselStationsResponse, PriceAlert, Subscription, SubscriptionEvent
-from .resource_validators import VALID_OPERATORS, format_date, normalize_api_number
+from .resource_validators import (
+    VALID_OPERATORS,
+    extract_commodity_catalog,
+    format_date,
+    normalize_api_number,
+    search_commodity_catalog,
+)
 from .resources._futures_slug import normalize_futures_slug
 from .resources.subscriptions import SubscriptionEventsPage
 
@@ -286,15 +292,18 @@ class AsyncCommoditiesResource:
 
     async def list(self) -> List[Dict[str, Any]]:
         response = await self.client.request(method="GET", path="/v1/commodities")
-        if "data" in response:
-            return response["data"]
-        return response
+        return extract_commodity_catalog(response)
 
     async def get(self, code: str) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path=f"/v1/commodities/{code}")
         if "data" in response:
             return response["data"]
         return response
+
+    async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Search the API's current catalog without a bundled code list."""
+        catalog = await self.list()
+        return search_commodity_catalog(catalog, query=query, limit=limit)
 
     async def categories(self) -> Dict[str, List[Dict[str, Any]]]:
         response = await self.client.request(method="GET", path="/v1/commodities/categories")
@@ -334,9 +343,9 @@ class AsyncFuturesResource:
     ) -> List[Dict[str, Any]]:
         slug = normalize_futures_slug(contract)
         params = {}
-        if start_date:
+        if start_date is not None:
             params["start_date"] = format_date(start_date)
-        if end_date:
+        if end_date is not None:
             params["end_date"] = format_date(end_date)
         response = await self.client.request(
             method="GET", path=f"/v1/futures/{slug}/historical", params=params
@@ -348,8 +357,8 @@ class AsyncFuturesResource:
     async def ohlc(self, contract: str, date: Optional[str] = None) -> Dict[str, Any]:
         slug = normalize_futures_slug(contract)
         params = {}
-        if date:
-            params["date"] = date
+        if date is not None:
+            params["date"] = format_date(date)
         response = await self.client.request(
             method="GET", path=f"/v1/futures/{slug}/ohlc", params=params
         )
@@ -442,9 +451,9 @@ class AsyncStorageResource:
         end_date: Optional[Union[str, date, datetime]] = None
     ) -> List[Dict[str, Any]]:
         params = {}
-        if start_date:
+        if start_date is not None:
             params["start_date"] = format_date(start_date)
-        if end_date:
+        if end_date is not None:
             params["end_date"] = format_date(end_date)
         response = await self.client.request(
             method="GET", path=f"/v1/storage/{code}/history", params=params
@@ -476,9 +485,9 @@ class AsyncRigCountsResource:
         end_date: Optional[Union[str, date, datetime]] = None
     ) -> List[Dict[str, Any]]:
         params = {}
-        if start_date:
+        if start_date is not None:
             params["start_date"] = format_date(start_date)
-        if end_date:
+        if end_date is not None:
             params["end_date"] = format_date(end_date)
         response = await self.client.request(
             method="GET", path="/v1/rig-counts/historical", params=params
@@ -541,9 +550,9 @@ class AsyncBunkerFuelsResource:
         end_date: Optional[Union[str, date, datetime]] = None
     ) -> List[Dict[str, Any]]:
         params: Dict[str, Any] = {"port": port, "fuel_type": fuel_type}
-        if start_date:
+        if start_date is not None:
             params["start_date"] = format_date(start_date)
-        if end_date:
+        if end_date is not None:
             params["end_date"] = format_date(end_date)
         response = await self.client.request(
             method="GET", path="/v1/bunker-fuels/historical", params=params
@@ -806,9 +815,9 @@ class AsyncWellProductionResource:
         **params,
     ) -> Dict[str, Any]:
         if start_date is not None:
-            params["start_date"] = start_date
+            params["start_date"] = format_date(start_date)
         if end_date is not None:
-            params["end_date"] = end_date
+            params["end_date"] = format_date(end_date)
         response = await self.client.request(
             method="GET", path=f"/v1/well-production/states/{code}", params=params
         )
@@ -857,8 +866,8 @@ class AsyncWellProductionResource:
     ) -> Dict[str, Any]:
         filters = {
             "state": state,
-            "start_date": start_date,
-            "end_date": end_date,
+            "start_date": format_date(start_date) if start_date is not None else None,
+            "end_date": format_date(end_date) if end_date is not None else None,
             "operator": operator,
             "formation": formation,
             "lat": lat,
@@ -886,8 +895,8 @@ class AsyncWellProductionResource:
     ) -> Dict[str, Any]:
         filters = {
             "state": state,
-            "start_date": start_date,
-            "end_date": end_date,
+            "start_date": format_date(start_date) if start_date is not None else None,
+            "end_date": format_date(end_date) if end_date is not None else None,
             "lat": lat,
             "lng": lng,
             "radius_miles": radius_miles,

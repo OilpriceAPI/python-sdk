@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add sync and async `client.commodities.search(...)`, backed by the current
+  API catalog rather than a bundled commodity-code list.
+- Expose bounded, credential-redacted `suggestions` and `invalid_codes` from
+  nested invalid-code error responses.
+
 ### Changed
 
+- Date-bearing resources now reject malformed or impossible `YYYY-MM-DD`
+  strings locally while leaving well-formed range semantics to the API.
 - Historical DataFrame helpers now accept a `per_page` value from 1 to 1000
   and fetch all pages automatically. The `client.prices.to_dataframe(...)`
   convenience path forwards the same option for date-range queries.

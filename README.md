@@ -162,6 +162,24 @@ The same `per_page` behavior applies to date-range queries through
 [DataFrames and pagination guide](docs/DATAFRAMES.md) for the complete
 contract.
 
+## Dates and Commodity Codes
+
+Date strings must be real calendar dates in exact `YYYY-MM-DD` form. Malformed
+values are rejected before an API request, while well-formed ranges are still
+validated authoritatively by the server.
+
+Search the current API catalog instead of maintaining a local code list:
+
+```python
+matches = client.commodities.search("brent crude", limit=5)
+print([commodity["code"] for commodity in matches])
+```
+
+Invalid-code API responses expose sanitized recovery values through
+`error.suggestions` and `error.invalid_codes`. See the
+[dates and commodity-code guide](docs/CODE_GUIDANCE.md) for sync/async examples
+and failure behavior.
+
 ## Recovery
 
 The package exposes typed errors for the customer-recoverable boundaries:
@@ -199,10 +217,10 @@ except OilPriceAPIError as error:
 
 All non-2xx responses share the same `OilPriceAPIError` attributes, including
 `status_code`, `code`, `request_id`, plan/feature recovery fields, retry
-metadata, sanitized response `headers`, `raw_body`, and `raw_text`. Canonical
-nested and legacy flat API error envelopes are normalized into that contract.
-Transport failures use `NetworkError`; timeouts remain the more specific
-`TimeoutError`.
+metadata, commodity `suggestions` and `invalid_codes`, sanitized response
+`headers`, `raw_body`, and `raw_text`. Canonical nested, fail/data, and legacy
+flat API error envelopes are normalized into that contract. Transport failures
+use `NetworkError`; timeouts remain the more specific `TimeoutError`.
 
 Executable recovery examples cover 401, 403, 429, and timeout responses under
 [`examples/snippets/`](examples/snippets/). Empty or malformed successful
