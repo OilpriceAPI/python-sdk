@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Historical DataFrame helpers now accept a `per_page` value from 1 to 1000
+  and fetch all pages automatically. The `client.prices.to_dataframe(...)`
+  convenience path forwards the same option for date-range queries.
+
+### Fixed
+
+- Preserve each API record's currency and unit in current and historical
+  DataFrames instead of labeling a missing currency as USD.
+- Remove exact duplicate records introduced by overlapping page boundaries,
+  stop safely on empty pages with stale continuation metadata, and return a
+  stable schema for empty historical DataFrames.
+
 ## [1.11.0] - 2026-07-19
 
 ### Changed

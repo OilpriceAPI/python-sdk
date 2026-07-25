@@ -5,9 +5,32 @@ Historical price data operations.
 """
 
 from datetime import date, datetime
-from typing import Generator, List, Optional, Union
+from typing import Generator, List, Optional, Set, Tuple, Union
 
+from .._pagination import validate_page_size
 from ..models import HistoricalPrice, HistoricalResponse, PaginationMeta
+
+DEFAULT_AUTO_PAGE_SIZE = 500
+HISTORICAL_DATAFRAME_COLUMNS = [
+    "date",
+    "commodity",
+    "value",
+    "currency",
+    "unit",
+    "type_name",
+]
+
+
+def _price_key(price: HistoricalPrice) -> Tuple[object, ...]:
+    """Identify an exact record so overlapping pages do not duplicate it."""
+    return (
+        price.date,
+        price.commodity,
+        price.value,
+        price.currency,
+        price.unit,
+        price.type_name,
+    )
 
 
 class HistoricalResource:
@@ -30,7 +53,7 @@ class HistoricalResource:
     def _get_optimal_endpoint(
         self,
         start_date: Optional[Union[str, date, datetime]],
-        end_date: Optional[Union[str, date, datetime]]
+        end_date: Optional[Union[str, date, datetime]],
     ) -> str:
         """Select optimal endpoint based on date range.
 
@@ -65,7 +88,7 @@ class HistoricalResource:
         self,
         start_date: Optional[Union[str, date, datetime]],
         end_date: Optional[Union[str, date, datetime]],
-        custom_timeout: Optional[float]
+        custom_timeout: Optional[float],
     ) -> Optional[float]:
         """Calculate appropriate timeout based on date range.
 
@@ -107,7 +130,7 @@ class HistoricalResource:
         page: int = 1,
         per_page: int = 100,
         type_name: str = "spot_price",
-        timeout: Optional[float] = None
+        timeout: Optional[float] = None,
     ) -> HistoricalResponse:
         """Get historical price data.
 
@@ -145,13 +168,15 @@ class HistoricalResource:
             ...     timeout=180  # 3 minutes
             ... )
         """
+        validated_per_page = validate_page_size(per_page)
+
         # Build parameters
         # CRITICAL: API expects 'by_code' not 'commodity' (Issue #XXX)
         params = {
             "by_code": commodity,  # Changed from 'commodity' to match API expectation
             "interval": interval,
             "page": page,
-            "per_page": min(per_page, 1000),  # Max 1000 per page
+            "per_page": validated_per_page,
             "by_type": type_name,
         }
 
@@ -170,15 +195,16 @@ class HistoricalResource:
         # Make request with optimal endpoint and timeout — use request_with_headers
         # so we can read X-Has-Next for reliable pagination detection
         response, headers = self.client.request_with_headers(
-            method="GET",
-            path=endpoint,
-            params=params,
-            timeout=request_timeout
+            method="GET", path=endpoint, params=params, timeout=request_timeout
         )
 
         # Parse response - handle nested structure
         # API returns: {"status": "success", "data": {"prices": [...]}}
-        if "data" in response and isinstance(response["data"], dict) and "prices" in response["data"]:
+        if (
+            "data" in response
+            and isinstance(response["data"], dict)
+            and "prices" in response["data"]
+        ):
             prices_data = response["data"]["prices"]
         elif "data" in response and isinstance(response["data"], list):
             prices_data = response["data"]
@@ -195,7 +221,7 @@ class HistoricalResource:
                     "commodity_name": price_data.get("code", price_data.get("commodity_name")),
                     "price": price_data.get("price"),
                     "currency": price_data.get("currency"),
-                    "unit_of_measure": price_data.get("unit", "barrel"),
+                    "unit_of_measure": price_data.get("unit"),
                     "type_name": price_data.get("type", "spot_price"),
                 }
                 prices.append(HistoricalPrice(**mapped_data))
@@ -203,9 +229,8 @@ class HistoricalResource:
         # Parse pagination metadata — prefer response headers over body
         # API uses X-Total-Pages (Kaminari-style) or X-Has-Next (custom)
         total_pages = int(headers.get("X-Total-Pages", 0))
-        has_next_header = (
-            str(headers.get("X-Has-Next", "")).lower() == "true"
-            or (total_pages > 0 and page < total_pages)
+        has_next_header = str(headers.get("X-Has-Next", "")).lower() == "true" or (
+            total_pages > 0 and page < total_pages
         )
 
         meta = None
@@ -213,7 +238,7 @@ class HistoricalResource:
             meta_data = response["meta"]
             meta = PaginationMeta(
                 page=meta_data.get("page", page),
-                per_page=meta_data.get("per_page", per_page),
+                per_page=meta_data.get("per_page", validated_per_page),
                 total=meta_data.get("total", len(prices)),
                 total_pages=meta_data.get("total_pages", 1),
                 has_next=meta_data.get("has_next", has_next_header),
@@ -223,18 +248,14 @@ class HistoricalResource:
             # Use X-Has-Next header for reliable pagination detection
             meta = PaginationMeta(
                 page=page,
-                per_page=per_page,
+                per_page=validated_per_page,
                 total=int(headers.get("X-Total", len(prices))),
                 total_pages=int(headers.get("X-Total-Pages", 1)),
                 has_next=has_next_header,
                 has_prev=page > 1,
             )
 
-        return HistoricalResponse(
-            success=True,
-            data=prices,
-            meta=meta
-        )
+        return HistoricalResponse(success=True, data=prices, meta=meta)
 
     def get_all(
         self,
@@ -242,7 +263,8 @@ class HistoricalResource:
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         interval: str = "daily",
-        type_name: str = "spot_price"
+        type_name: str = "spot_price",
+        per_page: int = DEFAULT_AUTO_PAGE_SIZE,
     ) -> List[HistoricalPrice]:
         """Get all historical data (handles pagination automatically).
 
@@ -252,6 +274,7 @@ class HistoricalResource:
             end_date: End date for data range
             interval: Data interval
             type_name: Price type
+            per_page: Records per request, from 1 to 1000. Defaults to 500.
 
         Returns:
             List of all HistoricalPrice objects
@@ -264,7 +287,9 @@ class HistoricalResource:
             ... )
             >>> print(f"Total records: {len(all_data)}")
         """
-        all_prices = []
+        validated_per_page = validate_page_size(per_page)
+        all_prices: List[HistoricalPrice] = []
+        seen_previous_pages: Set[Tuple[object, ...]] = set()
         page = 1
 
         while True:
@@ -274,11 +299,20 @@ class HistoricalResource:
                 end_date=end_date,
                 interval=interval,
                 page=page,
-                per_page=500,  # API max is 500 per page
-                type_name=type_name
+                per_page=validated_per_page,
+                type_name=type_name,
             )
 
-            all_prices.extend(response.data)
+            if not response.data:
+                break
+
+            current_page_keys: Set[Tuple[object, ...]] = set()
+            for price in response.data:
+                key = _price_key(price)
+                if key not in seen_previous_pages:
+                    all_prices.append(price)
+                current_page_keys.add(key)
+            seen_previous_pages.update(current_page_keys)
 
             if not response.meta or not response.meta.has_next:
                 break
@@ -294,7 +328,7 @@ class HistoricalResource:
         end_date: Optional[Union[str, date, datetime]] = None,
         interval: str = "daily",
         per_page: int = 100,
-        type_name: str = "spot_price"
+        type_name: str = "spot_price",
     ) -> Generator[List[HistoricalPrice], None, None]:
         """Iterate through pages of historical data.
 
@@ -326,11 +360,13 @@ class HistoricalResource:
                 interval=interval,
                 page=page,
                 per_page=per_page,
-                type_name=type_name
+                type_name=type_name,
             )
 
             if response.data:
                 yield response.data
+            else:
+                break
 
             if not response.meta or not response.meta.has_next:
                 break
@@ -343,7 +379,8 @@ class HistoricalResource:
         start: Optional[Union[str, date, datetime]] = None,
         end: Optional[Union[str, date, datetime]] = None,
         interval: str = "daily",
-        type_name: str = "spot_price"
+        type_name: str = "spot_price",
+        per_page: int = DEFAULT_AUTO_PAGE_SIZE,
     ):
         """Get historical data as a pandas DataFrame.
 
@@ -355,6 +392,8 @@ class HistoricalResource:
             end: End date
             interval: Data interval
             type_name: Price type
+            per_page: Records per request, from 1 to 1000. All pages are
+                fetched automatically; defaults to 500.
 
         Returns:
             pandas DataFrame with historical prices
@@ -382,11 +421,15 @@ class HistoricalResource:
             start_date=start,
             end_date=end,
             interval=interval,
-            type_name=type_name
+            type_name=type_name,
+            per_page=per_page,
         )
 
         # Convert to DataFrame
-        df = pd.DataFrame([p.model_dump() for p in prices])
+        df = pd.DataFrame(
+            [p.model_dump() for p in prices],
+            columns=HISTORICAL_DATAFRAME_COLUMNS,
+        )
 
         # Set date as index
         if "date" in df.columns:

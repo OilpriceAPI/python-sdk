@@ -12,7 +12,7 @@ from oilpriceapi.exceptions import DataNotFoundError
 class TestPricesResource:
     """Test PricesResource class."""
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_single_price(self, mock_request, api_key, mock_price_response):
         """Test getting a single commodity price."""
         mock_response = Mock()
@@ -35,7 +35,7 @@ class TestPricesResource:
         assert "by_code" in call_kwargs["params"]
         assert call_kwargs["params"]["by_code"] == "BRENT_CRUDE_USD"
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_multiple_prices(self, mock_request, api_key, mock_price_response):
         """Test getting multiple commodity prices."""
         # Mock responses for each commodity
@@ -50,8 +50,8 @@ class TestPricesResource:
                         "currency": "USD",
                         "created_at": "2024-01-15T10:00:00Z",
                         "type": "spot_price",
-                    }
-                }
+                    },
+                },
             ),
             Mock(
                 status_code=200,
@@ -63,8 +63,8 @@ class TestPricesResource:
                         "currency": "USD",
                         "created_at": "2024-01-15T10:00:00Z",
                         "type": "spot_price",
-                    }
-                }
+                    },
+                },
             ),
         ]
         mock_request.side_effect = responses
@@ -79,7 +79,7 @@ class TestPricesResource:
         assert prices[1].value == 70.25
         assert mock_request.call_count == 2
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_multiple_prices_with_failures(self, mock_request, api_key):
         """Test get_multiple skips failed commodities."""
         # First succeeds, second fails, third succeeds
@@ -94,8 +94,8 @@ class TestPricesResource:
                         "currency": "USD",
                         "created_at": "2024-01-15T10:00:00Z",
                         "type": "spot_price",
-                    }
-                }
+                    },
+                },
             ),
             Mock(status_code=404, json=lambda: {"error": "Not found"}),
             Mock(
@@ -108,25 +108,21 @@ class TestPricesResource:
                         "currency": "USD",
                         "created_at": "2024-01-15T10:00:00Z",
                         "type": "spot_price",
-                    }
-                }
+                    },
+                },
             ),
         ]
         mock_request.side_effect = responses
 
         client = OilPriceAPI(api_key=api_key)
-        prices = client.prices.get_multiple([
-            "BRENT_CRUDE_USD",
-            "INVALID_CODE",
-            "NATURAL_GAS_USD"
-        ])
+        prices = client.prices.get_multiple(["BRENT_CRUDE_USD", "INVALID_CODE", "NATURAL_GAS_USD"])
 
         # Should only return 2 prices (skips the failed one)
         assert len(prices) == 2
         assert prices[0].commodity == "BRENT_CRUDE_USD"
         assert prices[1].commodity == "NATURAL_GAS_USD"
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_price_with_alternate_response_format(self, mock_request, api_key):
         """Test handling response without nested data key."""
         mock_response = Mock()
@@ -147,7 +143,7 @@ class TestPricesResource:
         assert price.commodity == "BRENT_CRUDE_USD"
         assert price.value == 75.50
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_to_dataframe_current_single(self, mock_request, api_key, mock_price_response):
         """Test converting single current price to DataFrame."""
         pytest.importorskip("pandas")  # Skip if pandas not installed
@@ -166,12 +162,13 @@ class TestPricesResource:
         assert "value" in df.columns
         assert df["commodity"].iloc[0] == "BRENT_CRUDE_USD"
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_to_dataframe_without_pandas(self, mock_request, api_key, monkeypatch):
         """Test to_dataframe raises error when pandas not available."""
         # Hide pandas
         import sys
-        monkeypatch.setitem(sys.modules, 'pandas', None)
+
+        monkeypatch.setitem(sys.modules, "pandas", None)
 
         client = OilPriceAPI(api_key=api_key)
 
@@ -184,10 +181,11 @@ class TestPricesResource:
 class TestGetAllPagination:
     """Test get_all auto-pagination via X-Has-Next header."""
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_all_single_page(self, mock_request, api_key):
         """Test get_all with a single page (X-Has-Next: false)."""
         import httpx
+
         mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -218,7 +216,7 @@ class TestGetAllPagination:
         assert len(prices) == 2
         assert mock_request.call_count == 1
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_all_multi_page(self, mock_request, api_key):
         """Test get_all fetches all pages when X-Has-Next is true."""
         import httpx
@@ -262,10 +260,11 @@ class TestGetAllPagination:
         assert prices[0].commodity == "BRENT_CRUDE_USD"
         assert prices[1].commodity == "WTI_USD"
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_all_preserves_currency(self, mock_request, api_key):
         """Bug 1: get_all must preserve each record's currency field."""
         import httpx
+
         mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -305,11 +304,12 @@ class TestGetAllPagination:
         assert by_code["NATURAL_GAS_GBP"].currency == "GBP"
         assert by_code["BRENT_CRUDE_USD"].currency == "USD"
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_to_dataframe_currency_column(self, mock_request, api_key):
         """Bug 1: to_dataframe() currency column must reflect each commodity's currency."""
         pytest.importorskip("pandas")
         import httpx
+
         mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -342,11 +342,12 @@ class TestGetAllPagination:
         assert currencies["EU_CARBON_EUR"] == "EUR"
         assert currencies["BRENT_CRUDE_USD"] == "USD"
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_to_dataframe_per_page_parameter(self, mock_request, api_key):
         """Bug 2: to_dataframe() per_page parameter is forwarded to get_all."""
         pytest.importorskip("pandas")
         import httpx
+
         mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -375,7 +376,7 @@ class TestGetAllPagination:
 class TestPricesResourceErrorHandling:
     """Test error handling in prices resource."""
 
-    @patch('httpx.Client.request')
+    @patch("httpx.Client.request")
     def test_get_price_not_found(self, mock_request, api_key, mock_404_response):
         """Test handling commodity not found."""
         mock_request.return_value = mock_404_response
@@ -389,9 +390,9 @@ class TestPricesResourceErrorHandling:
         assert error.status_code == 404
         assert "not found" in str(error).lower()
 
-    @patch('httpx.Client.request')
-    def test_get_price_handles_missing_fields(self, mock_request, api_key):
-        """Test handling response with missing optional fields."""
+    @patch("httpx.Client.request")
+    def test_get_price_does_not_invent_missing_currency(self, mock_request, api_key):
+        """A missing currency remains unknown instead of being labeled USD."""
         mock_response = Mock()
         mock_response.status_code = 200
         # Minimal response
@@ -400,8 +401,9 @@ class TestPricesResourceErrorHandling:
             "data": {
                 "code": "TEST",
                 "price": 100.0,
+                "unit": "index_points",
                 "created_at": "2024-01-15T10:00:00Z",
-            }
+            },
         }
         mock_request.return_value = mock_response
 
@@ -410,6 +412,5 @@ class TestPricesResourceErrorHandling:
 
         assert price.commodity == "TEST"
         assert price.value == 100.0
-        # Should have defaults for missing fields
-        assert price.currency == "USD"
-        assert price.unit == "barrel"
+        assert price.currency is None
+        assert price.unit == "index_points"

@@ -3,11 +3,13 @@ Prices Resource
 
 Current price operations.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Optional, Set, Tuple, Union
 
+from .._pagination import validate_page_size
 from ..models import Price
 
 
@@ -31,9 +33,7 @@ class PricesResource:
             >>> print(f"Brent: ${price.value:.2f}")
         """
         response = self.client.request(
-            method="GET",
-            path="/v1/prices/latest",
-            params={"by_code": commodity}
+            method="GET", path="/v1/prices/latest", params={"by_code": commodity}
         )
 
         # Parse response
@@ -42,16 +42,13 @@ class PricesResource:
         else:
             price_data = response
 
-        # Map API response to Price model
-        # Note: API should provide 'unit' field. If missing, we default to 'barrel'
-        # for backwards compatibility, but this may be incorrect for non-oil commodities
-        # (e.g., natural gas measured in MMBtu, electricity in MWh)
+        # Map API response to Price model without inventing source context.
         mapped_data = {
             "commodity": price_data.get("code", commodity),
             "value": price_data.get("price"),
-            # API responses are USD-denominated; default for backwards compatibility
-            # when the 'currency' field is absent from a minimal response.
-            "currency": price_data.get("currency", "USD"),
+            "currency": price_data.get("currency"),
+            # Retain the established oil-only fallback for legacy minimal
+            # responses; any unit actually supplied by the API wins.
             "unit": price_data.get("unit", "barrel"),
             "timestamp": price_data.get("created_at"),
         }
@@ -59,10 +56,7 @@ class PricesResource:
         return Price(**mapped_data)
 
     def get_multiple(
-        self,
-        commodities: List[str],
-        raise_on_error: bool = False,
-        return_failures: bool = False
+        self, commodities: List[str], raise_on_error: bool = False, return_failures: bool = False
     ) -> Union[List[Price], tuple[List[Price], List[tuple[str, str]]]]:
         """Get prices for multiple commodities.
 
@@ -129,14 +123,16 @@ class PricesResource:
             >>> all_prices = client.prices.get_all()
             >>> oil_prices = [p for p in all_prices if 'CRUDE' in p.commodity]
         """
+        validated_per_page = validate_page_size(per_page)
         all_prices: List[Price] = []
+        seen_previous_pages: Set[Tuple[object, ...]] = set()
         page = 1
 
         while True:
             body, headers = self.client.request_with_headers(
                 method="GET",
                 path="/v1/prices/all",
-                params={"page": page, "per_page": per_page},
+                params={"page": page, "per_page": validated_per_page},
             )
 
             # Parse response — /v1/prices/all returns nested:
@@ -151,18 +147,34 @@ class PricesResource:
                 prices_data = prices_data["prices"]
 
             # prices_data is now either a dict {CODE: {...}} or a list [{...}]
-            items = prices_data.values() if isinstance(prices_data, dict) else (prices_data if isinstance(prices_data, list) else [])
+            items = (
+                prices_data.values()
+                if isinstance(prices_data, dict)
+                else (prices_data if isinstance(prices_data, list) else [])
+            )
 
+            current_page_keys: Set[Tuple[object, ...]] = set()
             for price_data in items:
                 if isinstance(price_data, dict):
                     mapped = {
                         "commodity": price_data.get("code", ""),
                         "value": price_data.get("price"),
                         "currency": price_data.get("currency"),
-                        "unit": price_data.get("unit", "barrel"),
+                        "unit": price_data.get("unit"),
                         "timestamp": price_data.get("updated_at") or price_data.get("created_at"),
                     }
-                    all_prices.append(Price(**mapped))
+                    price = Price(**mapped)
+                    key = (
+                        price.timestamp,
+                        price.commodity,
+                        price.value,
+                        price.currency,
+                        price.unit,
+                    )
+                    if key not in seen_previous_pages:
+                        all_prices.append(price)
+                    current_page_keys.add(key)
+            seen_previous_pages.update(current_page_keys)
 
             # Check pagination header
             has_next = str(headers.get("X-Has-Next", "false")).lower() == "true"
@@ -192,10 +204,8 @@ class PricesResource:
             start: Start date for historical data
             end: End date for historical data
             interval: Data interval (minute, hourly, daily, weekly, monthly)
-            per_page: Records per page when fetching all current prices.
-                      Default 100 (matches API default). Only used when neither
-                      ``commodity`` nor ``commodities`` is specified and no date
-                      range is given. Auto-pagination fetches all pages.
+            per_page: Records per request, from 1 to 1000. Auto-pagination
+                      fetches every page for all-current and historical queries.
 
         Returns:
             pandas DataFrame with price data
@@ -219,6 +229,7 @@ class PricesResource:
         # If historical data requested, use historical endpoint
         if start or end:
             from .historical import HistoricalResource
+
             hist = HistoricalResource(self.client)
 
             if commodity:
@@ -226,7 +237,8 @@ class PricesResource:
                     commodity=commodity,
                     start=start,
                     end=end,
-                    interval=interval
+                    interval=interval,
+                    per_page=per_page,
                 )
             elif commodities:
                 dfs = []
@@ -235,7 +247,8 @@ class PricesResource:
                         commodity=comm,
                         start=start,
                         end=end,
-                        interval=interval
+                        interval=interval,
+                        per_page=per_page,
                     )
                     df_comm["commodity"] = comm
                     dfs.append(df_comm)

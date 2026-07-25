@@ -1,0 +1,21 @@
+{
+  "body": {
+    "status": "success",
+    "data": {
+      "prices": []
+    },
+    "meta": {
+      "page": 1,
+      "per_page": 100,
+      "total": 0,
+      "total_pages": 2,
+      "has_next": true,
+      "has_prev": false
+    }
+  },
+  "headers": {
+    "X-Total": "0",
+    "X-Total-Pages": "2",
+    "X-Has-Next": "true"
+  }
+}

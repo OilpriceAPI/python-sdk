@@ -61,12 +61,19 @@ df = client.prices.to_dataframe(
     commodity="BRENT_CRUDE_USD",
     start="2024-01-01",
     end="2024-12-31",
-    interval="daily"
+    interval="daily",
+    per_page=500
 )
 
 # Analyze trends
 print(df.describe())
 ```
+
+The DataFrame helper fetches every page and preserves the `currency` and
+`unit` returned for each record. `per_page` may be set from 1 to 1000 and
+controls request size rather than total results. See
+**[DataFrames and pagination →](DATAFRAMES.md)** for empty-result and page
+boundary behavior.
 
 **[Learn about historical endpoints →](https://docs.oilpriceapi.com/api-reference/historical)**
 
