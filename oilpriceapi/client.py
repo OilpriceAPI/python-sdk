@@ -401,6 +401,12 @@ class OilPriceAPI:
                 elif response.status_code >= 500:
                     if self._retry_strategy.should_retry(attempt, response.status_code):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                        self._retry_strategy.log_retry(
+                            attempt,
+                            f"Server error {response.status_code}",
+                            wait_time,
+                            is_async=False,
+                        )
                         time.sleep(wait_time)
                         continue
                 raise error_from_response(
@@ -416,6 +422,9 @@ class OilPriceAPI:
                 )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    self._retry_strategy.log_retry(
+                        attempt, "Request timeout", wait_time, is_async=False
+                    )
                     time.sleep(wait_time)
                     continue
                 raise last_exception
@@ -426,6 +435,12 @@ class OilPriceAPI:
                 )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    self._retry_strategy.log_retry(
+                        attempt,
+                        f"Request error: {error.__class__.__name__}",
+                        wait_time,
+                        is_async=False,
+                    )
                     time.sleep(wait_time)
                     continue
                 raise last_exception

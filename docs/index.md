@@ -182,7 +182,7 @@ client = OilPriceAPI(
 ### Error Handling
 
 ```python
-from oilpriceapi.exceptions import (
+from oilpriceapi import (
     DataNotFoundError,
     OilPriceAPIError,
     RateLimitError,

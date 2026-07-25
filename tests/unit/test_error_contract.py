@@ -80,6 +80,9 @@ def test_canonical_nested_error_preserves_recovery_contract():
     assert "authorization" not in error.headers
     assert "secret-test-key" not in error.raw_text
     assert "secret-test-key" not in repr(error.raw_body)
+    assert error.retryable is False
+    assert error.is_client_error is True
+    assert error.is_server_error is False
 
 
 def test_legacy_flat_error_and_rate_limit_headers_are_normalized():
@@ -148,35 +151,42 @@ def test_malformed_non_json_body_is_preserved_without_losing_type():
     assert error.raw_body == "<html>upstream unavailable</html>"
     assert error.raw_text == "<html>upstream unavailable</html>"
     assert error.headers["content-type"] == "text/html"
+    assert error.retryable is True
+    assert error.is_server_error is True
 
 
 def test_sync_client_normalizes_timeout_and_network_failures():
     timeout_request = httpx.Request("GET", "https://api.oilpriceapi.com/v1/prices/latest")
-    client = OilPriceAPI(api_key="secret-test-key", max_retries=1)
+    with OilPriceAPI(api_key="secret-test-key", max_retries=1) as client:
+        with patch.object(
+            client._client,
+            "request",
+            side_effect=httpx.ReadTimeout(
+                "timed out for secret-test-key",
+                request=timeout_request,
+            ),
+        ):
+            with pytest.raises(TimeoutError) as timeout:
+                client.request("GET", "/v1/prices/latest")
 
-    with patch.object(
-        client._client,
-        "request",
-        side_effect=httpx.ReadTimeout("timed out", request=timeout_request),
-    ):
-        with pytest.raises(TimeoutError) as timeout:
-            client.request("GET", "/v1/prices/latest")
+        assert timeout.value.timeout == client.timeout
+        assert timeout.value.cause_type == "ReadTimeout"
+        assert "secret-test-key" not in str(timeout.value)
 
-    assert timeout.value.timeout == client.timeout
+        with patch.object(
+            client._client,
+            "request",
+            side_effect=httpx.ConnectError(
+                "connection failed for secret-test-key",
+                request=timeout_request,
+            ),
+        ):
+            with pytest.raises(NetworkError) as network:
+                client.request("GET", "/v1/prices/latest")
 
-    with patch.object(
-        client._client,
-        "request",
-        side_effect=httpx.ConnectError(
-            "connection failed for secret-test-key",
-            request=timeout_request,
-        ),
-    ):
-        with pytest.raises(NetworkError) as network:
-            client.request("GET", "/v1/prices/latest")
-
-    assert "secret-test-key" not in str(network.value)
-    assert network.value.cause_type == "ConnectError"
+        assert "secret-test-key" not in str(network.value)
+        assert network.value.cause_type == "ConnectError"
+        assert network.value.retryable is True
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
+import httpx
+
 _SENSITIVE_HEADERS = {
     "authorization",
     "proxy-authorization",
@@ -360,9 +362,10 @@ class TimeoutError(NetworkError):
         self,
         message: str = "Request timed out",
         timeout: Optional[float] = None,
+        cause_type: str = "TimeoutException",
         **kwargs: Any,
     ):
-        super().__init__(message, cause_type="TimeoutException", **kwargs)
+        super().__init__(message, cause_type=cause_type, **kwargs)
         self.timeout = timeout
 
     def __str__(self) -> str:
@@ -509,9 +512,13 @@ def error_from_exception(
 ) -> OilPriceAPIError:
     """Normalize transport failures while redacting the configured API key."""
     secrets = [api_key] if api_key else []
-    if "Timeout" in error.__class__.__name__:
-        return TimeoutError(timeout=timeout)
     message = _redact_text(str(error), secrets)
+    if isinstance(error, httpx.TimeoutException):
+        return TimeoutError(
+            message=f"Request timed out: {message}" if message else "Request timed out",
+            timeout=timeout,
+            cause_type=error.__class__.__name__,
+        )
     return NetworkError(
         message=f"Request failed: {message}",
         cause_type=error.__class__.__name__,
