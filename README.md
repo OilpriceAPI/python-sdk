@@ -137,6 +137,31 @@ print(
 Use the raw first-request pattern when downstream logic requires the exact
 source and timestamp-field semantics from the API response.
 
+## Complete pandas DataFrames
+
+Install the optional pandas support, then request a historical DataFrame:
+
+```python
+df = client.historical.to_dataframe(
+    commodity="BRENT_CRUDE_USD",
+    start="2026-01-01",
+    end="2026-06-30",
+    per_page=500,
+)
+```
+
+`to_dataframe()` fetches every page automatically. `per_page` controls the
+request page size, not the total result size, and must be an integer from 1 to
+1000. The DataFrame preserves each API row's `currency` and `unit`; a missing
+currency remains missing rather than being labeled USD. Exact records repeated
+by an overlapping page boundary are returned once, while distinct records are
+retained. Empty results have a stable schema with a `date` index.
+
+The same `per_page` behavior applies to date-range queries through
+`client.prices.to_dataframe(...)`. See the
+[DataFrames and pagination guide](docs/DATAFRAMES.md) for the complete
+contract.
+
 ## Recovery
 
 The package exposes typed errors for the customer-recoverable boundaries:

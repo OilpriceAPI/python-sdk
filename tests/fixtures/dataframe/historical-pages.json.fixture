@@ -1,0 +1,96 @@
+{
+  "pages": [
+    {
+      "body": {
+        "status": "success",
+        "data": {
+          "prices": [
+            {
+              "code": "BRENT_CRUDE_USD",
+              "price": 81.25,
+              "currency": "USD",
+              "unit": "barrel",
+              "created_at": "2026-07-20T00:00:00Z",
+              "type": "spot_price"
+            },
+            {
+              "code": "EU_CARBON_EUR",
+              "price": 72.4,
+              "currency": "EUR",
+              "unit": "tonne",
+              "created_at": "2026-07-20T01:00:00Z",
+              "type": "spot_price"
+            },
+            {
+              "code": "UK_NATURAL_GAS_GBP",
+              "price": 88.75,
+              "currency": "GBP",
+              "unit": "pence_per_therm",
+              "created_at": "2026-07-20T02:00:00Z",
+              "type": "spot_price"
+            }
+          ]
+        },
+        "meta": {
+          "page": 1,
+          "per_page": 3,
+          "total": 5,
+          "total_pages": 2,
+          "has_next": true,
+          "has_prev": false
+        }
+      },
+      "headers": {
+        "X-Total": "5",
+        "X-Total-Pages": "2",
+        "X-Has-Next": "true"
+      }
+    },
+    {
+      "body": {
+        "status": "success",
+        "data": {
+          "prices": [
+            {
+              "code": "UK_NATURAL_GAS_GBP",
+              "price": 88.75,
+              "currency": "GBP",
+              "unit": "pence_per_therm",
+              "created_at": "2026-07-20T02:00:00Z",
+              "type": "spot_price"
+            },
+            {
+              "code": "US_REFINERY_UTILIZATION",
+              "price": 91.2,
+              "currency": null,
+              "unit": "percent",
+              "created_at": "2026-07-20T03:00:00Z",
+              "type": "utilization"
+            },
+            {
+              "code": "ENERGY_PRICE_INDEX",
+              "price": 118.6,
+              "currency": null,
+              "unit": "index_points",
+              "created_at": "2026-07-20T04:00:00Z",
+              "type": "index"
+            }
+          ]
+        },
+        "meta": {
+          "page": 2,
+          "per_page": 3,
+          "total": 5,
+          "total_pages": 2,
+          "has_next": false,
+          "has_prev": true
+        }
+      },
+      "headers": {
+        "X-Total": "5",
+        "X-Total-Pages": "2",
+        "X-Has-Next": "false"
+      }
+    }
+  ]
+}
