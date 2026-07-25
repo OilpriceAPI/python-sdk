@@ -15,6 +15,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Dates and Commodity Codes: CODE_GUIDANCE.md
   - DataFrames and Pagination: DATAFRAMES.md
   - Synthetic Monitoring: SYNTHETIC_MONITORING.md
   - Release Process: RELEASE_PROCESS.md

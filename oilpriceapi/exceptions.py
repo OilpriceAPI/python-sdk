@@ -125,6 +125,24 @@ def _number(value: Any) -> Any:
     return int(number) if number.is_integer() else number
 
 
+def _string_list(value: Any, *, limit: int = 20, max_length: int = 128) -> List[str]:
+    """Keep only bounded strings from untrusted error-response list fields."""
+    if not isinstance(value, (list, tuple)):
+        return []
+
+    result: List[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        normalized = item.strip()
+        if not normalized:
+            continue
+        result.append(normalized[:max_length])
+        if len(result) >= limit:
+            break
+    return result
+
+
 def _parse_reset_time(value: Any) -> Optional[datetime]:
     if value is None:
         return None
@@ -158,6 +176,8 @@ class OilPriceAPIError(Exception):
         raw_body: Any = None,
         raw_text: str = "",
         headers: Optional[Mapping[str, str]] = None,
+        suggestions: Optional[List[str]] = None,
+        invalid_codes: Optional[List[str]] = None,
     ):
         super().__init__(message)
         self.message = message
@@ -175,6 +195,8 @@ class OilPriceAPIError(Exception):
         self.raw_body = raw_body if raw_body is not None else response
         self.raw_text = raw_text
         self.headers = dict(headers or {})
+        self.suggestions = list(suggestions or [])
+        self.invalid_codes = list(invalid_codes or [])
         # Retain the historical attribute while exposing raw_body for all shapes.
         self.response = (
             response
@@ -392,12 +414,22 @@ def error_from_response(
     raw_body, raw_text = _response_body(response, secrets)
     headers = _response_headers(response, secrets)
     payload = _mapping(raw_body)
-    nested_error = _mapping(payload.get("error"))
-    primary = nested_error or payload
-    details = _mapping(primary.get("details")) or _mapping(payload.get("details"))
-    sources = (primary, details, payload)
+    nested_data = _mapping(payload.get("data"))
+    nested_error = _mapping(payload.get("error")) or _mapping(nested_data.get("error"))
+    primary = nested_error or nested_data or payload
+    details = (
+        _mapping(primary.get("details"))
+        or _mapping(nested_data.get("details"))
+        or _mapping(payload.get("details"))
+    )
+    sources = (primary, details, nested_data, payload)
 
-    legacy_error = payload.get("error")
+    nested_data_error = nested_data.get("error")
+    legacy_error = (
+        nested_data_error
+        if nested_data_error is not None
+        else payload.get("error")
+    )
     message_value = _first_value(sources, "message", "detail", "title")
     if message_value is None and isinstance(legacy_error, str):
         message_value = legacy_error
@@ -405,6 +437,8 @@ def error_from_response(
     message = str(message_value or raw_text.strip() or f"HTTP {status_code} error")
 
     code_value = _first_value(sources, "code", "error_code", "type")
+    if code_value is None and isinstance(nested_data_error, str):
+        code_value = nested_data_error
     request_id_value = _first_value(
         sources,
         "request_id",
@@ -438,6 +472,16 @@ def error_from_response(
     if remaining is not None:
         retry_metadata.setdefault("remaining", remaining)
 
+    suggestions = _string_list(
+        _first_value(
+            sources,
+            "suggestions",
+            "did_you_mean",
+            "valid_commodities",
+        )
+    )
+    invalid_codes = _string_list(_first_value(sources, "invalid_codes"))
+
     raw_response = raw_body if isinstance(raw_body, dict) else None
     common: Dict[str, Any] = {
         "response": raw_response,
@@ -466,6 +510,8 @@ def error_from_response(
         "raw_body": raw_body,
         "raw_text": raw_text,
         "headers": headers,
+        "suggestions": suggestions,
+        "invalid_codes": invalid_codes,
     }
 
     if status_code == 400:
@@ -477,7 +523,12 @@ def error_from_response(
     if status_code == 403:
         return PermissionDeniedError(message, **common)
     if status_code == 404:
-        return DataNotFoundError(message, commodity=commodity, **common)
+        return DataNotFoundError(
+            message,
+            commodity=commodity,
+            valid_commodities=suggestions or None,
+            **common,
+        )
     if status_code == 422:
         return ValidationError(
             message,

@@ -9,6 +9,7 @@ from typing import Generator, List, Optional, Set, Tuple, Union
 
 from .._pagination import validate_page_size
 from ..models import HistoricalPrice, HistoricalResponse, PaginationMeta
+from ..resource_validators import format_date
 
 DEFAULT_AUTO_PAGE_SIZE = 500
 HISTORICAL_DATAFRAME_COLUMNS = [
@@ -41,14 +42,7 @@ class HistoricalResource:
 
     def _parse_date(self, date_input: Union[str, date, datetime]) -> date:
         """Parse date input to date object."""
-        if isinstance(date_input, str):
-            return datetime.fromisoformat(date_input).date()
-        elif isinstance(date_input, datetime):
-            return date_input.date()
-        elif isinstance(date_input, date):
-            return date_input
-        else:
-            raise ValueError(f"Invalid date type: {type(date_input)}")
+        return date.fromisoformat(format_date(date_input))
 
     def _get_optimal_endpoint(
         self,
@@ -181,16 +175,20 @@ class HistoricalResource:
         }
 
         # Add date parameters if provided
-        if start_date:
-            params["start_date"] = self._format_date(start_date)
-        if end_date:
-            params["end_date"] = self._format_date(end_date)
+        normalized_start = (
+            self._format_date(start_date) if start_date is not None else None
+        )
+        normalized_end = self._format_date(end_date) if end_date is not None else None
+        if normalized_start is not None:
+            params["start_date"] = normalized_start
+        if normalized_end is not None:
+            params["end_date"] = normalized_end
 
         # Select optimal endpoint based on date range
-        endpoint = self._get_optimal_endpoint(start_date, end_date)
+        endpoint = self._get_optimal_endpoint(normalized_start, normalized_end)
 
         # Calculate appropriate timeout
-        request_timeout = self._calculate_timeout(start_date, end_date, timeout)
+        request_timeout = self._calculate_timeout(normalized_start, normalized_end, timeout)
 
         # Make request with optimal endpoint and timeout — use request_with_headers
         # so we can read X-Has-Next for reliable pagination detection
@@ -445,11 +443,4 @@ class HistoricalResource:
 
     def _format_date(self, date_input: Union[str, date, datetime]) -> str:
         """Format date for API."""
-        if isinstance(date_input, str):
-            return date_input
-        elif isinstance(date_input, datetime):
-            return date_input.date().isoformat()
-        elif isinstance(date_input, date):
-            return date_input.isoformat()
-        else:
-            raise ValueError(f"Invalid date type: {type(date_input)}")
+        return format_date(date_input)

@@ -77,6 +77,10 @@ boundary behavior.
 
 **[Learn about historical endpoints →](https://docs.oilpriceapi.com/api-reference/historical)**
 
+Date strings use strict `YYYY-MM-DD` syntax and are checked before a request.
+See **[Dates and commodity codes →](CODE_GUIDANCE.md)** for validation and
+recovery behavior.
+
 ### Technical Analysis
 
 Built-in technical indicators for trading strategies:
@@ -134,24 +138,17 @@ Embed live commodity price widgets and charts in your applications.
 
 **[Explore integration guides →](https://docs.oilpriceapi.com/integrations)**
 
-## 📊 Available Commodities
+## 📊 Find Commodity Codes
 
-### Crude Oil
-- **Brent Crude** (`BRENT_CRUDE_USD`) - International benchmark
-- **WTI** (`WTI_USD`) - US benchmark
-- **Dubai Crude** (`DUBAI_CRUDE_USD`) - Middle East benchmark
+Search the current API catalog so an integration does not depend on a stale
+code list:
 
-### Natural Gas
-- **Natural Gas** (`NATURAL_GAS_USD`) - Henry Hub spot price
-- **LNG** (`LNG_USD`) - Liquefied natural gas
+```python
+matches = client.commodities.search("brent crude", limit=5)
+print([commodity["code"] for commodity in matches])
+```
 
-### Refined Products
-- **Diesel** (`DIESEL_USD`)
-- **Gasoline** (`GASOLINE_USD`)
-- **Heating Oil** (`HEATING_OIL_USD`)
-- **Jet Fuel** (`JET_FUEL_USD`)
-
-**[View complete commodity list →](https://docs.oilpriceapi.com/commodities)**
+**[View dates and commodity-code guidance →](CODE_GUIDANCE.md)**
 
 ## 🔧 Advanced Configuration
 
@@ -202,6 +199,8 @@ except RateLimitError as error:
 except DataNotFoundError:
     print("Commodity not found")
 except OilPriceAPIError as error:
+    if error.code == "invalid_code" and error.suggestions:
+        print("Try one of:", ", ".join(error.suggestions))
     if error.request_id:
         print("Support request ID:", error.request_id)
     if error.remediation_url:
@@ -210,8 +209,9 @@ except OilPriceAPIError as error:
 ```
 
 Every non-2xx response uses this shared typed contract. `status_code`, `code`,
-plan or feature requirements, retry metadata, sanitized response headers, and
-raw diagnostics remain available without exposing the configured API key.
+commodity suggestions, plan or feature requirements, retry metadata, sanitized
+response headers, and raw diagnostics remain available without exposing the
+configured API key.
 
 ## 💰 Pricing & Plans
 

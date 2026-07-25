@@ -7,6 +7,8 @@ Oil and gas drilling rig count operations.
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
 
+from ..resource_validators import format_date
+
 
 class RigCountsResource:
     """Resource for drilling rig count data."""
@@ -86,9 +88,9 @@ class RigCountsResource:
             ...     print(f"{record['date']}: {record['total']} rigs")
         """
         params = {}
-        if start_date:
+        if start_date is not None:
             params["start_date"] = self._format_date(start_date)
-        if end_date:
+        if end_date is not None:
             params["end_date"] = self._format_date(end_date)
 
         response = self.client.request(
@@ -152,11 +154,4 @@ class RigCountsResource:
 
     def _format_date(self, date_input: Union[str, date, datetime]) -> str:
         """Format date for API."""
-        if isinstance(date_input, str):
-            return date_input
-        elif isinstance(date_input, datetime):
-            return date_input.date().isoformat()
-        elif isinstance(date_input, date):
-            return date_input.isoformat()
-        else:
-            raise ValueError(f"Invalid date type: {type(date_input)}")
+        return format_date(date_input)
