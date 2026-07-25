@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - DataFrames and Pagination: DATAFRAMES.md
   - Synthetic Monitoring: SYNTHETIC_MONITORING.md
+  - Release Process: RELEASE_PROCESS.md
   - Performance Guide: PERFORMANCE_GUIDE.md
   - API Reference:
       - Client: reference/client.md

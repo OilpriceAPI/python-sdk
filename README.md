@@ -241,7 +241,9 @@ python scripts/generate_snippet_manifest.py \
 
 The [performance guide](docs/PERFORMANCE_GUIDE.md) documents timeout,
 connection-pooling, batching, retry, and troubleshooting behavior without
-making a universal latency promise.
+making a universal latency promise. The
+[release process](docs/RELEASE_PROCESS.md) documents the actual PyPI gate and
+immutable-version recovery procedure.
 
 ```bash
 python -m pip install -e '.[dev]'
