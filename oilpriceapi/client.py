@@ -4,11 +4,9 @@ OilPriceAPI Client
 Main client class for interacting with OilPriceAPI.
 """
 
-import json
 import logging
 import os
 import time
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
@@ -21,14 +19,10 @@ logger = logging.getLogger(__name__)
 
 from ._subscriptions_common import unwrap_data
 from .exceptions import (
-    AuthenticationError,
     ConfigurationError,
-    DataNotFoundError,
     OilPriceAPIError,
-    RateLimitError,
-    ServerError,
-    TimeoutError,
-    ValidationError,
+    error_from_exception,
+    error_from_response,
 )
 from .models import DataConnectorPrice, MarketBrief
 from .resources.alerts import AlertsResource
@@ -118,10 +112,7 @@ class OilPriceAPI:
         self.retry_on = retry_on or self.DEFAULT_RETRY_CODES
 
         # Initialize retry strategy
-        self._retry_strategy = RetryStrategy(
-            max_retries=self.max_retries,
-            retry_on=self.retry_on
-        )
+        self._retry_strategy = RetryStrategy(max_retries=self.max_retries, retry_on=self.retry_on)
 
         logger.debug(
             f"Initialized OilPriceAPI client: base_url={self.base_url}, "
@@ -136,7 +127,10 @@ class OilPriceAPI:
         import sys
 
         from .version import SDK_NAME, SDK_VERSION
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+        python_version = (
+            f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        )
         self.headers = {
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
@@ -194,12 +188,14 @@ class OilPriceAPI:
         self.viz: Optional["PriceVisualizer"]
         try:
             from .visualization import PriceVisualizer
+
             self.viz = PriceVisualizer(self)
         except ImportError:
             self.viz = None
 
         # Initialize telemetry (opt-in, disabled by default)
         from .telemetry import Telemetry
+
         self._telemetry = Telemetry(enabled=enable_telemetry)
 
     def request(
@@ -209,7 +205,7 @@ class OilPriceAPI:
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Make HTTP request to API.
 
@@ -236,9 +232,9 @@ class OilPriceAPI:
             TimeoutError: On request timeout
         """
         # Ensure path starts with / for proper urljoin behavior
-        if not path.startswith('/'):
-            path = '/' + path
-        url = urljoin(self.base_url + '/', path)
+        if not path.startswith("/"):
+            path = "/" + path
+        url = urljoin(self.base_url + "/", path)
 
         # Use provided timeout or default
         effective_timeout = timeout if timeout is not None else self.timeout
@@ -248,7 +244,9 @@ class OilPriceAPI:
         start_time = time.time()
         for attempt in range(self.max_retries):
             try:
-                logger.debug(f"API request: {method} {url} (attempt {attempt + 1}/{self.max_retries})")
+                logger.debug(
+                    f"API request: {method} {url} (attempt {attempt + 1}/{self.max_retries})"
+                )
 
                 response = self._client.request(
                     method=method,
@@ -256,38 +254,19 @@ class OilPriceAPI:
                     params=params,
                     json=json_data,
                     timeout=effective_timeout,
-                    **kwargs
+                    **kwargs,
                 )
 
                 logger.debug(f"API response: {response.status_code} for {method} {url}")
 
-                # Handle different status codes
-                if response.status_code == 200:
+                if 200 <= response.status_code < 300:
                     self._telemetry.track_request(
                         operation=self._sanitize_path_for_telemetry(method, path),
                         duration=time.time() - start_time,
                         success=True,
                     )
                     return response.json()
-                elif response.status_code == 401:
-                    logger.error(f"Authentication failed for {url}")
-                    raise AuthenticationError("Invalid API key or authentication failed")
-                elif response.status_code == 404:
-                    error_data = self._safe_parse_json(response)
-                    raise DataNotFoundError(
-                        message=error_data.get("error", "Resource not found"),
-                        commodity=params.get("commodity") if params else None,
-                    )
-                elif response.status_code == 422:
-                    error_data = self._safe_parse_json(response)
-                    raise ValidationError(
-                        message=error_data.get("error", "Validation failed"),
-                        field=error_data.get("field"),
-                        value=error_data.get("value"),
-                    )
-                elif response.status_code == 429:
-                    # Parse rate limit headers
-                    reset_time = self._parse_rate_limit_reset(response.headers)
+                if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
                     logger.warning(
                         f"Rate limit exceeded. Limit: {response.headers.get('X-RateLimit-Limit')}, "
@@ -296,17 +275,15 @@ class OilPriceAPI:
 
                     # Auto-retry with Retry-After if we have attempts left
                     if self._retry_strategy.should_retry(attempt, 429):
-                        wait_time = min(float(retry_after), 60.0) if retry_after else self._retry_strategy.calculate_wait_time(attempt)
-                        logger.info(f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+                        try:
+                            wait_time = min(float(retry_after), 60.0)
+                        except (TypeError, ValueError):
+                            wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                        logger.info(
+                            f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})"
+                        )
                         time.sleep(wait_time)
                         continue
-
-                    raise RateLimitError(
-                        message="Rate limit exceeded",
-                        reset_time=reset_time,
-                        limit=response.headers.get("X-RateLimit-Limit"),
-                        remaining=response.headers.get("X-RateLimit-Remaining"),
-                    )
                 elif response.status_code >= 500:
                     if self._retry_strategy.should_retry(attempt, response.status_code):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
@@ -314,54 +291,49 @@ class OilPriceAPI:
                             attempt,
                             f"Server error {response.status_code}",
                             wait_time,
-                            is_async=False
+                            is_async=False,
                         )
                         time.sleep(wait_time)
                         continue
-                    raise ServerError(
-                        message=f"Server error: {response.status_code}",
-                        status_code=response.status_code,
-                    )
-                else:
-                    error_data = self._safe_parse_json(response)
-                    raise OilPriceAPIError(
-                        message=error_data.get("error", f"Unexpected error: {response.status_code}"),
-                        status_code=response.status_code,
-                        response=error_data,
-                    )
+                raise error_from_response(
+                    response,
+                    commodity=params.get("commodity") if params else None,
+                )
 
-            except httpx.TimeoutException:
-                last_exception = TimeoutError(
-                    message="Request timed out",
-                    timeout=self.timeout,
+            except httpx.TimeoutException as error:
+                last_exception = error_from_exception(
+                    error,
+                    api_key=self.api_key,
+                    timeout=effective_timeout,
                 )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
-                        attempt,
-                        "Request timeout",
-                        wait_time,
-                        is_async=False
+                        attempt, "Request timeout", wait_time, is_async=False
                     )
                     time.sleep(wait_time)
                     continue
                 logger.error(f"Request timed out after {self.max_retries} attempts")
                 raise last_exception
-            except httpx.RequestError as e:
-                last_exception = OilPriceAPIError(
-                    message=f"Request failed: {str(e)}",
+            except httpx.RequestError as error:
+                last_exception = error_from_exception(
+                    error,
+                    api_key=self.api_key,
                 )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt,
-                        f"Request error: {e}",
+                        f"Request error: {error.__class__.__name__}",
                         wait_time,
-                        is_async=False
+                        is_async=False,
                     )
                     time.sleep(wait_time)
                     continue
-                logger.error(f"Request failed after {self.max_retries} attempts: {e}")
+                logger.error(
+                    f"Request failed after {self.max_retries} attempts: "
+                    f"{error.__class__.__name__}"
+                )
                 raise last_exception
 
         if last_exception:
@@ -382,7 +354,7 @@ class OilPriceAPI:
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[Dict[str, Any], httpx.Headers]:
         """Make HTTP request and return (json_body, headers) tuple.
 
@@ -393,9 +365,9 @@ class OilPriceAPI:
             Tuple of (parsed JSON dict, httpx.Headers)
         """
         # Ensure path starts with / for proper urljoin behavior
-        if not path.startswith('/'):
-            path = '/' + path
-        url = urljoin(self.base_url + '/', path)
+        if not path.startswith("/"):
+            path = "/" + path
+        url = urljoin(self.base_url + "/", path)
 
         effective_timeout = timeout if timeout is not None else self.timeout
 
@@ -408,71 +380,50 @@ class OilPriceAPI:
                     params=params,
                     json=json_data,
                     timeout=effective_timeout,
-                    **kwargs
+                    **kwargs,
                 )
 
-                if response.status_code == 200:
+                if 200 <= response.status_code < 300:
                     return response.json(), response.headers
-                elif response.status_code == 401:
-                    raise AuthenticationError("Invalid API key or authentication failed")
-                elif response.status_code == 404:
-                    error_data = self._safe_parse_json(response)
-                    raise DataNotFoundError(
-                        message=error_data.get("error", "Resource not found"),
-                        commodity=params.get("commodity") if params else None,
-                    )
-                elif response.status_code == 422:
-                    error_data = self._safe_parse_json(response)
-                    raise ValidationError(
-                        message=error_data.get("error", "Validation failed"),
-                        field=error_data.get("field"),
-                        value=error_data.get("value"),
-                    )
-                elif response.status_code == 429:
-                    reset_time = self._parse_rate_limit_reset(response.headers)
+                if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
 
                     if self._retry_strategy.should_retry(attempt, 429):
-                        wait_time = min(float(retry_after), 60.0) if retry_after else self._retry_strategy.calculate_wait_time(attempt)
-                        logger.info(f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+                        try:
+                            wait_time = min(float(retry_after), 60.0)
+                        except (TypeError, ValueError):
+                            wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                        logger.info(
+                            f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})"
+                        )
                         time.sleep(wait_time)
                         continue
-
-                    raise RateLimitError(
-                        message="Rate limit exceeded",
-                        reset_time=reset_time,
-                        limit=response.headers.get("X-RateLimit-Limit"),
-                        remaining=response.headers.get("X-RateLimit-Remaining"),
-                    )
                 elif response.status_code >= 500:
                     if self._retry_strategy.should_retry(attempt, response.status_code):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         time.sleep(wait_time)
                         continue
-                    raise ServerError(
-                        message=f"Server error: {response.status_code}",
-                        status_code=response.status_code,
-                    )
-                else:
-                    error_data = self._safe_parse_json(response)
-                    raise OilPriceAPIError(
-                        message=error_data.get("error", f"Unexpected error: {response.status_code}"),
-                        status_code=response.status_code,
-                        response=error_data,
-                    )
+                raise error_from_response(
+                    response,
+                    commodity=params.get("commodity") if params else None,
+                )
 
-            except httpx.TimeoutException:
-                last_exception = TimeoutError(
-                    message="Request timed out",
-                    timeout=self.timeout,
+            except httpx.TimeoutException as error:
+                last_exception = error_from_exception(
+                    error,
+                    api_key=self.api_key,
+                    timeout=effective_timeout,
                 )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     time.sleep(wait_time)
                     continue
                 raise last_exception
-            except httpx.RequestError as e:
-                last_exception = OilPriceAPIError(message=f"Request failed: {str(e)}")
+            except httpx.RequestError as error:
+                last_exception = error_from_exception(
+                    error,
+                    api_key=self.api_key,
+                )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     time.sleep(wait_time)
@@ -488,40 +439,20 @@ class OilPriceAPI:
     def _sanitize_path_for_telemetry(method: str, path: str) -> str:
         """Strip resource IDs from path to avoid leaking user data in telemetry."""
         import re
+
         # Replace UUIDs and numeric IDs with :id
-        sanitized = re.sub(r'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '/:id', path)
-        sanitized = re.sub(r'/\d+', '/:id', sanitized)
+        sanitized = re.sub(
+            r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "/:id", path
+        )
+        sanitized = re.sub(r"/\d+", "/:id", sanitized)
         return f"{method} {sanitized}"
-
-    def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:
-        """Safely parse JSON response."""
-        try:
-            return response.json()
-        except json.JSONDecodeError:
-            return {"error": response.text or "Unknown error"}
-
-    def _parse_rate_limit_reset(self, headers: httpx.Headers) -> Optional[datetime]:
-        """Parse rate limit reset time from headers."""
-        reset_header = headers.get("X-RateLimit-Reset")
-        if reset_header:
-            try:
-                # Try parsing as Unix timestamp
-                timestamp = float(reset_header)
-                return datetime.fromtimestamp(timestamp)
-            except (ValueError, TypeError):
-                # Try parsing as ISO format
-                try:
-                    return datetime.fromisoformat(reset_header)
-                except (ValueError, TypeError):
-                    pass
-        return None
 
     def get_data_connector_prices(
         self,
         fuel_type: Optional[str] = None,
         port: Optional[str] = None,
         region: Optional[str] = None,
-        since: Optional[str] = None
+        since: Optional[str] = None,
     ) -> List[DataConnectorPrice]:
         """
         Get prices from connected data sources (BYOS - Bring Your Own Subscription).
@@ -544,16 +475,16 @@ class OilPriceAPI:
         """
         params = {}
         if fuel_type:
-            params['fuel_type'] = fuel_type
+            params["fuel_type"] = fuel_type
         if port:
-            params['port'] = port
+            params["port"] = port
         if region:
-            params['region'] = region
+            params["region"] = region
         if since:
-            params['since'] = since
+            params["since"] = since
 
-        response = self.request('GET', '/v1/prices/data-connector', params=params)
-        prices_data = response.get('data', {}).get('prices', [])
+        response = self.request("GET", "/v1/prices/data-connector", params=params)
+        prices_data = response.get("data", {}).get("prices", [])
         return [DataConnectorPrice(**p) for p in prices_data]
 
     def market_brief(
