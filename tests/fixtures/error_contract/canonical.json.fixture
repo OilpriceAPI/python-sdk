@@ -1,0 +1,15 @@
+{
+  "error": {
+    "code": "plan_upgrade_required",
+    "message": "Futures data requires a higher plan.",
+    "request_id": "req_canonical_123",
+    "docs_url": "https://docs.oilpriceapi.com/errors/plan-upgrade-required",
+    "current_plan": "developer",
+    "required_plan": "professional",
+    "required_feature": "futures",
+    "remediation_url": "https://oilpriceapi.com/dashboard/billing",
+    "retry": {
+      "retryable": false
+    }
+  }
+}

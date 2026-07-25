@@ -1,0 +1,6 @@
+{
+  "error": "Rate limit exceeded",
+  "error_code": "rate_limit_exceeded",
+  "request_id": "req_legacy_429",
+  "retry_after": 12
+}

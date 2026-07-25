@@ -3,13 +3,12 @@ Asynchronous OilPriceAPI Client
 
 Async/await support for high-performance applications.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
-from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 from urllib.parse import urljoin
 
@@ -37,13 +36,10 @@ from .async_resources import (
     AsyncWellProductionResource,
 )
 from .exceptions import (
-    AuthenticationError,
     ConfigurationError,
-    DataNotFoundError,
     OilPriceAPIError,
-    RateLimitError,
-    ServerError,
-    TimeoutError,
+    error_from_exception,
+    error_from_response,
 )
 from .models import HistoricalPrice, HistoricalResponse, MarketBrief, Price
 from .retry import RetryStrategy
@@ -103,16 +99,16 @@ class AsyncOilPriceAPI:
         self.app_name = app_name
 
         # Initialize retry strategy
-        self._retry_strategy = RetryStrategy(
-            max_retries=self.max_retries,
-            retry_on=self.retry_on
-        )
+        self._retry_strategy = RetryStrategy(max_retries=self.max_retries, retry_on=self.retry_on)
 
         # Build headers
         import sys
 
         from .version import SDK_NAME, SDK_VERSION
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+        python_version = (
+            f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        )
         self.headers = {
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
@@ -161,10 +157,12 @@ class AsyncOilPriceAPI:
         # Real-time WebSocket streaming namespace (requires the [stream] extra).
         # Lazily imports `websockets` only when a stream is actually opened.
         from .streaming import AsyncStreamNamespace
+
         self.stream = AsyncStreamNamespace(self)
 
         # Initialize telemetry (opt-in, disabled by default)
         from .telemetry import Telemetry
+
         self._telemetry = Telemetry(enabled=enable_telemetry)
 
     async def _ensure_client(self):
@@ -179,7 +177,7 @@ class AsyncOilPriceAPI:
         if self._client is None:
             limits = httpx.Limits(
                 max_connections=self.max_connections,
-                max_keepalive_connections=self.max_keepalive_connections
+                max_keepalive_connections=self.max_keepalive_connections,
             )
 
             self._client = httpx.AsyncClient(
@@ -196,54 +194,42 @@ class AsyncOilPriceAPI:
         path: str,
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ) -> Union[Dict[str, Any], List[Any]]:
         """Make async HTTP request to API."""
         await self._ensure_client()
         assert self._client is not None  # set by _ensure_client
 
         # Ensure path starts with / for proper urljoin behavior
-        if not path.startswith('/'):
-            path = '/' + path
-        url = urljoin(self.base_url + '/', path)
+        if not path.startswith("/"):
+            path = "/" + path
+        url = urljoin(self.base_url + "/", path)
 
         # Retry logic
         import time as _time
+
         start_time = _time.time()
         last_exception: Optional[OilPriceAPIError] = None
         for attempt in range(self.max_retries):
             try:
-                logger.debug(f"Async API request: {method} {url} (attempt {attempt + 1}/{self.max_retries})")
+                logger.debug(
+                    f"Async API request: {method} {url} (attempt {attempt + 1}/{self.max_retries})"
+                )
 
                 response = await self._client.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    json=json_data,
-                    **kwargs
+                    method=method, url=url, params=params, json=json_data, **kwargs
                 )
 
                 logger.debug(f"Async API response: {response.status_code} for {method} {url}")
 
-                # Handle response codes
-                if response.status_code == 200:
+                if 200 <= response.status_code < 300:
                     self._telemetry.track_request(
                         operation=self._sanitize_path(method, path),
                         duration=_time.time() - start_time,
                         success=True,
                     )
                     return response.json()
-                elif response.status_code == 401:
-                    logger.error(f"Authentication failed for {url}")
-                    raise AuthenticationError()
-                elif response.status_code == 404:
-                    error_data = self._safe_parse_json(response)
-                    raise DataNotFoundError(
-                        message=error_data.get("error", "Not found"),
-                        commodity=params.get("commodity") if params else None,
-                    )
-                elif response.status_code == 429:
-                    reset_time = self._parse_rate_limit_reset(response.headers)
+                if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
                     logger.warning(
                         f"Rate limit exceeded. Limit: {response.headers.get('X-RateLimit-Limit')}, "
@@ -252,16 +238,15 @@ class AsyncOilPriceAPI:
 
                     # Auto-retry with Retry-After if we have attempts left
                     if self._retry_strategy.should_retry(attempt, 429):
-                        wait_time = min(float(retry_after), 60.0) if retry_after else self._retry_strategy.calculate_wait_time(attempt)
-                        logger.info(f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+                        try:
+                            wait_time = min(float(retry_after), 60.0)
+                        except (TypeError, ValueError):
+                            wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                        logger.info(
+                            f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})"
+                        )
                         await asyncio.sleep(wait_time)
                         continue
-
-                    raise RateLimitError(
-                        reset_time=reset_time,
-                        limit=response.headers.get("X-RateLimit-Limit"),
-                        remaining=response.headers.get("X-RateLimit-Remaining"),
-                    )
                 elif response.status_code >= 500:
                     if self._retry_strategy.should_retry(attempt, response.status_code):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
@@ -269,43 +254,41 @@ class AsyncOilPriceAPI:
                             attempt,
                             f"Server error {response.status_code}",
                             wait_time,
-                            is_async=True
+                            is_async=True,
                         )
                         await asyncio.sleep(wait_time)
                         continue
-                    raise ServerError(
-                        message=f"Server error: {response.status_code}",
-                        status_code=response.status_code,
-                    )
-                else:
-                    error_data = self._safe_parse_json(response)
-                    raise OilPriceAPIError(
-                        message=error_data.get("error", f"Error: {response.status_code}"),
-                        status_code=response.status_code,
-                    )
+                raise error_from_response(
+                    response,
+                    commodity=params.get("commodity") if params else None,
+                )
 
-            except httpx.TimeoutException:
-                last_exception = TimeoutError(timeout=self.timeout)
+            except httpx.TimeoutException as error:
+                last_exception = error_from_exception(
+                    error,
+                    api_key=self.api_key,
+                    timeout=self.timeout,
+                )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
-                        attempt,
-                        "Request timeout",
-                        wait_time,
-                        is_async=True
+                        attempt, "Request timeout", wait_time, is_async=True
                     )
                     await asyncio.sleep(wait_time)
                     continue
                 raise last_exception
-            except httpx.RequestError as e:
-                last_exception = OilPriceAPIError(message=str(e))
+            except httpx.RequestError as error:
+                last_exception = error_from_exception(
+                    error,
+                    api_key=self.api_key,
+                )
                 if self._retry_strategy.should_retry_on_exception(attempt):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt,
-                        f"Request error: {e}",
+                        f"Request error: {error.__class__.__name__}",
                         wait_time,
-                        is_async=True
+                        is_async=True,
                     )
                     await asyncio.sleep(wait_time)
                     continue
@@ -326,30 +309,12 @@ class AsyncOilPriceAPI:
     def _sanitize_path(method: str, path: str) -> str:
         """Strip resource IDs from path for telemetry privacy."""
         import re
-        sanitized = re.sub(r'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '/:id', path)
-        sanitized = re.sub(r'/\d+', '/:id', sanitized)
+
+        sanitized = re.sub(
+            r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "/:id", path
+        )
+        sanitized = re.sub(r"/\d+", "/:id", sanitized)
         return f"{method} {sanitized}"
-
-    def _safe_parse_json(self, response: httpx.Response) -> Dict[str, Any]:
-        """Safely parse JSON response."""
-        try:
-            return response.json()
-        except json.JSONDecodeError:
-            return {"error": response.text or "Unknown error"}
-
-    def _parse_rate_limit_reset(self, headers: httpx.Headers) -> Optional[datetime]:
-        """Parse rate limit reset time."""
-        reset_header = headers.get("X-RateLimit-Reset")
-        if reset_header:
-            try:
-                timestamp = float(reset_header)
-                return datetime.fromtimestamp(timestamp)
-            except (ValueError, TypeError):
-                try:
-                    return datetime.fromisoformat(reset_header)
-                except (ValueError, TypeError):
-                    pass
-        return None
 
     async def market_brief(
         self,
@@ -405,9 +370,7 @@ class AsyncPricesResource:
     async def get(self, commodity: str) -> Price:
         """Get current price for commodity."""
         response = await self.client.request(
-            method="GET",
-            path="/v1/prices/latest",
-            params={"by_code": commodity}
+            method="GET", path="/v1/prices/latest", params={"by_code": commodity}
         )
 
         if isinstance(response, dict) and "data" in response:
@@ -429,10 +392,7 @@ class AsyncPricesResource:
         return Price(**mapped_data)
 
     async def get_multiple(
-        self,
-        commodities: List[str],
-        raise_on_error: bool = False,
-        return_failures: bool = False
+        self, commodities: List[str], raise_on_error: bool = False, return_failures: bool = False
     ) -> Union[List[Price], tuple[List[Price], List[tuple[str, str]]]]:
         """Get prices for multiple commodities concurrently.
 
@@ -469,10 +429,7 @@ class AsyncPricesResource:
 
     async def get_all(self) -> List[Price]:
         """Get all available prices."""
-        response = await self.client.request(
-            method="GET",
-            path="/v1/prices/all"
-        )
+        response = await self.client.request(method="GET", path="/v1/prices/all")
 
         if isinstance(response, dict) and "data" in response:
             prices_data = response["data"]
@@ -496,7 +453,7 @@ class AsyncHistoricalResource:
         interval: str = "daily",
         page: int = 1,
         per_page: int = 100,
-        type_name: str = "spot_price"
+        type_name: str = "spot_price",
     ) -> HistoricalResponse:
         """Get historical price data."""
         params = {
@@ -513,14 +470,16 @@ class AsyncHistoricalResource:
             params["end_date"] = end_date
 
         response = await self.client.request(
-            method="GET",
-            path="/v1/prices/past_year",
-            params=params
+            method="GET", path="/v1/prices/past_year", params=params
         )
 
         # Parse response - handle nested structure
         # API returns: {"status": "success", "data": {"prices": [...]}}
-        if isinstance(response, dict) and isinstance(response.get("data"), dict) and "prices" in response["data"]:
+        if (
+            isinstance(response, dict)
+            and isinstance(response.get("data"), dict)
+            and "prices" in response["data"]
+        ):
             prices_data = response["data"]["prices"]
         elif isinstance(response, dict) and isinstance(response.get("data"), list):
             prices_data = response["data"]
@@ -541,18 +500,14 @@ class AsyncHistoricalResource:
                 }
                 prices.append(HistoricalPrice(**mapped_data))
 
-        return HistoricalResponse(
-            success=True,
-            data=prices,
-            meta=None  # Simplified for now
-        )
+        return HistoricalResponse(success=True, data=prices, meta=None)  # Simplified for now
 
     async def get_all(
         self,
         commodity: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        interval: str = "daily"
+        interval: str = "daily",
     ) -> List[HistoricalPrice]:
         """Get all historical data with automatic pagination."""
         all_prices = []
@@ -565,7 +520,7 @@ class AsyncHistoricalResource:
                 end_date=end_date,
                 interval=interval,
                 page=page,
-                per_page=1000
+                per_page=1000,
             )
 
             all_prices.extend(response.data)

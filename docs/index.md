@@ -182,21 +182,29 @@ client = OilPriceAPI(
 ### Error Handling
 
 ```python
-from oilpriceapi.exceptions import (
+from oilpriceapi import (
+    DataNotFoundError,
     OilPriceAPIError,
     RateLimitError,
-    DataNotFoundError
 )
 
 try:
     price = client.prices.get("BRENT_CRUDE_USD")
-except RateLimitError as e:
-    print(f"Rate limited. Resets in {e.seconds_until_reset}s")
+except RateLimitError as error:
+    print(f"Rate limited. Resets in {error.seconds_until_reset}s")
 except DataNotFoundError:
     print("Commodity not found")
-except OilPriceAPIError as e:
-    print(f"API error: {e}")
+except OilPriceAPIError as error:
+    if error.request_id:
+        print("Support request ID:", error.request_id)
+    if error.remediation_url:
+        print("Recovery:", error.remediation_url)
+    print(f"API error: {error}")
 ```
+
+Every non-2xx response uses this shared typed contract. `status_code`, `code`,
+plan or feature requirements, retry metadata, sanitized response headers, and
+raw diagnostics remain available without exposing the configured API key.
 
 ## 💰 Pricing & Plans
 

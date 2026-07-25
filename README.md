@@ -158,11 +158,26 @@ except RateLimitError as error:
 except TimeoutError:
     print("Retry once, then check https://status.oilpriceapi.com.")
 except OilPriceAPIError as error:
+    # Safe support context: do not log your API key or request headers.
+    if error.request_id:
+        print("Support request ID:", error.request_id)
     if error.status_code in (402, 403):
-        print("Review dataset access for this account.")
+        print(
+            "Review dataset access for this account.",
+            error.required_plan,
+            error.required_feature,
+            error.remediation_url,
+        )
     else:
         raise
 ```
+
+All non-2xx responses share the same `OilPriceAPIError` attributes, including
+`status_code`, `code`, `request_id`, plan/feature recovery fields, retry
+metadata, sanitized response `headers`, `raw_body`, and `raw_text`. Canonical
+nested and legacy flat API error envelopes are normalized into that contract.
+Transport failures use `NetworkError`; timeouts remain the more specific
+`TimeoutError`.
 
 Executable recovery examples cover 401, 403, 429, and timeout responses under
 [`examples/snippets/`](examples/snippets/). Empty or malformed successful
