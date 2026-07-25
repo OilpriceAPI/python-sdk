@@ -1,376 +1,202 @@
-"""
-Synthetic monitoring for OilPriceAPI SDK.
+#!/usr/bin/env python3
+"""Run a bounded, privacy-safe production smoke through the Python SDK.
 
-Runs continuous health checks and reports metrics to Prometheus.
-This would have caught the v1.4.1 historical timeout bug.
-
-Usage:
-    export OILPRICEAPI_KEY=your_key
-    python scripts/synthetic_monitor.py
-
-    # With custom settings
-    export METRICS_PORT=8000
-    export TEST_INTERVAL=900  # 15 minutes
-    python scripts/synthetic_monitor.py
+The script is intentionally one-shot so a scheduler owns cadence, retries, and
+alerting. It emits a machine-readable receipt and never prints credentials,
+response bodies, request URLs, or exception messages.
 """
 
+from __future__ import annotations
+
+import argparse
+import json
+import math
 import os
-import sys
 import time
-from datetime import datetime, timedelta
-
-try:
-    from prometheus_client import start_http_server, Gauge, Counter, Histogram
-    from oilpriceapi import OilPriceAPI
-except ImportError:
-    print("ERROR: Required dependencies not installed")
-    print("Run: pip install oilpriceapi prometheus_client")
-    sys.exit(1)
-
-
-# Prometheus Metrics
-QUERY_DURATION = Histogram(
-    'sdk_historical_query_duration_seconds',
-    'Historical query duration in seconds',
-    ['query_type', 'commodity'],
-    buckets=[1, 5, 10, 30, 60, 120, 300]
-)
-
-QUERY_SUCCESS = Counter(
-    'sdk_historical_query_success_total',
-    'Total successful historical queries',
-    ['query_type', 'commodity']
-)
-
-QUERY_FAILURE = Counter(
-    'sdk_historical_query_failure_total',
-    'Total failed historical queries',
-    ['query_type', 'commodity', 'error_type']
-)
-
-ENDPOINT_CORRECTNESS = Gauge(
-    'sdk_endpoint_selection_correct',
-    'Whether SDK selected correct endpoint (1=correct, 0=wrong)',
-    ['query_type']
-)
-
-RECORD_COUNT = Gauge(
-    'sdk_historical_records_returned',
-    'Number of records returned by historical query',
-    ['query_type', 'commodity']
-)
-
-LAST_TEST_TIMESTAMP = Gauge(
-    'sdk_monitor_last_test_timestamp',
-    'Unix timestamp of last test run'
-)
-
-
-def test_1_day_query(client, commodity="WTI_USD"):
-    """Test 1-day historical query."""
-    query_type = "1_day"
-    print(f"  Testing {query_type} query for {commodity}...")
-
-    start_time = time.time()
-    try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=1)
-
-        history = client.historical.get(
-            commodity=commodity,
-            start_date=start_date.strftime("%Y-%m-%d"),
-            end_date=end_date.strftime("%Y-%m-%d"),
-            interval="hourly"
-        )
-
-        duration = time.time() - start_time
-        record_count = len(history.data)
-
-        QUERY_DURATION.labels(query_type=query_type, commodity=commodity).observe(duration)
-        QUERY_SUCCESS.labels(query_type=query_type, commodity=commodity).inc()
-        RECORD_COUNT.labels(query_type=query_type, commodity=commodity).set(record_count)
-
-        # Expected: <10s for 1-day query
-        is_correct = duration < 10
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(1 if is_correct else 0)
-
-        status = "✓" if is_correct else "✗"
-        print(f"    {status} Completed in {duration:.2f}s ({record_count} records)")
-
-        if not is_correct:
-            print(f"    WARNING: Expected <10s, got {duration:.2f}s")
-
-        return is_correct
-
-    except Exception as e:
-        duration = time.time() - start_time
-        error_type = type(e).__name__
-
-        QUERY_FAILURE.labels(query_type=query_type, commodity=commodity, error_type=error_type).inc()
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(0)
-
-        print(f"    ✗ Failed after {duration:.2f}s: {error_type}: {str(e)[:100]}")
-        return False
-
-
-def test_1_week_query(client, commodity="WTI_USD"):
-    """
-    Test 1-week historical query.
-
-    This test would have caught the v1.4.1 bug:
-    - Bug: Took 67s (using wrong endpoint)
-    - Expected: <30s (using /v1/prices/past_week)
-    """
-    query_type = "1_week"
-    print(f"  Testing {query_type} query for {commodity}...")
-
-    start_time = time.time()
-    try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
-
-        history = client.historical.get(
-            commodity=commodity,
-            start_date=start_date.strftime("%Y-%m-%d"),
-            end_date=end_date.strftime("%Y-%m-%d"),
-            interval="daily"
-        )
-
-        duration = time.time() - start_time
-        record_count = len(history.data)
-
-        QUERY_DURATION.labels(query_type=query_type, commodity=commodity).observe(duration)
-        QUERY_SUCCESS.labels(query_type=query_type, commodity=commodity).inc()
-        RECORD_COUNT.labels(query_type=query_type, commodity=commodity).set(record_count)
-
-        # Expected: <30s for 1-week query (would catch v1.4.1 bug)
-        is_correct = duration < 30
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(1 if is_correct else 0)
-
-        status = "✓" if is_correct else "✗"
-        print(f"    {status} Completed in {duration:.2f}s ({record_count} records)")
-
-        if not is_correct:
-            print(f"    🚨 CRITICAL: Expected <30s, got {duration:.2f}s")
-            print(f"    This matches the v1.4.1 bug pattern!")
-
-        return is_correct
-
-    except Exception as e:
-        duration = time.time() - start_time
-        error_type = type(e).__name__
-
-        QUERY_FAILURE.labels(query_type=query_type, commodity=commodity, error_type=error_type).inc()
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(0)
-
-        print(f"    ✗ Failed after {duration:.2f}s: {error_type}: {str(e)[:100]}")
-        return False
-
-
-def test_1_month_query(client, commodity="WTI_USD"):
-    """Test 1-month historical query."""
-    query_type = "1_month"
-    print(f"  Testing {query_type} query for {commodity}...")
-
-    start_time = time.time()
-    try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-
-        history = client.historical.get(
-            commodity=commodity,
-            start_date=start_date.strftime("%Y-%m-%d"),
-            end_date=end_date.strftime("%Y-%m-%d"),
-            interval="daily"
-        )
-
-        duration = time.time() - start_time
-        record_count = len(history.data)
-
-        QUERY_DURATION.labels(query_type=query_type, commodity=commodity).observe(duration)
-        QUERY_SUCCESS.labels(query_type=query_type, commodity=commodity).inc()
-        RECORD_COUNT.labels(query_type=query_type, commodity=commodity).set(record_count)
-
-        # Expected: <60s for 1-month query
-        is_correct = duration < 60
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(1 if is_correct else 0)
-
-        status = "✓" if is_correct else "✗"
-        print(f"    {status} Completed in {duration:.2f}s ({record_count} records)")
-
-        if not is_correct:
-            print(f"    WARNING: Expected <60s, got {duration:.2f}s")
-
-        return is_correct
-
-    except Exception as e:
-        duration = time.time() - start_time
-        error_type = type(e).__name__
-
-        QUERY_FAILURE.labels(query_type=query_type, commodity=commodity, error_type=error_type).inc()
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(0)
-
-        print(f"    ✗ Failed after {duration:.2f}s: {error_type}: {str(e)[:100]}")
-        return False
-
-
-def test_1_year_query(client, commodity="WTI_USD"):
-    """
-    Test 1-year historical query.
-
-    This test would have caught the v1.4.1 bug:
-    - Bug: Timed out at 30s
-    - Expected: Complete in <120s
-    """
-    query_type = "1_year"
-    print(f"  Testing {query_type} query for {commodity}...")
-
-    start_time = time.time()
-    try:
-        # Use fixed date range for consistency
-        history = client.historical.get(
-            commodity=commodity,
-            start_date="2024-01-01",
-            end_date="2024-12-31",
-            interval="daily"
-        )
-
-        duration = time.time() - start_time
-        record_count = len(history.data)
-
-        QUERY_DURATION.labels(query_type=query_type, commodity=commodity).observe(duration)
-        QUERY_SUCCESS.labels(query_type=query_type, commodity=commodity).inc()
-        RECORD_COUNT.labels(query_type=query_type, commodity=commodity).set(record_count)
-
-        # Expected: <120s for 1-year query (would catch v1.4.1 timeout bug)
-        is_correct = duration < 120
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(1 if is_correct else 0)
-
-        status = "✓" if is_correct else "✗"
-        print(f"    {status} Completed in {duration:.2f}s ({record_count} records)")
-
-        if not is_correct:
-            print(f"    🚨 CRITICAL: Expected <120s, got {duration:.2f}s")
-            print(f"    This matches the v1.4.1 timeout bug!")
-
-        return is_correct
-
-    except Exception as e:
-        duration = time.time() - start_time
-        error_type = type(e).__name__
-
-        QUERY_FAILURE.labels(query_type=query_type, commodity=commodity, error_type=error_type).inc()
-        ENDPOINT_CORRECTNESS.labels(query_type=query_type).set(0)
-
-        print(f"    ✗ Failed after {duration:.2f}s: {error_type}: {str(e)[:100]}")
-
-        if "timeout" in str(e).lower() or error_type == "TimeoutError":
-            print(f"    🚨 CRITICAL: TIMEOUT DETECTED - THIS IS THE v1.4.1 BUG!")
-
-        return False
-
-
-def run_synthetic_tests(client):
-    """Run all synthetic tests."""
-    print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running synthetic tests...")
-
-    results = {
-        "1_day": test_1_day_query(client),
-        "1_week": test_1_week_query(client),
-        "1_month": test_1_month_query(client),
-        "1_year": test_1_year_query(client),
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional
+
+from oilpriceapi import OilPriceAPI
+from oilpriceapi.version import SDK_VERSION
+
+Receipt = Dict[str, Any]
+Check = Callable[[OilPriceAPI], Dict[str, Any]]
+
+
+def _latest_price_check(client: OilPriceAPI) -> Dict[str, Any]:
+    price = client.prices.get("BRENT_CRUDE_USD")
+    if (
+        isinstance(price.value, bool)
+        or not isinstance(price.value, (int, float))
+        or not math.isfinite(price.value)
+    ):
+        raise ValueError("latest price is not finite")
+    if not isinstance(price.currency, str) or not price.currency:
+        raise ValueError("latest price currency is missing")
+    if not isinstance(price.unit, str) or not price.unit:
+        raise ValueError("latest price unit is missing")
+    if price.timestamp is None:
+        raise ValueError("latest price timestamp is missing")
+    return {
+        "commodity": price.commodity,
+        "currency_present": True,
+        "numeric_value": True,
+        "source_timestamp_present": True,
+        "unit_present": True,
     }
 
-    LAST_TEST_TIMESTAMP.set(time.time())
 
-    # Summary
-    passed = sum(1 for v in results.values() if v)
-    total = len(results)
+def _historical_check(client: OilPriceAPI) -> Dict[str, Any]:
+    history = client.historical.get(
+        commodity="BRENT_CRUDE_USD",
+        interval="daily",
+        per_page=5,
+    )
+    if not history.data:
+        raise ValueError("historical response is empty")
+    if any(
+        isinstance(record.value, bool)
+        or not isinstance(record.value, (int, float))
+        or not math.isfinite(record.value)
+        for record in history.data
+    ):
+        raise ValueError("historical response contains a non-finite value")
+    return {
+        "commodity": history.data[0].commodity,
+        "nonempty": True,
+        "records_checked": len(history.data),
+    }
 
-    print(f"\n  Summary: {passed}/{total} tests passed")
 
-    if passed < total:
-        print(f"  ⚠️  {total - passed} test(s) failed - check logs above")
+def _run_check(
+    name: str,
+    check: Check,
+    client: OilPriceAPI,
+    *,
+    monotonic: Callable[[], float],
+    budget_seconds: float,
+) -> Receipt:
+    started = monotonic()
+    try:
+        details = check(client)
+        duration = monotonic() - started
+        if duration > budget_seconds:
+            return {
+                "name": name,
+                "status": "fail",
+                "duration_seconds": round(duration, 3),
+                "error_type": "TimeBudgetExceeded",
+            }
+        return {
+            "name": name,
+            "status": "pass",
+            "duration_seconds": round(duration, 3),
+            "details": details,
+        }
+    except Exception as exc:  # noqa: BLE001 - capture SDK/network failures safely
+        return {
+            "name": name,
+            "status": "fail",
+            "duration_seconds": round(monotonic() - started, 3),
+            "error_type": type(exc).__name__,
+        }
 
-    return passed == total
+
+def run_synthetic_checks(
+    api_key: str,
+    *,
+    base_url: Optional[str] = None,
+    client_factory: Callable[..., OilPriceAPI] = OilPriceAPI,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> Receipt:
+    """Run the latest-price and bounded-history checks once."""
+    checked_at = datetime.now(timezone.utc).isoformat()
+    try:
+        with client_factory(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=20,
+            max_retries=1,
+        ) as client:
+            checks = [
+                _run_check(
+                    "latest_price",
+                    _latest_price_check,
+                    client,
+                    monotonic=monotonic,
+                    budget_seconds=30,
+                ),
+                _run_check(
+                    "bounded_history",
+                    _historical_check,
+                    client,
+                    monotonic=monotonic,
+                    budget_seconds=30,
+                ),
+            ]
+    except Exception as exc:  # noqa: BLE001 - sanitize initialization failures
+        checks = [
+            {
+                "name": "client_initialization",
+                "status": "fail",
+                "duration_seconds": 0.0,
+                "error_type": type(exc).__name__,
+            }
+        ]
+
+    status = "pass" if all(check["status"] == "pass" for check in checks) else "fail"
+    return {
+        "schema_version": 1,
+        "status": status,
+        "checked_at": checked_at,
+        "sdk_version": SDK_VERSION,
+        "checks": checks,
+    }
 
 
-def main():
-    """Main monitoring loop."""
-    print("="*60)
-    print("OilPriceAPI SDK Synthetic Monitor")
-    print("="*60)
-    print("")
-    print("This monitor would have caught the v1.4.1 timeout bug.")
-    print("")
+def _write_receipt(receipt: Receipt, output: Optional[str]) -> None:
+    rendered = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+    if output:
+        destination = Path(output)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(rendered, encoding="utf-8")
+    print(rendered, end="")
 
-    # Get configuration from environment
-    api_key = os.getenv('OILPRICEAPI_KEY')
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output",
+        help="Optional path for the JSON receipt; the receipt is always printed.",
+    )
+    args = parser.parse_args()
+
+    api_key = os.environ.get("OILPRICEAPI_KEY")
     if not api_key:
-        print("ERROR: OILPRICEAPI_KEY environment variable not set")
-        print("")
-        print("Set it with:")
-        print("  export OILPRICEAPI_KEY=your_key")
-        return 1
+        receipt: Receipt = {
+            "schema_version": 1,
+            "status": "fail",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "sdk_version": SDK_VERSION,
+            "checks": [
+                {
+                    "name": "configuration",
+                    "status": "fail",
+                    "duration_seconds": 0.0,
+                    "error_type": "MissingAPIKey",
+                }
+            ],
+        }
+    else:
+        receipt = run_synthetic_checks(
+            api_key,
+            base_url=os.environ.get("OILPRICEAPI_BASE_URL"),
+        )
 
-    metrics_port = int(os.getenv('METRICS_PORT', '8000'))
-    test_interval = int(os.getenv('TEST_INTERVAL', '900'))  # 15 minutes default
-
-    print(f"Configuration:")
-    print(f"  API Key: {api_key[:8]}...{api_key[-4:]}")
-    print(f"  Metrics Port: {metrics_port}")
-    print(f"  Test Interval: {test_interval}s ({test_interval/60:.0f} minutes)")
-    print("")
-
-    # Start Prometheus metrics server
-    try:
-        start_http_server(metrics_port)
-        print(f"✓ Metrics server started on http://0.0.0.0:{metrics_port}/metrics")
-    except OSError as e:
-        print(f"ERROR: Failed to start metrics server on port {metrics_port}: {e}")
-        print(f"Try a different port: METRICS_PORT=8001 python {sys.argv[0]}")
-        return 1
-
-    # Create SDK client
-    try:
-        client = OilPriceAPI(api_key=api_key)
-        print(f"✓ SDK client initialized")
-    except Exception as e:
-        print(f"ERROR: Failed to initialize SDK client: {e}")
-        return 1
-
-    print("")
-    print("Starting monitoring loop (Ctrl+C to stop)...")
-    print("")
-
-    # Run tests immediately on start
-    try:
-        run_synthetic_tests(client)
-    except Exception as e:
-        print(f"ERROR in initial test run: {e}")
-
-    # Monitoring loop
-    test_count = 1
-    while True:
-        try:
-            time.sleep(test_interval)
-            test_count += 1
-            print(f"\n{'='*60}")
-            print(f"Test run #{test_count}")
-            print(f"{'='*60}")
-            run_synthetic_tests(client)
-
-        except KeyboardInterrupt:
-            print("\n\nMonitoring stopped by user (Ctrl+C)")
-            break
-
-        except Exception as e:
-            print(f"\nERROR in monitoring loop: {e}")
-            print("Continuing monitoring...")
-            time.sleep(60)  # Wait a minute before retrying
-
-    return 0
+    _write_receipt(receipt, args.output)
+    return 0 if receipt["status"] == "pass" else 1
 
 
-if __name__ == '__main__':
-    sys.exit(main())
+if __name__ == "__main__":
+    raise SystemExit(main())

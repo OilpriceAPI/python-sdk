@@ -16,6 +16,7 @@ theme:
 nav:
   - Home: index.md
   - DataFrames and Pagination: DATAFRAMES.md
+  - Synthetic Monitoring: SYNTHETIC_MONITORING.md
   - Performance Guide: PERFORMANCE_GUIDE.md
   - API Reference:
       - Client: reference/client.md
