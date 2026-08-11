@@ -143,8 +143,6 @@ def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
         for label, pattern in BLOCKED:
             match = pattern.search(text)
             if match:
-                if label == "fixed demo rate" and match.group(0).lower() == "50 requests/day":
-                    continue
                 failures.append(
                     f"{path.relative_to(root)}: {label} matched {match.group(0)!r}"
                 )
