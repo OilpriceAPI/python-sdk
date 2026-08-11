@@ -21,17 +21,41 @@ BINARY_SUFFIXES = {
     ".so",
 }
 _RATE_COUNT = r"\d[\d,]*"
-_RATE_ACTION = r"(?:(?:api[- ]+)?(?:requests?|calls?)|reqs?\.?)"
-_RATE_PERIOD = r"(?:minutes?|mins?\.?|hours?|hrs?\.?|days?)"
-_RATE_FREQUENCY = r"(?:minutely|hourly|daily|per[- ]+(?:minute|hour|day))"
+_RATE_ACTION = r"(?:(?:api[- ]+)?(?:requests?|calls?|queries?|hits?|credits?)|reqs?\.?)"
+_RATE_UNIT_SINGULAR = r"(?:second|sec|minute|min|hour|hr|day|week|month|year)"
+_RATE_UNIT = rf"{_RATE_UNIT_SINGULAR}s?\.?"
+_RATE_ADVERB = r"(?:secondly|minutely|hourly|daily|weekly|monthly|yearly)"
+_RATE_DURATION = rf"(?:(?:a|an|one|any|rolling|{_RATE_COUNT})[- ]+){{0,3}}{_RATE_UNIT}"
+_RATE_WINDOW = (
+    rf"(?:(?:/[- ]*|(?:per|each|every|in|within|over|during|for)[- ]+)"
+    rf"{_RATE_DURATION}|"
+    rf"(?:a|an)[- ]+{_RATE_UNIT})"
+)
+_RATE_FREQUENCY = (
+    rf"(?:{_RATE_ADVERB}|per[- ]+{_RATE_UNIT_SINGULAR}|"
+    rf"(?:one|{_RATE_COUNT})[- ]+{_RATE_UNIT_SINGULAR})"
+)
+_RATE_SCOPE = r"(?:(?:api[- ]+)?(?:requests?|calls?|queries?|hits?|credits?)[- ]+|api[- ]+)?"
+_RATE_LIMIT = r"(?:rate[- ]+limit|limit|allowance|quota|cap)"
+_RATE_ASSIGNMENT = r"(?:of|is|at|to|:|=)?"
 FIXED_RATE = re.compile(
     rf"\b{_RATE_COUNT}[- ]+{_RATE_ACTION}"
-    rf"(?:(?:[- ]*(?:per|an?|each|every)[- ]+|[- ]*/[- ]*){_RATE_PERIOD}\b|"
-    rf"[- ]+{_RATE_FREQUENCY}\b)|"
-    rf"\b{_RATE_FREQUENCY}[- ]+"
-    rf"(?:(?:api[- ]+)?(?:requests?|calls?)[- ]+)?"
-    rf"(?:limit|allowance|quota|cap)\s*(?:of|is|:|=)?\s*"
-    rf"{_RATE_COUNT}[- ]+{_RATE_ACTION}\b",
+    rf"(?:[- ]*{_RATE_WINDOW}\b|[- ]+{_RATE_ADVERB}\b)|"
+    rf"\b{_RATE_COUNT}[- ]*{_RATE_WINDOW}[- ]+{_RATE_ACTION}\b|"
+    rf"\b{_RATE_COUNT}[- ]+{_RATE_ADVERB}[- ]+{_RATE_ACTION}\b|"
+    rf"\b{_RATE_FREQUENCY}[- ]+{_RATE_COUNT}[- ]+{_RATE_ACTION}\b|"
+    rf"\b{_RATE_ACTION}\s*(?::|=|is|of)?\s*{_RATE_COUNT}[- ]*"
+    rf"{_RATE_WINDOW}\b|"
+    rf"\b{_RATE_ACTION}[- ]+{_RATE_ADVERB}\s*(?::|=|is)?\s*"
+    rf"{_RATE_COUNT}\b|"
+    rf"\b{_RATE_FREQUENCY}[- ]+{_RATE_ACTION}\s*(?::|=|is)?\s*"
+    rf"{_RATE_COUNT}\b|"
+    rf"\b{_RATE_ACTION}[- ]*{_RATE_WINDOW}\s*(?::|=|is)?\s*"
+    rf"{_RATE_COUNT}\b|"
+    rf"\b{_RATE_FREQUENCY}[- ]+{_RATE_SCOPE}{_RATE_LIMIT}\s*"
+    rf"{_RATE_ASSIGNMENT}\s*{_RATE_COUNT}(?:[- ]+{_RATE_ACTION})?\b|"
+    rf"\b{_RATE_SCOPE}{_RATE_LIMIT}\s*{_RATE_ASSIGNMENT}\s*{_RATE_COUNT}"
+    rf"(?:[- ]+{_RATE_ACTION})?(?:[- ]*{_RATE_WINDOW}\b|[- ]+{_RATE_ADVERB}\b)",
     re.IGNORECASE,
 )
 BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
@@ -151,8 +175,7 @@ def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
     for path in surfaces:
         text = path.read_text(encoding="utf-8")
         for label, pattern in BLOCKED:
-            match = pattern.search(text)
-            if match:
+            for match in pattern.finditer(text):
                 failures.append(
                     f"{path.relative_to(root)}: {label} matched {match.group(0)!r}"
                 )

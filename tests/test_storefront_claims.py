@@ -157,6 +157,21 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
         "100 API requests every hour",
         "daily cap is 50 calls",
         "50-call-per-day allowance",
+        "50 requests per 24 hours",
+        "50 requests every 24 hours",
+        "50 API calls in a day",
+        "daily 50-request limit",
+        "24-hour quota of 50 calls",
+        "API rate limit is 200 every hour",
+        "weekly 5,000-credit allowance",
+        "2,000 queries per 30 days",
+        "50/day API calls",
+        "50 daily API calls",
+        "API calls: 50 per day",
+        "API calls daily: 50",
+        "daily API calls: 50",
+        "50 requests over a rolling 24-hour window",
+        "50 API calls during any one-hour period",
     ],
 )
 def test_rejects_fixed_rate_aliases_in_installed_text(tmp_path: Path, claim: str) -> None:
@@ -172,6 +187,9 @@ def test_rejects_fixed_rate_aliases_in_installed_text(tmp_path: Path, claim: str
         "Run 50 tests daily.",
         "The response contains 50 records per page.",
         "Retry attempt 50 failed.",
+        "Daily 50-test limit.",
+        "A 24-hour test window contains 50 assertions.",
+        "The monthly report contains 50 records.",
     ],
 )
 def test_fixed_rate_aliases_do_not_match_versions_or_test_counts(
