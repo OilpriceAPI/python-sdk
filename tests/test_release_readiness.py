@@ -17,11 +17,16 @@ def test_release_documentation_matches_the_automated_gate() -> None:
     assert changelog.count("## [Unreleased]") == 1
 
 
-def test_examples_use_the_canonical_free_quota() -> None:
+def test_examples_defer_mutable_allowances_to_product_facts() -> None:
     examples = (ROOT / "EXAMPLES.md").read_text()
 
-    assert "50 requests/day" in examples
-    assert not re.search(r"free requests?/(?:month|monthly)", examples, re.IGNORECASE)
+    assert "https://api.oilpriceapi.com/product-facts.json" in examples
+    assert not re.search(
+        r"\b\d[\d,]*\s+(?:api\s+)?requests?\s*(?:/|per\s+)"
+        r"(?:minute|hour|day|month)s?\b",
+        examples,
+        re.IGNORECASE,
+    )
 
 
 def test_publish_gate_audits_and_installs_the_built_wheel() -> None:

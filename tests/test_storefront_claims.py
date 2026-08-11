@@ -61,7 +61,8 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
         'Monthly station query limit applies."""\n'
     )
     (package / "docs" / "catalog.json").write_text(
-        '{"allowance": "1,000 API requests/month"}\n'
+        '{"allowance": "1,000 API requests/month", '
+        '"daily_allowance": "50 requests/day"}\n'
     )
     (package / "__pycache__" / "version.cpython-312.pyc").write_bytes(b"\x00\xff")
     (dist_info / "METADATA").write_text(
@@ -108,3 +109,9 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
         for failure in failures
     )
     assert any("oilpriceapi/docs/catalog.json" in failure for failure in failures)
+    assert any(
+        "oilpriceapi/docs/catalog.json" in failure
+        and "fixed demo rate" in failure
+        and "matched '50 requests/day'" in failure
+        for failure in failures
+    )

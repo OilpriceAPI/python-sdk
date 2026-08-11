@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.4] - 2026-08-11
+
+### Fixed
+
+- Reject every fixed demo-rate literal, including the previously exempted
+  daily allowance, and direct examples to the reviewed live product facts.
+
 ## [1.12.3] - 2026-08-11
 
 ### Fixed
