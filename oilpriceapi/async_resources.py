@@ -18,6 +18,7 @@ from .resource_validators import (
     search_commodity_catalog,
 )
 from .resources._futures_slug import normalize_futures_slug
+from .resources.ei.well_permits import unwrap_well_permit_search_response
 from .resources.subscriptions import SubscriptionEventsPage
 
 
@@ -1246,14 +1247,17 @@ class AsyncEIWellPermitsResource:
             return response["data"]
         return response
 
-    async def search(self, query: str, **params) -> List[Dict[str, Any]]:
-        params["query"] = query
+    async def search(
+        self,
+        query: Optional[str] = None,
+        **params: Any,
+    ) -> List[Dict[str, Any]]:
+        if query is not None:
+            params["query"] = query
         response = await self.client.request(
             method="GET", path="/v1/ei/well-permits/search", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_well_permit_search_response(response)
 
 
 class AsyncEIFracFocusResource:

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.5] - 2026-08-11
+
+### Added
+
+- Document a coverage-gated permit-to-production workflow and package discovery
+  keywords for well permits, drilling data, and well production.
+
+### Fixed
+
+- Accept live well-permit filters without a legacy free-form query and unwrap
+  the production `{ well_permits, meta }` search response in sync and async
+  clients while retaining positional-query compatibility.
+
 ## [1.12.4] - 2026-08-11
 
 ### Fixed
