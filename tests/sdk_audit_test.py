@@ -33,6 +33,8 @@ from oilpriceapi.models import DieselPrice, DieselStation, PriceAlert
 @dataclass
 class TestResult:
     """Test result container"""
+    __test__ = False
+
     name: str
     passed: bool
     error: str = None

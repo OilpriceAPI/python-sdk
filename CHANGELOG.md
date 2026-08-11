@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-08-11
+
+### Fixed
+
+- Read release metadata without importing the uninstalled source package, so
+  the trusted publisher can validate the exact wheel from a build-only clean
+  environment before PyPI upload.
+
 ## [1.12.0] - 2026-08-11
 
 ### Added

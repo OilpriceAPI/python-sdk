@@ -26,10 +26,12 @@ def test_examples_use_the_canonical_free_quota() -> None:
 
 def test_publish_gate_audits_and_installs_the_built_wheel() -> None:
     workflow = (ROOT / ".github" / "workflows" / "publish.yml").read_text()
+    smoke = (ROOT / "scripts" / "clean-wheel-smoke.sh").read_text()
 
     assert "pip-audit" in workflow
     assert "scripts/clean-wheel-smoke.sh" in workflow
     assert "continue-on-error: true" not in workflow
+    assert "from oilpriceapi.version import SDK_VERSION" not in smoke
 
 
 def test_packaging_configuration_remains_compatible_with_supported_python() -> None:
@@ -41,3 +43,10 @@ def test_packaging_configuration_remains_compatible_with_supported_python() -> N
     assert 'license = {file = "LICENSE"}' in project
     assert 'requires-python = ">=3.8"' in project
     assert "[tool.ruff.lint]" in project
+
+
+def test_manifest_has_no_noop_exclusion_patterns() -> None:
+    manifest = (ROOT / "MANIFEST.in").read_text()
+
+    for stale in ("global-exclude", "exclude test_sdk_live.py", "prune "):
+        assert stale not in manifest

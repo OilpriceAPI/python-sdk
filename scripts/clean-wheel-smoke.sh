@@ -4,8 +4,17 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 wheel="$(find "$root_dir/dist" -maxdepth 1 -name '*.whl' -print -quit)"
 expected_version="$(
-  cd "$root_dir"
-  python -c 'from oilpriceapi.version import SDK_VERSION; print(SDK_VERSION)'
+  python -c '
+import pathlib
+import re
+import sys
+
+project = pathlib.Path(sys.argv[1]).read_text()
+match = re.search(r"(?m)^version = \"([^\"]+)\"$", project)
+if match is None:
+    raise SystemExit("project version not found")
+print(match.group(1))
+' "$root_dir/pyproject.toml"
 )"
 
 if [[ -z "$wheel" ]]; then
