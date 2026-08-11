@@ -188,7 +188,7 @@ Possible causes:
        v
 ┌─────────────┐
 │  Telemetry  │
-│   Buffer    │  2. Buffer events (max 10 or 5min)
+│   Buffer    │  2. Buffer events (max 10 or configured batch interval)
 └──────┬──────┘
        │
        │ 3. Flush on the configured batch interval

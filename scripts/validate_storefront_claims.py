@@ -43,7 +43,8 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
         "unreviewed plan name",
         re.compile(
             r"\bprofessional(?:\+|\s+plan)\b|\bprofessional\*{0,2}\s*:|"
-            r"\bstarter plan\b|\bscale tier\b",
+            r"\bstarter plan\b|\bscale tier\b|\bpaid tiers?\b|"
+            r"\bexploration(?:\s+(?:plan|tier|and above))?\b",
             re.IGNORECASE,
         ),
     ),
@@ -55,7 +56,8 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
         "fixed allowance",
         re.compile(
             r"\b\d[\d,]*\s+(?:free\s+)?(?:api\s+requests?|station\s+queries?)"
-            r"\s*(?:/|per\s+)month\b",
+            r"\s*(?:/|per\s+)month\b|"
+            r"\bmonthly\s+station\s+(?:query|request)\s+limit\b",
             re.IGNORECASE,
         ),
     ),
@@ -67,7 +69,14 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
             re.IGNORECASE,
         ),
     ),
-    ("free-tier claim", re.compile(r"\bfree\s+tier\b|\bfree\s+api\s+key\b", re.IGNORECASE)),
+    (
+        "free-tier claim",
+        re.compile(
+            r"\bfree\s+tier\b|\bfree\s+api\s+key\b|"
+            r"\b(?:endpoint|access)\s+is\s+free\b|\bincluded\s+in\s+all\s+tiers\b",
+            re.IGNORECASE,
+        ),
+    ),
     (
         "fixed demo rate",
         re.compile(
@@ -81,9 +90,19 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
 
 def discover_public_surfaces(root: Path = ROOT) -> List[Path]:
     surfaces = [root / "README.md", root / "EXAMPLES.md", root / "pyproject.toml"]
-    surfaces.extend(sorted((root / "docs").rglob("*.md")))
-    surfaces.extend(sorted((root / "oilpriceapi").rglob("*.py")))
-    return sorted(surfaces)
+    for directory in (root / "docs", root / "oilpriceapi"):
+        surfaces.extend(path for path in directory.rglob("*") if _is_public_text(path))
+    return sorted(set(surfaces))
+
+
+def _is_public_text(path: Path) -> bool:
+    if not path.is_file() or path.suffix.lower() in BINARY_SUFFIXES:
+        return False
+    try:
+        path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
 
 
 def discover_installed_surfaces(package_root: Path) -> List[Path]:
@@ -103,11 +122,7 @@ def discover_installed_surfaces(package_root: Path) -> List[Path]:
                 path.relative_to(package_root)
             except ValueError:
                 continue
-            if not path.is_file() or path.suffix.lower() in BINARY_SUFFIXES:
-                continue
-            try:
-                path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
+            if not _is_public_text(path):
                 continue
             surfaces.append(path)
     return sorted(set(surfaces))
@@ -182,7 +197,7 @@ def main() -> None:
     if args.package_root:
         print("validated exact installed Python artifact claims")
     else:
-        print(f"validated {len(discover_public_surfaces())} Python public surfaces")
+        print(f"validated {len(discover_public_surfaces())} public surfaces")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ def test_discovers_docs_examples_and_nested_package_source() -> None:
 
     assert "EXAMPLES.md" in surfaces
     assert "docs/index.md" in surfaces
+    assert "docs/index.html" in surfaces
     assert "oilpriceapi/streaming/client.py" in surfaces
 
 
@@ -54,7 +55,10 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
     dist_info.mkdir()
     (package / "version.py").write_text('__version__ = "9.9.9"\n')
     (package / "py.typed").write_text("")
-    (package / "types.pyi").write_text('"""Real-time prices."""\n')
+    (package / "types.pyi").write_text(
+        '"""Endpoint is free and included in all tiers. Available on paid tiers. '
+        'Monthly station query limit applies."""\n'
+    )
     (package / "docs" / "catalog.json").write_text(
         '{"allowance": "1,000 API requests/month"}\n'
     )
@@ -84,5 +88,16 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
     assert "oilpriceapi/types.pyi" in surfaces
     assert "oilpriceapi/docs/catalog.json" in surfaces
     assert not any("__pycache__" in surface for surface in surfaces)
-    assert any("oilpriceapi/types.pyi" in failure for failure in failures)
+    assert any(
+        "oilpriceapi/types.pyi" in failure and "free-tier claim" in failure
+        for failure in failures
+    )
+    assert any(
+        "oilpriceapi/types.pyi" in failure and "unreviewed plan name" in failure
+        for failure in failures
+    )
+    assert any(
+        "oilpriceapi/types.pyi" in failure and "fixed allowance" in failure
+        for failure in failures
+    )
     assert any("oilpriceapi/docs/catalog.json" in failure for failure in failures)

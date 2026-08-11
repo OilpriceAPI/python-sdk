@@ -20,7 +20,7 @@ class DieselResource:
         >>> price = client.diesel.get_price("CA")
         >>> print(f"California diesel: ${price.price:.2f}/gallon")
 
-        >>> # Get nearby stations (paid tiers)
+        >>> # Get nearby stations when enabled for the current account
         >>> result = client.diesel.get_stations(lat=37.7749, lng=-122.4194)
         >>> print(f"Found {len(result.stations)} stations")
     """
@@ -36,8 +36,8 @@ class DieselResource:
     def get_price(self, state: str) -> DieselPrice:
         """Get average diesel price for a US state.
 
-        Returns EIA state-level average diesel price. This endpoint is free
-        and included in all tiers.
+        Returns the available EIA state-level average diesel price. Access and
+        request limits follow the account's current entitlement and API metadata.
 
         Args:
             state: Two-letter US state code (e.g., "CA", "TX", "NY")
@@ -105,13 +105,11 @@ class DieselResource:
 
         Returns station-level diesel prices within specified radius using Google Maps data.
 
-        **Tier Requirements:** Available on paid tiers (Exploration and above)
-
         Station-level access and allowances depend on the account's current
         entitlement. Review https://www.oilpriceapi.com/pricing and the API's
         response metadata instead of relying on SDK-bundled limits.
 
-        **Caching:** Results are cached for 24 hours to minimize costs.
+        Use the returned source timestamp to apply the application's freshness policy.
 
         Args:
             lat: Latitude (-90 to 90)
@@ -124,8 +122,8 @@ class DieselResource:
         Raises:
             ValidationError: If coordinates or radius are invalid
             AuthenticationError: If API key is invalid
-            RateLimitError: If monthly station query limit exceeded (429)
-            OilPriceAPIError: If tier doesn't support station queries (403)
+            RateLimitError: If the API reports the request limit exceeded (429)
+            OilPriceAPIError: If the account cannot access station queries (403)
 
         Example:
             >>> # Get stations near San Francisco
