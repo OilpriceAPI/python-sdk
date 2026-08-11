@@ -22,7 +22,7 @@ class DataQualityResource:
         """Get data quality summary.
 
         Returns:
-            Summary of data quality metrics across all commodities
+            Summary of data quality metrics returned by the API
 
         Example:
             >>> summary = client.data_quality.summary()
@@ -41,10 +41,10 @@ class DataQualityResource:
         return response
 
     def reports(self) -> List[Dict[str, Any]]:
-        """Get all data quality reports.
+        """Get the available data quality reports.
 
         Returns:
-            List of data quality reports for all commodities
+            List of data quality reports returned by the API
 
         Example:
             >>> reports = client.data_quality.reports()

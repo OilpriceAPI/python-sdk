@@ -629,7 +629,7 @@ Ready to build with these examples?
 ## 📖 More Resources
 
 - **[Complete API Documentation](https://docs.oilpriceapi.com)** - Full REST API reference
-- **[Available Commodities](https://docs.oilpriceapi.com/commodities)** - List of all supported commodities
+- **[Available Commodities](https://docs.oilpriceapi.com/commodities)** - Query the current commodity catalog
 - **[GitHub Repository](https://github.com/oilpriceapi/python-sdk)** - Source code and issues
 - **[Support](mailto:support@oilpriceapi.com)** - Get help from our team
 

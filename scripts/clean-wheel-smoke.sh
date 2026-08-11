@@ -2,7 +2,6 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-wheel="$(find "$root_dir/dist" -maxdepth 1 -name '*.whl' -print -quit)"
 expected_version="$(
   python -c '
 import pathlib
@@ -16,9 +15,10 @@ if match is None:
 print(match.group(1))
 ' "$root_dir/pyproject.toml"
 )"
+wheel="$root_dir/dist/oilpriceapi-${expected_version}-py3-none-any.whl"
 
-if [[ -z "$wheel" ]]; then
-  echo "no wheel found under dist/" >&2
+if [[ ! -f "$wheel" ]]; then
+  echo "exact wheel not found: $wheel" >&2
   exit 1
 fi
 

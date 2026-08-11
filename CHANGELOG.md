@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.3] - 2026-08-11
+
+### Fixed
+
+- Match hyphenated free-tier wording and universal catalog claims in every
+  readable wheel surface, and replace the remaining packaged docstrings with
+  current-account and runtime-response terminology.
+
 ## [1.12.2] - 2026-08-11
 
 ### Fixed

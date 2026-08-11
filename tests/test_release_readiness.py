@@ -33,6 +33,8 @@ def test_publish_gate_audits_and_installs_the_built_wheel() -> None:
     assert "continue-on-error: true" not in workflow
     assert "from oilpriceapi.version import SDK_VERSION" not in smoke
     assert "--package-root" in smoke
+    assert 'oilpriceapi-${expected_version}-py3-none-any.whl' in smoke
+    assert "-name '*.whl' -print -quit" not in smoke
 
 
 def test_packaging_configuration_remains_compatible_with_supported_python() -> None:
