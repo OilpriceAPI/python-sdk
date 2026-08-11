@@ -14,8 +14,9 @@ directory (``pytest tests/ --ignore=tests/integration``). Run explicitly with:
 
 Purpose: prove the SDK's DemoResource parses the real response envelope
 (``{"status": ..., "data": {prices|commodities, meta}}``) and that the live
-contract still holds (9 free-tier prices incl. BRENT_CRUDE_USD ≈ $80, 442
-commodities, ``meta.free_commodities`` present).
+contract still holds (the original nine demo codes remain available,
+BRENT_CRUDE_USD is plausible, the catalogue is large, and
+``meta.free_commodities`` is internally consistent).
 """
 
 import os
@@ -28,6 +29,17 @@ from oilpriceapi.resources.demo import DemoResource
 pytestmark = pytest.mark.live
 
 DEMO_BASE_URL = os.environ.get("OILPRICEAPI_BASE_URL", "https://api.oilpriceapi.com")
+CORE_DEMO_CODES = {
+    "BRENT_CRUDE_USD",
+    "WTI_USD",
+    "NATURAL_GAS_USD",
+    "GOLD_USD",
+    "EUR_USD",
+    "GBP_USD",
+    "HEATING_OIL_USD",
+    "GASOLINE_USD",
+    "DIESEL_USD",
+}
 
 
 @pytest.fixture(scope="module")
@@ -54,11 +66,10 @@ class TestDemoPricesContract:
 
         prices = data["prices"]
         assert isinstance(prices, list)
-        # Contract: 9 free-tier demo commodities.
-        assert len(prices) == 9
 
         by_code = {p["code"]: p for p in prices}
-        assert "BRENT_CRUDE_USD" in by_code
+        # The demo catalogue may grow. Its original core must remain usable.
+        assert CORE_DEMO_CODES <= by_code.keys()
 
         brent = by_code["BRENT_CRUDE_USD"]
         # Each price row carries the documented fields.
@@ -76,7 +87,7 @@ class TestDemoPricesContract:
 
         meta = data["meta"]
         assert meta.get("demo_mode") is True
-        assert meta.get("available_commodities") == 9
+        assert meta.get("available_commodities", 0) >= len(CORE_DEMO_CODES)
 
 
 class TestDemoCommoditiesContract:
@@ -102,10 +113,13 @@ class TestDemoCommoditiesContract:
         assert meta["total"] == flattened
         assert meta["total"] >= 400
 
-        # meta.free_commodities is present and matches the 9 free-tier codes.
+        # The configured free list may grow, but it must preserve the core and
+        # remain duplicate-free instead of pinning mutable catalogue size.
         assert "free_commodities" in meta
-        assert len(meta["free_commodities"]) == 9
-        assert "BRENT_CRUDE_USD" in meta["free_commodities"]
+        free_codes = set(meta["free_commodities"])
+        assert len(free_codes) == len(meta["free_commodities"])
+        assert CORE_DEMO_CODES <= free_codes
+        assert len(free_codes) >= len(CORE_DEMO_CODES)
 
     def test_commodities_codes_filter(self, demo: DemoResource) -> None:
         """Passing codes= returns only the requested free-tier prices."""
