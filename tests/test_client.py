@@ -163,6 +163,8 @@ class TestErrorHandling:
             "X-RateLimit-Limit": "1000",
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": "1705320000",
+            "X-RateLimit-State": "exhausted",
+            "X-RateLimit-Window": "monthly_counter",
         }
         mock_response.json.return_value = {"error": "Rate limit exceeded"}
         mock_request.return_value = mock_response
@@ -175,6 +177,7 @@ class TestErrorHandling:
         assert error.status_code == 429
         assert error.limit == "1000"
         assert error.remaining == "0"
+        assert mock_request.call_count == 1
     
     @patch('httpx.Client.request')
     def test_data_not_found_error(self, mock_request):

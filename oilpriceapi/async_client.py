@@ -55,7 +55,7 @@ class AsyncOilPriceAPI:
         api_key: API key for authentication
         base_url: Base URL for API
         timeout: Request timeout in seconds
-        max_retries: Maximum retry attempts
+        max_retries: Maximum request attempts
 
     Example:
         >>> async with AsyncOilPriceAPI() as client:
@@ -238,7 +238,7 @@ class AsyncOilPriceAPI:
                     )
 
                     # Auto-retry with Retry-After if we have attempts left
-                    if self._retry_strategy.should_retry(attempt, 429):
+                    if self._retry_strategy.should_retry(attempt, 429, response.headers):
                         try:
                             wait_time = min(float(retry_after), 60.0)
                         except (TypeError, ValueError):
@@ -249,7 +249,7 @@ class AsyncOilPriceAPI:
                         await asyncio.sleep(wait_time)
                         continue
                 elif response.status_code >= 500:
-                    if self._retry_strategy.should_retry(attempt, response.status_code):
+                    if self._retry_strategy.should_retry(attempt, response.status_code, response.headers):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         self._retry_strategy.log_retry(
                             attempt,

@@ -63,7 +63,7 @@ class OilPriceAPI:
         api_key: API key for authentication. If not provided, uses OILPRICEAPI_KEY env var.
         base_url: Base URL for API. Defaults to production.
         timeout: Request timeout in seconds. Defaults to 30.
-        max_retries: Maximum retry attempts for failed requests. Defaults to 3.
+        max_retries: Maximum request attempts for failed requests. Defaults to 3.
         retry_on: Status codes to retry on. Defaults to [429, 500, 502, 503, 504].
 
     Example:
@@ -274,7 +274,7 @@ class OilPriceAPI:
                     )
 
                     # Auto-retry with Retry-After if we have attempts left
-                    if self._retry_strategy.should_retry(attempt, 429):
+                    if self._retry_strategy.should_retry(attempt, 429, response.headers):
                         try:
                             wait_time = min(float(retry_after), 60.0)
                         except (TypeError, ValueError):
@@ -285,7 +285,7 @@ class OilPriceAPI:
                         time.sleep(wait_time)
                         continue
                 elif response.status_code >= 500:
-                    if self._retry_strategy.should_retry(attempt, response.status_code):
+                    if self._retry_strategy.should_retry(attempt, response.status_code, response.headers):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         self._retry_strategy.log_retry(
                             attempt,
@@ -388,7 +388,7 @@ class OilPriceAPI:
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
 
-                    if self._retry_strategy.should_retry(attempt, 429):
+                    if self._retry_strategy.should_retry(attempt, 429, response.headers):
                         try:
                             wait_time = min(float(retry_after), 60.0)
                         except (TypeError, ValueError):
@@ -399,7 +399,7 @@ class OilPriceAPI:
                         time.sleep(wait_time)
                         continue
                 elif response.status_code >= 500:
-                    if self._retry_strategy.should_retry(attempt, response.status_code):
+                    if self._retry_strategy.should_retry(attempt, response.status_code, response.headers):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         self._retry_strategy.log_retry(
                             attempt,

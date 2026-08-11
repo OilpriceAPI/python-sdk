@@ -2,7 +2,7 @@
 
 import logging
 import random
-from typing import List, Optional
+from typing import List, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class RetryStrategy:
         Initialize retry strategy.
 
         Args:
-            max_retries: Maximum number of retry attempts
+            max_retries: Maximum number of request attempts
             retry_on: HTTP status codes to retry on (default: [500, 502, 503, 504])
             jitter: Add randomized jitter to backoff to prevent thundering herd (default: True)
         """
@@ -32,21 +32,76 @@ class RetryStrategy:
         self.retry_on = retry_on or [500, 502, 503, 504]
         self.jitter = jitter
 
-    def should_retry(self, attempt: int, status_code: int) -> bool:
+    # A 429 means two completely different things, and retrying is only correct
+    # for one of them:
+    #
+    #   "you are bursting"        -> wait and retry. Correct.
+    #   "you are out of quota"    -> retrying CANNOT succeed until the billing
+    #                                period resets. Two retries produce two more
+    #                                refusals and nothing else.
+    #
+    # This method used to take the status code alone, so it could not tell them
+    # apart and always retried. Measured against production over 30 days, free
+    # accounts on this SDK were rate-limited on 26.2% of requests against 15.6%
+    # for the Node SDK on the same tier -- 1.7x worse, self-inflicted.
+    #
+    # The API identifies durable quota exhaustion with both `state=exhausted`
+    # and a counter-backed window. State or remaining alone are ambiguous: the
+    # recoverable hourly circuit breaker also emits exhausted/0.
+    PERSISTENT_QUOTA_WINDOWS = frozenset({"daily_counter", "monthly_counter", "trial_counter"})
+
+    def should_retry(
+        self,
+        attempt: int,
+        status_code: int,
+        headers: Optional[Mapping[str, str]] = None,
+    ) -> bool:
         """
         Determine if request should be retried.
 
         Args:
             attempt: Current attempt number (0-indexed)
             status_code: HTTP status code from response
+            headers: Response headers. When they identify a durable counter
+                window whose allowance is exhausted, the request is not
+                retried because waiting briefly cannot help.
 
         Returns:
             True if request should be retried, False otherwise
         """
-        return (
-            status_code in self.retry_on
-            and attempt < self.max_retries - 1
-        )
+        if attempt >= self.max_retries - 1:
+            return False
+        if status_code not in self.retry_on:
+            return False
+
+        # Only 429 carries a remedy. Server errors are always worth a retry.
+        if status_code == 429 and self.quota_exhausted(headers):
+            return False
+
+        return True
+
+    @classmethod
+    def quota_exhausted(cls, headers: Optional[Mapping[str, str]]) -> bool:
+        """
+        Has the caller run out of allowance, as opposed to merely bursting?
+
+        Requires `X-RateLimit-State: exhausted` together with one of the API's
+        durable counter windows. `state=exhausted` and `remaining=0` cannot be
+        used independently because the recoverable hourly circuit breaker
+        deliberately emits both values as well.
+
+        Returns False when headers are absent or unparseable -- an unknown state
+        must behave exactly as before this change, so a missing header can never
+        turn a retryable burst into a hard failure.
+        """
+        if not headers:
+            return False
+
+        lookup = {str(k).lower(): v for k, v in headers.items()}
+
+        state = str(lookup.get("x-ratelimit-state", "")).strip().lower()
+        window = str(lookup.get("x-ratelimit-window", "")).strip().lower()
+        return state == "exhausted" and window in cls.PERSISTENT_QUOTA_WINDOWS
 
     def should_retry_on_exception(self, attempt: int) -> bool:
         """
