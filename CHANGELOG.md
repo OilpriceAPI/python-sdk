@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-08-11
+
 ### Added
 
 - Add sync and async `client.commodities.search(...)`, backed by the current
@@ -24,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stop retrying exhausted daily, monthly, and trial quota responses. Sync and
+  async clients now make one request at a durable quota wall while preserving
+  bounded retry behavior for recoverable hourly and ambiguous 429 responses.
+- Replace the demo synthetic's fixed catalogue-size assertion with an
+  integrity contract for the original core codes and every usable returned
+  row. Request, transport, and operating-system failures now fail the monitor
+  instead of being converted to skips.
 - Preserve each API record's currency and unit in current and historical
   DataFrames instead of labeling a missing currency as USD.
 - Remove exact duplicate records introduced by overlapping page boundaries,
@@ -380,19 +389,6 @@ print(df[["state", "price", "updated_at"]])
 - Python 3.10
 - Python 3.11
 - Python 3.12
-
----
-
-## [Unreleased]
-
-### Planned
-
-- CLI tool (`oilprice` command)
-- WebSocket support for real-time prices
-- Advanced caching with Redis
-- Technical indicators (RSI, MACD, Bollinger Bands)
-- More visualization styles
-- Jupyter notebook widgets
 
 ---
 
