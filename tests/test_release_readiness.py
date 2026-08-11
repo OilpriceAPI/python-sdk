@@ -88,18 +88,20 @@ def test_examples_defer_mutable_allowances_to_product_facts() -> None:
 
 
 def test_packaged_futures_examples_prefer_instrument_generic_slugs() -> None:
-    futures_sources = "\n".join(
-        (ROOT / path).read_text()
-        for path in (
-            "oilpriceapi/resources/futures.py",
-            "oilpriceapi/async_resources.py",
-        )
-    )
+    for path in (
+        "oilpriceapi/resources/futures.py",
+        "oilpriceapi/async_resources.py",
+    ):
+        source = (ROOT / path).read_text()
+        example_lines = re.findall(r"(?m)^\s*(?:>>>|\.\.\.)\s+.*$", source)
+        examples = "\n".join(example_lines)
 
-    for example_line in re.findall(r"(?m)^\s*(?:>>>|\.\.\.)\s+.*$", futures_sources):
-        assert not re.search(r"[\"'](?:ice|eua)-", example_line)
-    assert 'client.futures.latest("brent")' in futures_sources
-    assert 'client.futures.curve("wti")' in futures_sources
+        for example_line in example_lines:
+            assert not re.search(r"[\"'](?:ice|eua)-", example_line)
+        for canonical_slug in ("brent", "wti", "gasoil", "eu-carbon"):
+            assert canonical_slug in examples, (
+                f"{path} examples omit {canonical_slug}"
+            )
 
 
 def test_publish_gate_audits_and_installs_the_built_wheel() -> None:

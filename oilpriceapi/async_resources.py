@@ -320,6 +320,12 @@ class AsyncFuturesResource:
     Methods accept either a slug or a friendly contract code (``"BZ"``,
     ``"CL"``, ``"NG"``, ...), normalized via
     :func:`normalize_futures_slug`.
+
+    Examples:
+        >>> await client.futures.latest("brent")
+        >>> await client.futures.latest("wti")
+        >>> await client.futures.latest("gasoil")
+        >>> await client.futures.latest("eu-carbon")
     """
 
     def __init__(self, client):

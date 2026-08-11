@@ -13,6 +13,12 @@ via :mod:`._futures_slug`.
 Valid slugs: ``brent``, ``wti``, ``gasoil``, ``natural-gas``,
 ``ttf-gas``, ``lng-jkm``, ``eu-carbon``, ``uk-carbon`` (+ continuous slugs
 ``continuous/brent`` and ``continuous/wti``).
+
+Examples:
+    >>> client.futures.latest("brent")
+    >>> client.futures.latest("wti")
+    >>> client.futures.latest("gasoil")
+    >>> client.futures.latest("eu-carbon")
 """
 
 from datetime import date, datetime
