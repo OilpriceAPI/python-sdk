@@ -20,6 +20,20 @@ BINARY_SUFFIXES = {
     ".pyo",
     ".so",
 }
+_RATE_COUNT = r"\d[\d,]*"
+_RATE_ACTION = r"(?:(?:api[- ]+)?(?:requests?|calls?)|reqs?\.?)"
+_RATE_PERIOD = r"(?:minutes?|mins?\.?|hours?|hrs?\.?|days?)"
+_RATE_FREQUENCY = r"(?:minutely|hourly|daily|per[- ]+(?:minute|hour|day))"
+FIXED_RATE = re.compile(
+    rf"\b{_RATE_COUNT}[- ]+{_RATE_ACTION}"
+    rf"(?:(?:[- ]*(?:per|an?|each|every)[- ]+|[- ]*/[- ]*){_RATE_PERIOD}\b|"
+    rf"[- ]+{_RATE_FREQUENCY}\b)|"
+    rf"\b{_RATE_FREQUENCY}[- ]+"
+    rf"(?:(?:api[- ]+)?(?:requests?|calls?)[- ]+)?"
+    rf"(?:limit|allowance|quota|cap)\s*(?:of|is|:|=)?\s*"
+    rf"{_RATE_COUNT}[- ]+{_RATE_ACTION}\b",
+    re.IGNORECASE,
+)
 BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
     ("real-time claim", re.compile(r"\breal[ -]?time\b", re.IGNORECASE)),
     (
@@ -87,11 +101,7 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
     ),
     (
         "fixed demo rate",
-        re.compile(
-            r"\b\d+\s+(?:requests?|reqs?\.?)\s*(?:(?:per|an?)\s+|/\s*)"
-            r"(?:minutes?|mins?|hours?|hrs?|days?)\b",
-            re.IGNORECASE,
-        ),
+        FIXED_RATE,
     ),
 )
 

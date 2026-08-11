@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Reject every fixed demo-rate literal, including the previously exempted
-  daily allowance, and direct examples to the reviewed live product facts.
+- Reject common fixed request and API-call rate spellings, including prefix,
+  suffix, and hyphenated daily/hourly/minute forms, and direct examples to the
+  reviewed live product facts.
 
 ## [1.12.3] - 2026-08-11
 

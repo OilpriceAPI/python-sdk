@@ -1,4 +1,7 @@
 from pathlib import Path
+from typing import List
+
+import pytest
 
 from scripts.validate_storefront_claims import (
     discover_installed_surfaces,
@@ -8,6 +11,28 @@ from scripts.validate_storefront_claims import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _installed_text_failures(tmp_path: Path, text: str) -> List[str]:
+    package = tmp_path / "oilpriceapi"
+    dist_info = tmp_path / "oilpriceapi-9.9.9.dist-info"
+    package.mkdir()
+    dist_info.mkdir()
+    (package / "version.py").write_text('__version__ = "9.9.9"\n')
+    (package / "future.txt").write_text(text)
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\n"
+        "Name: oilpriceapi\n"
+        "Version: 9.9.9\n\n"
+        "https://api.oilpriceapi.com/product-facts.json\n"
+    )
+    (dist_info / "RECORD").write_text(
+        "oilpriceapi/version.py,,\n"
+        "oilpriceapi/future.txt,,\n"
+        "oilpriceapi-9.9.9.dist-info/METADATA,,\n"
+        "oilpriceapi-9.9.9.dist-info/RECORD,,\n"
+    )
+    return validate_package(tmp_path)
 
 
 def test_storefront_claims_match_reviewed_contract() -> None:
@@ -115,3 +140,41 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
         and "matched '50 requests/day'" in failure
         for failure in failures
     )
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "50 API calls/day",
+        "50 calls per day",
+        "50 requests daily",
+        "daily limit of 50 requests",
+        "50-request daily allowance",
+        "100 API calls hourly",
+        "hourly request quota: 100 calls",
+        "3 reqs/minute",
+        "50 calls each day",
+        "100 API requests every hour",
+        "daily cap is 50 calls",
+        "50-call-per-day allowance",
+    ],
+)
+def test_rejects_fixed_rate_aliases_in_installed_text(tmp_path: Path, claim: str) -> None:
+    failures = _installed_text_failures(tmp_path, claim)
+
+    assert any("fixed demo rate" in failure for failure in failures), failures
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "SDK version 1.12.4 supports Python 3.8.",
+        "Run 50 tests daily.",
+        "The response contains 50 records per page.",
+        "Retry attempt 50 failed.",
+    ],
+)
+def test_fixed_rate_aliases_do_not_match_versions_or_test_counts(
+    tmp_path: Path, text: str
+) -> None:
+    assert _installed_text_failures(tmp_path, text) == []
