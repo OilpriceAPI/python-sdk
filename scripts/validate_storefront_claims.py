@@ -5,7 +5,7 @@ import argparse
 import csv
 import re
 from pathlib import Path
-from typing import Iterable, List, Pattern, Sequence, Tuple
+from typing import Iterable, Iterator, List, Match, Pattern, Sequence, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = "https://api.oilpriceapi.com/product-facts.json"
@@ -26,38 +26,21 @@ _RATE_UNIT_SINGULAR = r"(?:second|sec|minute|min|hour|hr|day|week|month|year)"
 _RATE_UNIT = rf"{_RATE_UNIT_SINGULAR}s?\.?"
 _RATE_ADVERB = r"(?:secondly|minutely|hourly|daily|weekly|monthly|yearly)"
 _RATE_DURATION = rf"(?:(?:a|an|one|any|rolling|{_RATE_COUNT})[- ]+){{0,3}}{_RATE_UNIT}"
-_RATE_WINDOW = (
-    rf"(?:(?:/[- ]*|(?:per|each|every|in|within|over|during|for)[- ]+)"
-    rf"{_RATE_DURATION}|"
-    rf"(?:a|an)[- ]+{_RATE_UNIT})"
-)
-_RATE_FREQUENCY = (
-    rf"(?:{_RATE_ADVERB}|per[- ]+{_RATE_UNIT_SINGULAR}|"
-    rf"(?:one|{_RATE_COUNT})[- ]+{_RATE_UNIT_SINGULAR})"
-)
-_RATE_SCOPE = r"(?:(?:api[- ]+)?(?:requests?|calls?|queries?|hits?|credits?)[- ]+|api[- ]+)?"
-_RATE_LIMIT = r"(?:rate[- ]+limit|limit|allowance|quota|cap)"
-_RATE_ASSIGNMENT = r"(?:of|is|at|to|:|=)?"
-FIXED_RATE = re.compile(
-    rf"\b{_RATE_COUNT}[- ]+{_RATE_ACTION}"
-    rf"(?:[- ]*{_RATE_WINDOW}\b|[- ]+{_RATE_ADVERB}\b)|"
-    rf"\b{_RATE_COUNT}[- ]*{_RATE_WINDOW}[- ]+{_RATE_ACTION}\b|"
-    rf"\b{_RATE_COUNT}[- ]+{_RATE_ADVERB}[- ]+{_RATE_ACTION}\b|"
-    rf"\b{_RATE_FREQUENCY}[- ]+{_RATE_COUNT}[- ]+{_RATE_ACTION}\b|"
-    rf"\b{_RATE_ACTION}\s*(?::|=|is|of)?\s*{_RATE_COUNT}[- ]*"
-    rf"{_RATE_WINDOW}\b|"
-    rf"\b{_RATE_ACTION}[- ]+{_RATE_ADVERB}\s*(?::|=|is)?\s*"
-    rf"{_RATE_COUNT}\b|"
-    rf"\b{_RATE_FREQUENCY}[- ]+{_RATE_ACTION}\s*(?::|=|is)?\s*"
-    rf"{_RATE_COUNT}\b|"
-    rf"\b{_RATE_ACTION}[- ]*{_RATE_WINDOW}\s*(?::|=|is)?\s*"
-    rf"{_RATE_COUNT}\b|"
-    rf"\b{_RATE_FREQUENCY}[- ]+{_RATE_SCOPE}{_RATE_LIMIT}\s*"
-    rf"{_RATE_ASSIGNMENT}\s*{_RATE_COUNT}(?:[- ]+{_RATE_ACTION})?\b|"
-    rf"\b{_RATE_SCOPE}{_RATE_LIMIT}\s*{_RATE_ASSIGNMENT}\s*{_RATE_COUNT}"
-    rf"(?:[- ]+{_RATE_ACTION})?(?:[- ]*{_RATE_WINDOW}\b|[- ]+{_RATE_ADVERB}\b)",
+_RATE_NUMBER_PATTERN = re.compile(rf"(?<![\w.]){_RATE_COUNT}(?![\w.])")
+_RATE_ACTION_PATTERN = re.compile(rf"\b{_RATE_ACTION}\b", re.IGNORECASE)
+_RATE_CADENCE_PATTERN = re.compile(
+    rf"\b{_RATE_ADVERB}\b|"
+    rf"(?:/[- ]*|\b(?:per|each|every|in|within|over|during|for)\b[- ]+)"
+    rf"{_RATE_DURATION}\b|"
+    rf"\b(?:a|an|one|any|rolling|{_RATE_COUNT})[- ]+{_RATE_UNIT}\b",
     re.IGNORECASE,
 )
+_RATE_BOUNDARY_PATTERN = re.compile(
+    r"(?:\r?\n)+|\s+#\s+|[!?;]+(?:\s+|$)|\.(?:\s+|$)"
+)
+_HTML_TAG_PATTERN = re.compile(r"<[^>]{1,500}>")
+_MAX_ACTION_COUNT_GAP = 64
+_MAX_RATE_SPAN = 200
 BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
     ("real-time claim", re.compile(r"\breal[ -]?time\b", re.IGNORECASE)),
     (
@@ -123,10 +106,6 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
             re.IGNORECASE,
         ),
     ),
-    (
-        "fixed demo rate",
-        FIXED_RATE,
-    ),
 )
 
 
@@ -170,6 +149,89 @@ def discover_installed_surfaces(package_root: Path) -> List[Path]:
     return sorted(set(surfaces))
 
 
+def _bounded_rate_segments(text: str) -> Iterator[Tuple[int, str]]:
+    start = 0
+    for boundary in _RATE_BOUNDARY_PATTERN.finditer(text):
+        segment = text[start : boundary.start()]
+        if segment.strip():
+            yield start, segment
+        start = boundary.end()
+    if text[start:].strip():
+        yield start, text[start:]
+
+
+def _token_gap(left: Match[str], right: Match[str]) -> int:
+    if left.end() <= right.start():
+        return right.start() - left.end()
+    if right.end() <= left.start():
+        return left.start() - right.end()
+    return 0
+
+
+def _claim_span(
+    action: Match[str], count: Match[str], cadence: Match[str]
+) -> Tuple[int, int]:
+    return (
+        min(action.start(), count.start(), cadence.start()),
+        max(action.end(), count.end(), cadence.end()),
+    )
+
+
+def _fixed_rate_claims(text: str) -> List[str]:
+    """Find count + API action + cadence triples in a bounded sentence window."""
+    claims: List[str] = []
+    seen: Set[Tuple[int, str]] = set()
+
+    for segment_offset, segment in _bounded_rate_segments(text):
+        searchable = _HTML_TAG_PATTERN.sub(" ", segment)
+        counts = list(_RATE_NUMBER_PATTERN.finditer(searchable))
+        cadences = list(_RATE_CADENCE_PATTERN.finditer(searchable))
+        if not counts or not cadences:
+            continue
+        allowance_counts = [
+            count
+            for count in counts
+            if not any(
+                cadence.start() <= count.start() and count.end() <= cadence.end()
+                for cadence in cadences
+            )
+        ]
+        if not allowance_counts:
+            continue
+
+        for action in _RATE_ACTION_PATTERN.finditer(searchable):
+            nearby_counts = [
+                count
+                for count in allowance_counts
+                if _token_gap(action, count) <= _MAX_ACTION_COUNT_GAP
+            ]
+            if not nearby_counts:
+                continue
+            count = min(nearby_counts, key=lambda token: _token_gap(action, token))
+
+            bounded_cadences = [
+                cadence
+                for cadence in cadences
+                if _claim_span(action, count, cadence)[1]
+                - _claim_span(action, count, cadence)[0]
+                <= _MAX_RATE_SPAN
+            ]
+            if not bounded_cadences:
+                continue
+            cadence = min(
+                bounded_cadences,
+                key=lambda token: _claim_span(action, count, token)[1]
+                - _claim_span(action, count, token)[0],
+            )
+            claim_start, claim_end = _claim_span(action, count, cadence)
+            claim = re.sub(r"\s+", " ", searchable[claim_start:claim_end]).strip()
+            key = (segment_offset + claim_start, claim)
+            if key not in seen:
+                seen.add(key)
+                claims.append(claim)
+    return claims
+
+
 def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
     failures: List[str] = []
     for path in surfaces:
@@ -179,6 +241,10 @@ def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
                 failures.append(
                     f"{path.relative_to(root)}: {label} matched {match.group(0)!r}"
                 )
+        for claim in _fixed_rate_claims(text):
+            failures.append(
+                f"{path.relative_to(root)}: fixed demo rate matched {claim!r}"
+            )
     return failures
 
 
