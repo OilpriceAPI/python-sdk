@@ -19,6 +19,7 @@ BRENT_CRUDE_USD is plausible, the catalogue is large, and
 ``meta.free_commodities`` is internally consistent).
 """
 
+import math
 import os
 
 import httpx
@@ -68,15 +69,22 @@ class TestDemoPricesContract:
         assert isinstance(prices, list)
 
         by_code = {p["code"]: p for p in prices}
+        assert len(by_code) == len(prices)
         # The demo catalogue may grow. Its original core must remain usable.
         assert CORE_DEMO_CODES <= by_code.keys()
 
-        brent = by_code["BRENT_CRUDE_USD"]
-        # Each price row carries the documented fields.
-        for field in ("code", "name", "price", "currency", "updated_at"):
-            assert field in brent
+        for code in CORE_DEMO_CODES:
+            row = by_code[code]
+            assert row["code"] == code
+            assert isinstance(row["name"], str) and row["name"]
+            assert isinstance(row["currency"], str) and row["currency"]
+            assert isinstance(row["updated_at"], str) and row["updated_at"]
+            price = float(row["price"])
+            assert math.isfinite(price) and price > 0
+
+        brent_price = float(by_code["BRENT_CRUDE_USD"]["price"])
         # Sanity-check Brent is in a plausible band (~$80, allow wide drift).
-        assert 30 < float(brent["price"]) < 200
+        assert 30 < brent_price < 200
 
     def test_prices_meta_demo_mode(self, demo: DemoResource) -> None:
         """The demo prices meta block flags demo mode and lists free commodities."""
