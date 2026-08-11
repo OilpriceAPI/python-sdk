@@ -76,8 +76,6 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
     (
         "fixed allowance",
         re.compile(
-            r"\b\d[\d,]*\s+(?:free\s+)?(?:api\s+requests?|station\s+queries?)"
-            r"\s*(?:/|per\s+)month\b|"
             r"\bmonthly\s+station\s+(?:query|request)\s+limit\b",
             re.IGNORECASE,
         ),

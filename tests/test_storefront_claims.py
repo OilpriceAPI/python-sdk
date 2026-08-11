@@ -184,6 +184,13 @@ def test_rejects_fixed_rate_aliases_in_installed_text(tmp_path: Path, claim: str
     assert any("fixed demo rate" in failure for failure in failures), failures
 
 
+def test_reports_one_failure_for_overlapping_monthly_rate(tmp_path: Path) -> None:
+    failures = _installed_text_failures(tmp_path, "50 API requests per month")
+
+    matching = [failure for failure in failures if "50 API requests per month" in failure]
+    assert len(matching) == 1, failures
+
+
 @pytest.mark.parametrize(
     "text",
     [
