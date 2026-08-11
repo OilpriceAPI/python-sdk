@@ -2,12 +2,24 @@
 """Reject stale mutable claims from authored, generated, and packaged surfaces."""
 
 import argparse
+import csv
 import re
 from pathlib import Path
 from typing import Iterable, List, Pattern, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = "https://api.oilpriceapi.com/product-facts.json"
+BINARY_SUFFIXES = {
+    ".a",
+    ".class",
+    ".dll",
+    ".dylib",
+    ".o",
+    ".pyd",
+    ".pyc",
+    ".pyo",
+    ".so",
+}
 BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
     ("real-time claim", re.compile(r"\breal[ -]?time\b", re.IGNORECASE)),
     (
@@ -74,10 +86,37 @@ def discover_public_surfaces(root: Path = ROOT) -> List[Path]:
     return sorted(surfaces)
 
 
+def discover_installed_surfaces(package_root: Path) -> List[Path]:
+    """Return every UTF-8 customer-readable file recorded in the wheel manifest."""
+    package_root = package_root.resolve()
+    record_files = sorted(package_root.glob("oilpriceapi-*.dist-info/RECORD"))
+    if len(record_files) != 1:
+        return []
+
+    surfaces: List[Path] = []
+    with record_files[0].open(encoding="utf-8", newline="") as record:
+        for row in csv.reader(record):
+            if not row:
+                continue
+            path = (package_root / row[0]).resolve()
+            try:
+                path.relative_to(package_root)
+            except ValueError:
+                continue
+            if not path.is_file() or path.suffix.lower() in BINARY_SUFFIXES:
+                continue
+            try:
+                path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            surfaces.append(path)
+    return sorted(set(surfaces))
+
+
 def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
     failures: List[str] = []
     for path in surfaces:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         for label, pattern in BLOCKED:
             match = pattern.search(text)
             if match:
@@ -109,11 +148,15 @@ def validate_package(package_root: Path) -> List[str]:
     package_root = package_root.resolve()
     package_dir = package_root / "oilpriceapi"
     metadata_files = sorted(package_root.glob("oilpriceapi-*.dist-info/METADATA"))
-    surfaces = sorted(package_dir.rglob("*.py")) + metadata_files
+    record_files = sorted(package_root.glob("oilpriceapi-*.dist-info/RECORD"))
+    surfaces = discover_installed_surfaces(package_root)
     failures = _claim_failures(package_root, surfaces)
 
     if len(metadata_files) != 1:
         failures.append("installed artifact must contain exactly one oilpriceapi METADATA file")
+        return failures
+    if len(record_files) != 1:
+        failures.append("installed artifact must contain exactly one oilpriceapi RECORD file")
         return failures
 
     metadata = metadata_files[0].read_text()
