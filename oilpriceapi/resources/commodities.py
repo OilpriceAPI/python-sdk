@@ -21,7 +21,7 @@ class CommoditiesResource:
         self.client = client
 
     def list(self) -> List[Dict[str, Any]]:
-        """Get list of all available commodities.
+        """Get commodities available to the current account.
 
         Returns:
             List of commodity objects with code, name, and metadata

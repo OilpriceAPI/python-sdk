@@ -22,10 +22,10 @@ class BunkerFuelsResource:
         self.client = client
 
     def all(self) -> List[Dict[str, Any]]:
-        """Get all bunker fuel prices.
+        """Get the available bunker fuel price records.
 
         Returns:
-            List of bunker fuel prices across all ports
+            List of bunker fuel price records returned by the API
 
         Example:
             >>> bunker_prices = client.bunker_fuels.all()

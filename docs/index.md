@@ -49,7 +49,7 @@ prices = client.prices.get_multiple([
 ])
 ```
 
-**[View all available commodities →](https://docs.oilpriceapi.com/commodities)**
+**[View the current commodity catalog →](https://docs.oilpriceapi.com/commodities)**
 
 ### Historical Data
 

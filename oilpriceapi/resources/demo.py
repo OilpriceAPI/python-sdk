@@ -2,8 +2,8 @@
 Demo Resource
 
 Public, no-authentication demo endpoints (``/v1/demo/*``). These power the
-"time to first call" experience: a developer can fetch real free-tier prices
-and the full commodity catalog without an API key.
+"time to first call" experience: a developer can fetch the current demo price
+set and catalog metadata without an API key.
 
 The demo endpoints ignore authentication entirely, so :class:`DemoResource`
 works both as an attribute of an authenticated client (``client.demo``) and
@@ -68,11 +68,11 @@ class DemoResource:
         return data
 
     def prices(self, codes: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Get latest demo prices for free-tier commodities.
+        """Get the latest price records currently exposed by the demo endpoint.
 
         Args:
             codes: Optional list of commodity codes to request. When omitted,
-                the API returns all free-tier commodities.
+                the API returns its current demo set.
 
         Returns:
             The ``data`` payload: ``{"prices": [...], "meta": {...}, "examples": {...}}``.
@@ -85,7 +85,7 @@ class DemoResource:
         return data
 
     def commodities(self) -> Dict[str, Any]:
-        """Get the full demo commodity catalog grouped by category.
+        """Get current demo commodity metadata grouped by category.
 
         Returns:
             The ``data`` payload: ``{"commodities": {category: [...]}, "meta": {...}}``.

@@ -70,9 +70,17 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
         ),
     ),
     (
+        "universal catalog",
+        re.compile(
+            r"\ball\s+(?:(?:available|latest|bunker|fuel|current|supported|free[- ]tier)\s+){0,4}"
+            r"(?:prices|commodities)\b|\bfull\s+(?:demo\s+)?commodity\s+catalog(?:ue)?\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "free-tier claim",
         re.compile(
-            r"\bfree\s+tier\b|\bfree\s+api\s+key\b|"
+            r"\bfree[- ]tier\b|\bfree[- ]api[- ]key\b|"
             r"\b(?:endpoint|access)\s+is\s+free\b|\bincluded\s+in\s+all\s+tiers\b",
             re.IGNORECASE,
         ),

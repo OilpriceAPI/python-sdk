@@ -54,8 +54,8 @@ It accepts the same `per_page` range and automatically fetches every page.
 
 ## Current prices
 
-Calling `client.prices.to_dataframe()` with no commodity returns all current
-prices and automatically follows the API's pagination headers:
+Calling `client.prices.to_dataframe()` with no commodity returns the current
+price records available to the account and follows the API's pagination headers:
 
 ```python
 df = client.prices.to_dataframe(per_page=250)

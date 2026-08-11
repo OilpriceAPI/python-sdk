@@ -108,16 +108,16 @@ class PricesResource:
         return prices
 
     def get_all(self, per_page: int = 100) -> List[Price]:
-        """Get current prices for all available commodities.
+        """Get current price records available to the account.
 
-        Auto-paginates using X-Has-Next response headers until all records
-        are retrieved.
+        Auto-paginates using X-Has-Next response headers until the API reports
+        no additional records.
 
         Args:
             per_page: Number of records per page (default 100, matches API default)
 
         Returns:
-            List of Price objects for all commodities
+            List of Price objects returned for the current account
 
         Example:
             >>> all_prices = client.prices.get_all()

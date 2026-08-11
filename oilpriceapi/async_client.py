@@ -429,7 +429,7 @@ class AsyncPricesResource:
         return prices
 
     async def get_all(self) -> List[Price]:
-        """Get all available prices."""
+        """Get price records available to the current account."""
         response = await self.client.request(method="GET", path="/v1/prices/all")
 
         if isinstance(response, dict) and "data" in response:
