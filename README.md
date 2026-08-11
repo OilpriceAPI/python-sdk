@@ -150,6 +150,8 @@ from oilpriceapi.exceptions import DataNotFoundError
 
 with OilPriceAPI(api_key=os.environ["OILPRICEAPI_KEY"]) as client:
     summary = client.well_production.summary()
+    if not isinstance(summary, dict):
+        raise RuntimeError("MALFORMED_RESPONSE: well-production summary is invalid")
     coverage = summary.get("coverage")
     if not isinstance(coverage, dict):
         raise RuntimeError("MALFORMED_RESPONSE: well-production coverage is missing")

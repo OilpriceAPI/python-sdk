@@ -1,9 +1,11 @@
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import List
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOWS = ROOT / ".github" / "workflows"
+WORKFLOW_DIR = ROOT / ".github" / "workflows"
 DEFAULT_BRANCH_IF = (
     "if: github.ref == format('refs/heads/{0}', "
     "github.event.repository.default_branch)"
@@ -110,6 +112,8 @@ def test_oidc_publisher_consumes_only_the_verified_artifact() -> None:
     assert "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33" in publish
     assert "id-token: write" in publish
     assert "sha256sum -c artifact.sha256" in publish
+    assert "cmp -s" in publish
+    assert "find dist snippets -type l" in publish
     for forbidden in (
         "actions/checkout@",
         "actions/setup-python@",
@@ -122,10 +126,27 @@ def test_oidc_publisher_consumes_only_the_verified_artifact() -> None:
     assert action_refs
     assert all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
     assert "Verify exact public PyPI hashes" in workflow
+    assert workflow.count("python scripts/package_version.py") == 2
+    assert "seq 1 24" in workflow
+    assert "sleep_seconds" in workflow
+
+
+def test_package_version_helper_reads_the_project_version() -> None:
+    helper = ROOT / "scripts" / "package_version.py"
+
+    assert helper.is_file()
+    result = subprocess.run(
+        [sys.executable, str(helper)],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() == "1.12.5"
 
 
 def test_every_workflow_pins_actions_and_hardens_each_checkout_step() -> None:
-    workflows = sorted(WORKFLOWS.glob("*.yml"))
+    workflows = sorted({*WORKFLOW_DIR.glob("*.yml"), *WORKFLOW_DIR.glob("*.yaml")})
 
     assert workflows
     for path in workflows:
@@ -159,9 +180,9 @@ def test_checkout_hardening_cannot_be_borrowed_from_an_env_mapping() -> None:
 
 
 def test_secret_and_identity_workflows_only_run_default_branch_code() -> None:
-    live = (WORKFLOWS / "live-tests.yml").read_text()
-    weekly = (WORKFLOWS / "weekly-health.yml").read_text()
-    pages = (WORKFLOWS / "github-pages.yml").read_text()
+    live = (WORKFLOW_DIR / "live-tests.yml").read_text()
+    weekly = (WORKFLOW_DIR / "weekly-health.yml").read_text()
+    pages = (WORKFLOW_DIR / "github-pages.yml").read_text()
 
     assert live.count(DEFAULT_BRANCH_IF) == 2
     assert "OILPRICEAPI_TEST_KEY is required" in live
@@ -197,6 +218,7 @@ def test_readme_documents_coverage_gated_permit_to_production() -> None:
         "client.ei.well_permits.search",
         "client.well_production.well",
         "except DataNotFoundError:",
+        "if not isinstance(summary, dict):",
         "api_number.isascii()",
         "api_number.isdigit()",
         "len(api_number) != 14",

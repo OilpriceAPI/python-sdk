@@ -37,15 +37,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          PACKAGE_VERSION="$(python -c '
-          import pathlib
-          import re
-          text = pathlib.Path("pyproject.toml").read_text()
-          match = re.search(r"(?m)^version = \"([^\"]+)\"$", text)
-          if match is None:
-              raise SystemExit("package version not found")
-          print(match.group(1))
-          ')"
+          PACKAGE_VERSION="$(python scripts/package_version.py)"
           if [ "$RELEASE_TAG" != "v$PACKAGE_VERSION" ]; then
             echo "::error::Release tag $RELEASE_TAG does not match package version $PACKAGE_VERSION"
             exit 1
@@ -93,15 +85,7 @@ jobs:
           mkdir -p "$ARTIFACT_DIR/dist" "$ARTIFACT_DIR/snippets"
           cp dist/* "$ARTIFACT_DIR/dist/"
           cp artifacts/snippets/* "$ARTIFACT_DIR/snippets/"
-          PACKAGE_VERSION="$(python -c '
-          import pathlib
-          import re
-          text = pathlib.Path("pyproject.toml").read_text()
-          match = re.search(r"(?m)^version = \"([^\"]+)\"$", text)
-          if match is None:
-              raise SystemExit("package version not found")
-          print(match.group(1))
-          ')"
+          PACKAGE_VERSION="$(python scripts/package_version.py)"
           printf 'PACKAGE_VERSION=%s\n' "$PACKAGE_VERSION" > "$ARTIFACT_DIR/release.env"
           (
             cd "$ARTIFACT_DIR"
@@ -137,7 +121,25 @@ jobs:
 
       - name: Verify exact artifact checksums
         working-directory: ${{ runner.temp }}/release-artifact
-        run: sha256sum -c artifact.sha256
+        run: |
+          set -euo pipefail
+          manifest_files="$RUNNER_TEMP/manifest-files"
+          actual_files="$RUNNER_TEMP/actual-files"
+          sed -n 's/^[0-9a-f]\{64\}  //p' artifact.sha256 \
+            | LC_ALL=C sort > "$manifest_files"
+          {
+            find dist snippets -type f -print
+            printf '%s\n' release.env
+          } | LC_ALL=C sort > "$actual_files"
+          if [ -n "$(find dist snippets -type l -print -quit)" ]; then
+            echo "::error::Verified release artifact contains a symlink"
+            exit 1
+          fi
+          if ! cmp -s "$manifest_files" "$actual_files"; then
+            echo "::error::Checksum manifest does not cover the exact release files"
+            exit 1
+          fi
+          sha256sum -c artifact.sha256
 
       - name: Publish exact verified distributions
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1 2026-07-28
@@ -171,8 +173,8 @@ jobs:
             exit 1
           fi
 
-          for attempt in $(seq 1 12); do
-            curl --fail --silent --show-error --max-time 30 \
+          for attempt in $(seq 1 24); do
+            curl --fail --silent --show-error --max-time 10 \
               "https://pypi.org/pypi/oilpriceapi/$PACKAGE_VERSION/json" \
               > "$RUNNER_TEMP/pypi.json" || true
             all_present=true
@@ -193,7 +195,12 @@ jobs:
               echo "Verified every public oilpriceapi $PACKAGE_VERSION distribution hash."
               exit 0
             fi
-            sleep 5
+            if [ "$attempt" -lt 6 ]; then
+              sleep_seconds=$((attempt * 2))
+            else
+              sleep_seconds=10
+            fi
+            sleep "$sleep_seconds"
           done
 
           echo "::error::PyPI public readback did not expose every verified distribution"

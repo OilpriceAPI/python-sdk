@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Accept live well-permit filters without a legacy free-form query and unwrap
   the production `{ well_permits, meta }` search response in sync and async
   clients while retaining positional-query compatibility.
+- Require the PyPI publisher to verify the complete checksummed artifact set,
+  share one package-version parser, scan both workflow filename extensions,
+  and allow bounded public-index propagation before release completion.
 
 ## [1.12.4] - 2026-08-11
 
