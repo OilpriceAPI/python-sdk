@@ -1,10 +1,12 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+# Setuptools 77+ warns on the legacy license table, while the older backend
+# available on supported Python 3.8 cannot parse the replacement string form.
+requires = ["setuptools>=70.1,<77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "oilpriceapi"
-version = "1.11.0"
+version = "1.12.0"
 description = "Official Python SDK for source-timestamped OilPriceAPI energy data"
 authors = [
     {name = "OilPriceAPI", email = "support@oilpriceapi.com"}
@@ -108,6 +110,8 @@ include = '\.pyi?$'
 [tool.ruff]
 line-length = 100
 target-version = "py38"
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings

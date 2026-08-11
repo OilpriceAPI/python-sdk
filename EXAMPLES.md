@@ -621,7 +621,7 @@ print("📊 Powered by https://oilpriceapi.com")
 
 Ready to build with these examples?
 
-1. **[Sign up for free](https://oilpriceapi.com/auth/signup)** - Get 1,000 free requests/month
+1. **[Sign up for free](https://oilpriceapi.com/auth/signup)** - Get 50 requests/day
 2. **[Install the SDK](https://pypi.org/project/oilpriceapi/)** - `pip install oilpriceapi`
 3. **[Read the docs](https://docs.oilpriceapi.com/sdk/python)** - Complete API reference
 4. **[Choose a plan](https://oilpriceapi.com/pricing)** - Upgrade for more requests
