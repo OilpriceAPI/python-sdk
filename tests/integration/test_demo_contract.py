@@ -21,6 +21,7 @@ BRENT_CRUDE_USD is plausible, the catalogue is large, and
 
 import math
 import os
+from typing import Callable, TypeVar
 
 import httpx
 import pytest
@@ -41,6 +42,7 @@ CORE_DEMO_CODES = {
     "GASOLINE_USD",
     "DIESEL_USD",
 }
+T = TypeVar("T")
 
 
 @pytest.fixture(scope="module")
@@ -49,17 +51,42 @@ def demo() -> DemoResource:
     return DemoResource(base_url=DEMO_BASE_URL)
 
 
-def _skip_on_network_error(exc: Exception) -> None:
-    pytest.skip(f"live demo API unreachable: {exc}")
+def _run_live_request(operation: Callable[[], T]) -> T:
+    """Run an always-on synthetic request; every request failure is signal."""
+    return operation()
+
+
+class TestMonitorFailureSemantics:
+    @pytest.mark.parametrize("failure_kind", ["status", "transport", "os"])
+    def test_request_failures_cannot_skip_the_hosted_monitor(
+        self, failure_kind: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        request = httpx.Request("GET", f"{DEMO_BASE_URL}/v1/demo/prices")
+        if failure_kind == "status":
+            response = httpx.Response(503, request=request)
+            error: Exception = httpx.HTTPStatusError(
+                "Service Unavailable", request=request, response=response
+            )
+        elif failure_kind == "transport":
+            error = httpx.ConnectError("connection failed", request=request)
+        else:
+            error = OSError("network unavailable")
+
+        def fail_request() -> None:
+            raise error
+
+        def fail_if_skipped(reason: str) -> None:
+            pytest.fail(f"hosted monitor converted {failure_kind} failure to skip: {reason}")
+
+        monkeypatch.setattr(pytest, "skip", fail_if_skipped)
+        with pytest.raises(type(error)):
+            _run_live_request(fail_request)
 
 
 class TestDemoPricesContract:
     def test_prices_envelope_and_parsing(self, demo: DemoResource) -> None:
         """DemoResource.prices() parses the real {status, data:{prices, meta}} envelope."""
-        try:
-            data = demo.prices()
-        except (httpx.HTTPError, OSError) as exc:  # pragma: no cover - network
-            _skip_on_network_error(exc)
+        data = _run_live_request(demo.prices)
 
         # data is the unwrapped `data` payload from the envelope.
         assert "prices" in data
@@ -88,10 +115,7 @@ class TestDemoPricesContract:
 
     def test_prices_meta_demo_mode(self, demo: DemoResource) -> None:
         """The demo prices meta block flags demo mode and lists free commodities."""
-        try:
-            data = demo.prices()
-        except (httpx.HTTPError, OSError) as exc:  # pragma: no cover - network
-            _skip_on_network_error(exc)
+        data = _run_live_request(demo.prices)
 
         meta = data["meta"]
         assert meta.get("demo_mode") is True
@@ -101,10 +125,7 @@ class TestDemoPricesContract:
 class TestDemoCommoditiesContract:
     def test_commodities_envelope_and_count(self, demo: DemoResource) -> None:
         """DemoResource.commodities() parses {status, data:{commodities, meta}}; 442 total."""
-        try:
-            data = demo.commodities()
-        except (httpx.HTTPError, OSError) as exc:  # pragma: no cover - network
-            _skip_on_network_error(exc)
+        data = _run_live_request(demo.commodities)
 
         assert "commodities" in data
         assert "meta" in data
@@ -131,10 +152,7 @@ class TestDemoCommoditiesContract:
 
     def test_commodities_codes_filter(self, demo: DemoResource) -> None:
         """Passing codes= returns only the requested free-tier prices."""
-        try:
-            data = demo.prices(codes=["BRENT_CRUDE_USD", "WTI_USD"])
-        except (httpx.HTTPError, OSError) as exc:  # pragma: no cover - network
-            _skip_on_network_error(exc)
+        data = _run_live_request(lambda: demo.prices(codes=["BRENT_CRUDE_USD", "WTI_USD"]))
 
         codes = {p["code"] for p in data["prices"]}
         assert codes == {"BRENT_CRUDE_USD", "WTI_USD"}
