@@ -240,6 +240,8 @@ class TestAsyncErrorHandling:
             "X-RateLimit-Limit": "1000",
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": "1705320000",
+            "X-RateLimit-State": "exhausted",
+            "X-RateLimit-Window": "monthly_counter",
         }
         mock_response.json = Mock(return_value={"error": "Rate limit exceeded"})
         mock_request.return_value = mock_response
@@ -249,6 +251,7 @@ class TestAsyncErrorHandling:
                 await client.prices.get("BRENT_CRUDE_USD")
 
             assert exc_info.value.status_code == 429
+            assert mock_request.call_count == 1
 
     @pytest.mark.asyncio
     @patch('httpx.AsyncClient.request')
