@@ -27,7 +27,13 @@ from oilpriceapi.resources.demo import DemoResource
 expected = sys.argv[1]
 assert __version__ == expected, (__version__, expected)
 assert OilPriceAPI(api_key="artifact-smoke").prices is not None
-assert DemoResource().base_url.startswith("https://")
+demo = DemoResource()
+assert demo.base_url.startswith("https://")
+prices = demo.prices()["prices"]
+brent = next((price for price in prices if price.get("code") == "BRENT_CRUDE_USD"), None)
+assert brent is not None
+assert isinstance(brent.get("price"), (int, float))
+assert brent.get("updated_at")
 ' "$expected_version"
 
-echo "clean wheel smoke passed for oilpriceapi $expected_version"
+echo "clean wheel install and production demo smoke passed for oilpriceapi $expected_version"

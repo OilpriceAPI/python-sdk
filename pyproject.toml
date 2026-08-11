@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+# Setuptools 77+ warns on the legacy license table, while the older backend
+# available on supported Python 3.8 cannot parse the replacement string form.
+requires = ["setuptools>=70.1,<77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -13,8 +15,7 @@ maintainers = [
     {name = "OilPriceAPI Team", email = "support@oilpriceapi.com"}
 ]
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = {file = "LICENSE"}
 keywords = [
     "oil", "prices", "api", "commodities", "energy",
     "brent", "wti", "natural gas", "source timestamps", "finance"
@@ -24,6 +25,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Financial and Insurance Industry",
     "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",

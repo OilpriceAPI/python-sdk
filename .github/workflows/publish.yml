@@ -37,7 +37,6 @@ jobs:
 
       - name: Lint source with ruff
         run: ruff check oilpriceapi/
-        continue-on-error: true
 
       - name: Run unit tests
         run: pytest tests/ --ignore=tests/integration --ignore=tests/contract -m 'not slow' --cov=oilpriceapi -v
