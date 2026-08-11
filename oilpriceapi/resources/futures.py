@@ -3,16 +3,22 @@ Futures Resource
 
 Futures contract price operations.
 
-Endpoints are keyed by *slug* (e.g. ``"ice-brent"``), not by raw exchange
-contract code. The latest-curve route is ``GET /v1/futures/{slug}`` and the
-sub-resources are ``/{slug}/curve``, ``/historical``, ``/ohlc``, ``/intraday``
-and ``/spread-history``. Each method accepts either a slug or a friendly
-contract code (e.g. ``"BZ"``, ``"CL"``, ``"NG"``) and normalizes it via
-:mod:`._futures_slug`.
+Endpoints are keyed by instrument-generic slugs (e.g. ``"brent"``), not by raw
+exchange contract code. The latest-curve route is ``GET /v1/futures/{slug}``
+and the sub-resources are ``/{slug}/curve``, ``/historical``, ``/ohlc``,
+``/intraday`` and ``/spread-history``. Each method accepts either a slug or a
+friendly contract code (e.g. ``"BZ"``, ``"CL"``, ``"NG"``) and normalizes it
+via :mod:`._futures_slug`.
 
-Valid slugs: ``ice-brent``, ``ice-wti``, ``ice-gasoil``, ``natural-gas``,
-``ttf-gas``, ``lng-jkm``, ``eua-carbon``, ``uk-carbon`` (+ continuous slugs
+Valid slugs: ``brent``, ``wti``, ``gasoil``, ``natural-gas``,
+``ttf-gas``, ``lng-jkm``, ``eu-carbon``, ``uk-carbon`` (+ continuous slugs
 ``continuous/brent`` and ``continuous/wti``).
+
+Examples:
+    >>> client.futures.latest("brent")
+    >>> client.futures.latest("wti")
+    >>> client.futures.latest("gasoil")
+    >>> client.futures.latest("eu-carbon")
 """
 
 from datetime import date, datetime
@@ -37,14 +43,14 @@ class FuturesResource:
         """Get the latest futures curve for a contract family.
 
         Args:
-            contract: Futures slug (e.g. ``"ice-brent"``, ``"ice-wti"``) or a
+            contract: Futures slug (e.g. ``"brent"``, ``"wti"``) or a
                 friendly contract code (e.g. ``"BZ"``, ``"CL"``, ``"NG"``).
 
         Returns:
             Latest futures curve data (front month + forward contracts)
 
         Example:
-            >>> curve = client.futures.latest("ice-brent")
+            >>> curve = client.futures.latest("brent")
             >>> # Friendly code form also works:
             >>> curve = client.futures.latest("BZ")
             >>> print(curve["front_month"]["last_price"])
@@ -78,7 +84,7 @@ class FuturesResource:
 
         Example:
             >>> history = client.futures.historical(
-            ...     contract="ice-wti",
+            ...     contract="wti",
             ...     start_date="2024-01-01",
             ...     end_date="2024-12-31"
             ... )
@@ -114,7 +120,7 @@ class FuturesResource:
             OHLC data with open, high, low, close, and volume
 
         Example:
-            >>> ohlc = client.futures.ohlc("ice-wti")
+            >>> ohlc = client.futures.ohlc("wti")
             >>> print(f"Open: ${ohlc['open']:.2f}")
             >>> print(f"High: ${ohlc['high']:.2f}")
             >>> print(f"Low: ${ohlc['low']:.2f}")
@@ -146,7 +152,7 @@ class FuturesResource:
             List of intraday price records
 
         Example:
-            >>> intraday = client.futures.intraday("ice-wti")
+            >>> intraday = client.futures.intraday("wti")
             >>> for record in intraday:
             ...     print(f"{record['time']}: ${record['price']:.2f}")
         """
@@ -199,7 +205,7 @@ class FuturesResource:
             List of futures curve data points
 
         Example:
-            >>> curve = client.futures.curve("ice-wti")
+            >>> curve = client.futures.curve("wti")
             >>> for point in curve:
             ...     print(f"{point['month']}: ${point['price']:.2f}")
         """
@@ -251,9 +257,9 @@ class FuturesResource:
         slug = normalize_futures_slug(contract)
         if slug.startswith("continuous/"):
             return slug
-        if slug in ("ice-brent",):
+        if slug == "brent":
             return "continuous/brent"
-        if slug in ("ice-wti",):
+        if slug == "wti":
             return "continuous/wti"
         raise ValueError(
             f"Continuous futures are only available for Brent and WTI, "

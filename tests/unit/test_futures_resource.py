@@ -2,9 +2,11 @@
 Unit tests for FuturesResource
 """
 
-import pytest
-from unittest.mock import Mock, patch
 from datetime import date, datetime
+from unittest.mock import patch
+
+import pytest
+
 from oilpriceapi import OilPriceAPI
 
 
@@ -25,6 +27,56 @@ class TestFuturesResource:
 
             assert price["contract"] == "CL.1"
             assert price["price"] == 75.50
+
+    @pytest.mark.parametrize(
+        "method", ["latest", "historical", "ohlc", "intraday", "curve"]
+    )
+    @pytest.mark.parametrize(
+        "contract,canonical",
+        [
+            ("brent", "brent"),
+            ("BZ", "brent"),
+            ("ice-brent", "brent"),
+            ("wti", "wti"),
+            ("CL", "wti"),
+            ("ice-wti", "wti"),
+            ("gasoil", "gasoil"),
+            ("G", "gasoil"),
+            ("ice-gasoil", "gasoil"),
+            ("eu-carbon", "eu-carbon"),
+            ("EUA", "eu-carbon"),
+            ("eua-carbon", "eu-carbon"),
+        ],
+    )
+    def test_futures_methods_use_generic_routes(
+        self, client, method, contract, canonical
+    ):
+        suffix = "" if method == "latest" else f"/{method}"
+        with patch.object(client, "request", return_value={"data": []}) as request:
+            getattr(client.futures, method)(contract)
+
+        assert request.call_args.kwargs["path"] == f"/v1/futures/{canonical}{suffix}"
+
+    @pytest.mark.parametrize(
+        "contract,canonical",
+        [
+            ("brent", "brent"),
+            ("BZ", "brent"),
+            ("ice-brent", "brent"),
+            ("wti", "wti"),
+            ("CL", "wti"),
+            ("ice-wti", "wti"),
+        ],
+    )
+    def test_continuous_accepts_generic_code_and_legacy_inputs(
+        self, client, contract, canonical
+    ):
+        with patch.object(client, "request", return_value={"data": []}) as request:
+            client.futures.continuous(contract)
+
+        assert request.call_args.kwargs["path"] == (
+            f"/v1/futures/continuous/{canonical}/historical"
+        )
 
     def test_historical(self, client):
         """Test getting historical futures prices"""
@@ -47,7 +99,7 @@ class TestFuturesResource:
             start = date(2024, 1, 1)
             end = datetime(2024, 1, 31, 23, 59, 59)
 
-            history = client.futures.historical("CL.1", start_date=start, end_date=end)
+            client.futures.historical("CL.1", start_date=start, end_date=end)
 
             call_args = mock_req.call_args
             assert call_args[1]["params"]["start_date"] == "2024-01-01"

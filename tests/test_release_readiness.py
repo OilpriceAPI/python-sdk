@@ -87,6 +87,23 @@ def test_examples_defer_mutable_allowances_to_product_facts() -> None:
     )
 
 
+def test_packaged_futures_examples_prefer_instrument_generic_slugs() -> None:
+    for path in (
+        "oilpriceapi/resources/futures.py",
+        "oilpriceapi/async_resources.py",
+    ):
+        source = (ROOT / path).read_text()
+        example_lines = re.findall(r"(?m)^\s*(?:>>>|\.\.\.)\s+.*$", source)
+        examples = "\n".join(example_lines)
+
+        for example_line in example_lines:
+            assert not re.search(r"[\"'](?:ice|eua)-", example_line)
+        for canonical_slug in ("brent", "wti", "gasoil", "eu-carbon"):
+            assert canonical_slug in examples, (
+                f"{path} examples omit {canonical_slug}"
+            )
+
+
 def test_publish_gate_audits_and_installs_the_built_wheel() -> None:
     workflow = (ROOT / ".github" / "workflows" / "publish.yml").read_text()
     smoke = (ROOT / "scripts" / "clean-wheel-smoke.sh").read_text()
@@ -142,7 +159,7 @@ def test_package_version_helper_reads_the_project_version() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "1.12.5"
+    assert result.stdout.strip() == "1.12.6"
 
 
 def test_every_workflow_pins_actions_and_hardens_each_checkout_step() -> None:
