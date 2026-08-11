@@ -15,21 +15,36 @@ class TestNormalizeFuturesSlug:
             assert normalize_futures_slug(slug) == slug
 
     def test_slug_case_insensitive(self):
-        assert normalize_futures_slug("ICE-BRENT") == "ice-brent"
+        assert normalize_futures_slug("BRENT") == "brent"
         assert normalize_futures_slug("Natural-Gas") == "natural-gas"
+
+    @pytest.mark.parametrize(
+        "legacy,expected",
+        [
+            ("ice-brent", "brent"),
+            ("ICE-BRENT", "brent"),
+            ("ice-wti", "wti"),
+            ("ice-gasoil", "gasoil"),
+            ("eua-carbon", "eu-carbon"),
+        ],
+    )
+    def test_legacy_venue_slug_normalizes_to_generic_route(self, legacy, expected):
+        assert normalize_futures_slug(legacy) == expected
 
     @pytest.mark.parametrize(
         "code,expected",
         [
-            ("BZ", "ice-brent"),
-            ("CL", "ice-wti"),
-            ("G", "ice-gasoil"),
-            ("QS", "ice-gasoil"),
+            ("BZ", "brent"),
+            ("CL", "wti"),
+            ("G", "gasoil"),
+            ("QS", "gasoil"),
             ("NG", "natural-gas"),
             ("TTF", "ttf-gas"),
             ("JKM", "lng-jkm"),
-            ("EUA", "eua-carbon"),
+            ("EUA", "eu-carbon"),
+            ("EU_CARBON", "eu-carbon"),
             ("UKA", "uk-carbon"),
+            ("UK_CARBON", "uk-carbon"),
         ],
     )
     def test_contract_code_to_slug(self, code, expected):
@@ -39,11 +54,11 @@ class TestNormalizeFuturesSlug:
     @pytest.mark.parametrize(
         "code,expected",
         [
-            ("CL.1", "ice-wti"),
-            ("BZ.1", "ice-brent"),
-            ("CL1!", "ice-wti"),
+            ("CL.1", "wti"),
+            ("BZ.1", "brent"),
+            ("CL1!", "wti"),
             ("NG-2025-12", "natural-gas"),
-            ("BZ_2026_01", "ice-brent"),
+            ("BZ_2026_01", "brent"),
         ],
     )
     def test_contract_code_with_suffix(self, code, expected):

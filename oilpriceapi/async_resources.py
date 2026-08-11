@@ -316,9 +316,10 @@ class AsyncCommoditiesResource:
 class AsyncFuturesResource:
     """Async resource for futures contract operations.
 
-    Endpoints are keyed by *slug* (e.g. ``"ice-brent"``). Methods accept either
-    a slug or a friendly contract code (``"BZ"``, ``"CL"``, ``"NG"``, ...),
-    normalized via :func:`normalize_futures_slug`.
+    Endpoints are keyed by instrument-generic slugs (e.g. ``"brent"``).
+    Methods accept either a slug or a friendly contract code (``"BZ"``,
+    ``"CL"``, ``"NG"``, ...), normalized via
+    :func:`normalize_futures_slug`.
     """
 
     def __init__(self, client):
@@ -328,7 +329,7 @@ class AsyncFuturesResource:
         """Get the latest futures curve. Accepts a slug or contract code.
 
         Example:
-            >>> await client.futures.latest("ice-brent")  # or "BZ"
+            >>> await client.futures.latest("brent")  # or "BZ"
         """
         slug = normalize_futures_slug(contract)
         response = await self.client.request(method="GET", path=f"/v1/futures/{slug}")
@@ -404,9 +405,9 @@ class AsyncFuturesResource:
         slug = normalize_futures_slug(contract)
         if slug.startswith("continuous/"):
             return slug
-        if slug == "ice-brent":
+        if slug == "brent":
             return "continuous/brent"
-        if slug == "ice-wti":
+        if slug == "wti":
             return "continuous/wti"
         raise ValueError(
             f"Continuous futures are only available for Brent and WTI, "

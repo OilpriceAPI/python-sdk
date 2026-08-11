@@ -1,16 +1,17 @@
 """
 Futures slug normalization.
 
-The OilPriceAPI futures endpoints are keyed by *slug*, not by exchange
-contract code. The latest-curve route is ``GET /v1/futures/{slug}`` and the
-sub-resources are ``/v1/futures/{slug}/curve``, ``/historical``, ``/ohlc``,
-``/intraday`` and ``/spread-history``. There is no ``?contract=`` route, so a
-caller passing a raw ticker such as ``"CL.1"`` would hit
+The OilPriceAPI futures endpoints are keyed by instrument-generic slugs, not by
+exchange contract codes. The latest-curve route is ``GET /v1/futures/{slug}``
+and the sub-resources are ``/v1/futures/{slug}/curve``, ``/historical``,
+``/ohlc``, ``/intraday`` and ``/spread-history``. There is no ``?contract=``
+route, so a caller passing a raw ticker such as ``"CL.1"`` would hit
 ``/v1/futures/CL.1`` and get a 404.
 
 To keep the SDK friendly, callers may pass either:
 
-* a canonical slug (``"ice-brent"``, ``"ice-wti"``, ``"natural-gas"``, ...), or
+* a canonical slug (``"brent"``, ``"wti"``, ``"natural-gas"``, ...),
+* a legacy venue slug (``"ice-brent"``, ``"ice-wti"``, ...), or
 * a familiar exchange/contract code (``"BZ"``, ``"CL"``, ``"NG"``, ...),
 
 and :func:`normalize_futures_slug` resolves it to the canonical slug the API
@@ -23,38 +24,47 @@ Mappings verified against the Rails API
 
 from typing import Dict, Set
 
-# Canonical slugs accepted by the API (latest-curve routes).
+# Canonical slugs emitted by the SDK for latest-curve routes.
 VALID_SLUGS: Set[str] = {
-    "ice-brent",
-    "ice-wti",
-    "ice-gasoil",
+    "brent",
+    "wti",
+    "gasoil",
     "natural-gas",
     "ttf-gas",
     "lng-jkm",
-    "eua-carbon",
+    "eu-carbon",
     "uk-carbon",
     "continuous/brent",
     "continuous/wti",
 }
 
-# Friendly exchange/contract codes -> canonical slug.
+# Older public route names remain valid caller inputs, but the SDK emits the
+# instrument-generic route so new traffic does not encode a reporting venue.
+LEGACY_SLUG_TO_CANONICAL: Dict[str, str] = {
+    "ice-brent": "brent",
+    "ice-wti": "wti",
+    "ice-gasoil": "gasoil",
+    "eua-carbon": "eu-carbon",
+}
+
+# Friendly exchange/contract codes -> canonical instrument slug.
 # Keys are matched case-insensitively against the leading contract symbol
-# (e.g. "CL", "CL.1", "CL1!" all resolve to ice-wti).
+# (e.g. "CL", "CL.1", "CL1!" all resolve to wti).
 CONTRACT_CODE_TO_SLUG: Dict[str, str] = {
-    "BZ": "ice-brent",      # ICE Brent
-    "BRENT": "ice-brent",
-    "CL": "ice-wti",        # WTI (NYMEX/ICE ticker)
-    "WTI": "ice-wti",
-    "G": "ice-gasoil",      # ICE Gas Oil
-    "QS": "ice-gasoil",     # ICE Gas Oil (alt ticker)
-    "GASOIL": "ice-gasoil",
+    "BZ": "brent",
+    "BRENT": "brent",
+    "CL": "wti",
+    "WTI": "wti",
+    "G": "gasoil",
+    "QS": "gasoil",
+    "GASOIL": "gasoil",
     "NG": "natural-gas",    # NYMEX Henry Hub natural gas
     "NATGAS": "natural-gas",
     "TTF": "ttf-gas",       # ICE TTF natural gas
     "JKM": "lng-jkm",       # ICE/CME JKM LNG
     "LNG": "lng-jkm",
-    "EUA": "eua-carbon",    # ICE EUA carbon
-    "EU_CARBON": "eua-carbon",
+    "EUA": "eu-carbon",
+    "EU_CARBON": "eu-carbon",
     "UKA": "uk-carbon",     # ICE UKA (UK) carbon
     "UK_CARBON": "uk-carbon",
 }
@@ -67,10 +77,10 @@ def normalize_futures_slug(contract: str) -> str:
     friendly exchange/contract code (e.g. ``"BZ"``, ``"CL.1"``, ``"NG"``).
 
     Args:
-        contract: A slug (``"ice-brent"``) or a contract code (``"BZ"``).
+        contract: A slug (``"brent"``) or a contract code (``"BZ"``).
 
     Returns:
-        The canonical slug the API expects (e.g. ``"ice-brent"``).
+        The instrument-generic slug the API expects (e.g. ``"brent"``).
 
     Raises:
         ValueError: If ``contract`` is empty or cannot be resolved.
@@ -85,9 +95,17 @@ def normalize_futures_slug(contract: str) -> str:
     if lowered in VALID_SLUGS:
         return lowered
 
+    legacy_slug = LEGACY_SLUG_TO_CANONICAL.get(lowered)
+    if legacy_slug is not None:
+        return legacy_slug
+
+    symbol = raw.upper()
+    exact_code_slug = CONTRACT_CODE_TO_SLUG.get(symbol)
+    if exact_code_slug is not None:
+        return exact_code_slug
+
     # Contract code form: take the leading symbol before any month/order
     # suffix such as ".1", "1!", "-2025-12", "_2025_12".
-    symbol = raw.upper()
     for sep in (".", "!", "-", "_", " "):
         if sep in symbol:
             symbol = symbol.split(sep, 1)[0]

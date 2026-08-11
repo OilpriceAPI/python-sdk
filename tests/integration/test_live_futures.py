@@ -57,8 +57,8 @@ def live_client():
 
 
 def test_latest_by_slug(live_client):
-    """futures.latest('ice-brent') returns 200 + a sane Brent price."""
-    curve = live_client.futures.latest("ice-brent")
+    """futures.latest('brent') returns 200 + a sane Brent price."""
+    curve = live_client.futures.latest("brent")
     assert isinstance(curve, dict)
     price = _front_price(curve)
     # Sanity range for Brent crude (USD/bbl).
@@ -66,7 +66,7 @@ def test_latest_by_slug(live_client):
 
 
 def test_latest_by_contract_code(live_client):
-    """Friendly code 'BZ' normalizes to ice-brent and returns a sane price."""
+    """Friendly code 'BZ' normalizes to brent and returns a sane price."""
     time.sleep(RATE_LIMIT_SLEEP)
     curve = live_client.futures.latest("BZ")
     assert isinstance(curve, dict)
@@ -74,10 +74,19 @@ def test_latest_by_contract_code(live_client):
     assert 10 < price < 500, f"Brent (BZ) price out of sane range: {price}"
 
 
-def test_curve(live_client):
-    """futures.curve('ice-brent') returns 200 with curve data."""
+def test_latest_by_legacy_slug(live_client):
+    """Legacy venue input remains compatible while using the generic route."""
     time.sleep(RATE_LIMIT_SLEEP)
-    curve = live_client.futures.curve("ice-brent")
+    curve = live_client.futures.latest("ice-brent")
+    assert isinstance(curve, dict)
+    price = _front_price(curve)
+    assert 10 < price < 500, f"Brent legacy input price out of sane range: {price}"
+
+
+def test_curve(live_client):
+    """futures.curve('brent') returns 200 with curve data."""
+    time.sleep(RATE_LIMIT_SLEEP)
+    curve = live_client.futures.curve("brent")
     # Curve responses may be a list of points or a dict wrapping them.
     assert curve is not None
     if isinstance(curve, dict):

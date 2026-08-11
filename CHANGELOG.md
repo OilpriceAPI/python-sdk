@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.6] - 2026-08-11
+
+### Changed
+
+- Route Brent, WTI, gasoil, and EU carbon futures through the API's
+  instrument-generic paths in sync and async clients. Existing venue-slug and
+  contract-code inputs remain compatible and normalize to those same paths.
+
 ## [1.12.5] - 2026-08-11
 
 ### Added
