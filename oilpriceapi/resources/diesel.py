@@ -16,7 +16,7 @@ class DieselResource:
     Provides access to state-level diesel price averages and station-level pricing.
 
     Example:
-        >>> # Get state average (free tier)
+        >>> # Get the available state average
         >>> price = client.diesel.get_price("CA")
         >>> print(f"California diesel: ${price.price:.2f}/gallon")
 
@@ -107,11 +107,9 @@ class DieselResource:
 
         **Tier Requirements:** Available on paid tiers (Exploration and above)
 
-        **Pricing Tiers:**
-        - Exploration: 100 station queries/month
-        - Starter: 500 station queries/month
-        - Professional: 2,000 station queries/month
-        - Business: 5,000 station queries/month
+        Station-level access and allowances depend on the account's current
+        entitlement. Review https://www.oilpriceapi.com/pricing and the API's
+        response metadata instead of relying on SDK-bundled limits.
 
         **Caching:** Results are cached for 24 hours to minimize costs.
 

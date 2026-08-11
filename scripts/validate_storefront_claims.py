@@ -1,42 +1,103 @@
 #!/usr/bin/env python3
-"""Reject stale mutable claims from files rendered by PyPI and GitHub."""
+"""Reject stale mutable claims from authored, generated, and packaged surfaces."""
 
+import argparse
 import re
 from pathlib import Path
-from typing import List
+from typing import Iterable, List, Pattern, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
-SURFACES = (
-    ROOT / "README.md",
-    ROOT / "pyproject.toml",
-    ROOT / "oilpriceapi" / "__init__.py",
-)
-BLOCKED = (
-    re.compile(r"\breal[ -]?time\b", re.IGNORECASE),
-    re.compile(r"\b(?:110|200|500)\+\s+(?:commodit|endpoint|tool)", re.IGNORECASE),
-    re.compile(r"\b2m\+?\s+api requests", re.IGNORECASE),
-    re.compile(r"\b(?:every|updated|refresh(?:ed)?)\s+(?:in\s+)?5 minutes\b", re.IGNORECASE),
-    re.compile(r"\b(?:99\.\d+%|fortune 500|trading[- ]grade)\b", re.IGNORECASE),
-    re.compile(r"\b(?:1,000|100)\s+requests?(?:/month|\s+per month|\s+\(lifetime\))", re.IGNORECASE),
-    re.compile(r"\bunlimited\s+(?:history|webhooks?|requests?|commodit)", re.IGNORECASE),
-)
 CONTRACT = "https://api.oilpriceapi.com/product-facts.json"
+BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
+    ("real-time claim", re.compile(r"\breal[ -]?time\b", re.IGNORECASE)),
+    (
+        "fixed catalog total",
+        re.compile(r"\b\d+\+\s+(?:commodit|endpoint|tool|api)", re.IGNORECASE),
+    ),
+    ("fixed traffic total", re.compile(r"\b2m\+?\s+api requests", re.IGNORECASE)),
+    (
+        "fixed update cadence",
+        re.compile(
+            r"\b(?:every|updated|refresh(?:ed)?)\s+(?:in\s+)?\d+\s+minutes\b",
+            re.IGNORECASE,
+        ),
+    ),
+    ("uptime or SLA", re.compile(r"\b\d+(?:\.\d+)?%\s+uptime\b|\bSLA\b", re.IGNORECASE)),
+    (
+        "price comparison",
+        re.compile(r"\bbloomberg\b|\b\d+(?:\.\d+)?%\s+less\s+cost\b", re.IGNORECASE),
+    ),
+    (
+        "unreviewed plan name",
+        re.compile(
+            r"\bprofessional(?:\+|\s+plan)\b|\bprofessional\*{0,2}\s*:|"
+            r"\bstarter plan\b|\bscale tier\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "unreviewed plan price",
+        re.compile(r"\$\d+(?:\.\d+)?\s*(?:/|per\s+)(?:mo(?:nth)?|year)\b", re.IGNORECASE),
+    ),
+    (
+        "fixed allowance",
+        re.compile(
+            r"\b\d[\d,]*\s+(?:free\s+)?(?:api\s+requests?|station\s+queries?)"
+            r"\s*(?:/|per\s+)month\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "quota promise",
+        re.compile(
+            r"\bdoes\s+not\s+consume.{0,40}\bquota\b|"
+            r"\bunlimited\s+(?:history|webhooks?|requests?|commodit)",
+            re.IGNORECASE,
+        ),
+    ),
+    ("free-tier claim", re.compile(r"\bfree\s+tier\b|\bfree\s+api\s+key\b", re.IGNORECASE)),
+    (
+        "fixed demo rate",
+        re.compile(
+            r"\b\d+\s+(?:requests?|reqs?\.?)\s*(?:(?:per|an?)\s+|/\s*)"
+            r"(?:minutes?|mins?|hours?|hrs?|days?)\b",
+            re.IGNORECASE,
+        ),
+    ),
+)
 
 
-def validate() -> List[str]:
-    failures = []
-    for path in SURFACES:
+def discover_public_surfaces(root: Path = ROOT) -> List[Path]:
+    surfaces = [root / "README.md", root / "EXAMPLES.md", root / "pyproject.toml"]
+    surfaces.extend(sorted((root / "docs").rglob("*.md")))
+    surfaces.extend(sorted((root / "oilpriceapi").rglob("*.py")))
+    return sorted(surfaces)
+
+
+def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
+    failures: List[str] = []
+    for path in surfaces:
         text = path.read_text()
-        for pattern in BLOCKED:
-            if pattern.search(text):
-                failures.append(f"{path.relative_to(ROOT)}: blocked claim matched {pattern.pattern}")
+        for label, pattern in BLOCKED:
+            match = pattern.search(text)
+            if match:
+                if label == "fixed demo rate" and match.group(0).lower() == "50 requests/day":
+                    continue
+                failures.append(
+                    f"{path.relative_to(root)}: {label} matched {match.group(0)!r}"
+                )
+    return failures
 
-    readme = (ROOT / "README.md").read_text()
+
+def validate(root: Path = ROOT) -> List[str]:
+    failures = _claim_failures(root, discover_public_surfaces(root))
+
+    readme = (root / "README.md").read_text()
     if CONTRACT not in readme:
         failures.append("README.md: reviewed product-facts contract is not linked")
 
-    project = (ROOT / "pyproject.toml").read_text()
-    version_file = (ROOT / "oilpriceapi" / "version.py").read_text()
+    project = (root / "pyproject.toml").read_text()
+    version_file = (root / "oilpriceapi" / "version.py").read_text()
     project_match = re.search(r'^version = "([^"]+)"', project, re.MULTILINE)
     module_match = re.search(r'^__version__ = "([^"]+)"', version_file, re.MULTILINE)
     if not project_match or not module_match or project_match.group(1) != module_match.group(1):
@@ -44,11 +105,41 @@ def validate() -> List[str]:
     return failures
 
 
+def validate_package(package_root: Path) -> List[str]:
+    package_root = package_root.resolve()
+    package_dir = package_root / "oilpriceapi"
+    metadata_files = sorted(package_root.glob("oilpriceapi-*.dist-info/METADATA"))
+    surfaces = sorted(package_dir.rglob("*.py")) + metadata_files
+    failures = _claim_failures(package_root, surfaces)
+
+    if len(metadata_files) != 1:
+        failures.append("installed artifact must contain exactly one oilpriceapi METADATA file")
+        return failures
+
+    metadata = metadata_files[0].read_text()
+    if CONTRACT not in metadata:
+        failures.append("installed METADATA: reviewed product-facts contract is not linked")
+
+    version_file = (package_dir / "version.py").read_text()
+    module_match = re.search(r'^__version__ = "([^"]+)"', version_file, re.MULTILINE)
+    metadata_match = re.search(r"^Version: ([^\s]+)$", metadata, re.MULTILINE)
+    if not module_match or not metadata_match or module_match.group(1) != metadata_match.group(1):
+        failures.append("installed METADATA version differs from oilpriceapi/version.py")
+    return failures
+
+
 def main() -> None:
-    failures = validate()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--package-root", type=Path)
+    args = parser.parse_args()
+
+    failures = validate_package(args.package_root) if args.package_root else validate()
     if failures:
         raise SystemExit("\n".join(failures))
-    print(f"validated {len(SURFACES)} Python storefront surfaces")
+    if args.package_root:
+        print("validated exact installed Python artifact claims")
+    else:
+        print(f"validated {len(discover_public_surfaces())} Python public surfaces")
 
 
 if __name__ == "__main__":

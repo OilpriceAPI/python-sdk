@@ -231,23 +231,23 @@ while True:
 **Problems:**
 - Wastes API quota
 - Unnecessary load on API
-- Price only updates ~every 5 minutes
+- Ignores the record's API-provided source timestamp and freshness metadata
 
 **Solution:**
 ```python
-# Poll at reasonable interval
+# Choose an interval from API limits and the application's freshness need
 import time
 
 while True:
     price = client.prices.get("WTI_USD")
     print(f"WTI: ${price.value}")
-    time.sleep(300)  # Poll every 5 minutes
+    time.sleep(300)  # Example client-selected interval
 ```
 
-**Better Solution (for real-time):**
+**Better Solution (for streamed updates):**
 ```python
-# Use WebSocket for real-time updates (if available)
-# Or increase polling interval to match update frequency
+# Use WebSocket streaming when the account is entitled to it.
+# Otherwise use response metadata to select the polling interval.
 ```
 
 ### Pitfall 2: Fetching All Historical Data
@@ -344,7 +344,7 @@ def get_cached_price(commodity, cache_key):
     client = OilPriceAPI()
     return client.prices.get(commodity)
 
-# Cache key changes every 5 minutes
+# Example cache bucket selected by this application
 def get_current_price(commodity):
     cache_key = int(datetime.now().timestamp() / 300)
     return get_cached_price(commodity, cache_key)
@@ -389,13 +389,13 @@ def get_cached_price(client, commodity):
 ### When to Cache
 
 ✅ **Good candidates for caching:**
-- Latest prices (updates every 5 minutes)
+- Latest prices, keyed by the API-provided source timestamp
 - Historical data (never changes)
 - Commodity metadata
 - Static reference data
 
 ❌ **Don't cache:**
-- Real-time price updates (if using WebSocket)
+- Streamed price updates (when using WebSocket)
 - User-specific data
 - Data that changes frequently
 

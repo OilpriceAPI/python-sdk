@@ -2,7 +2,7 @@
 
 This guide showcases practical applications of the [OilPriceAPI Python SDK](https://oilpriceapi.com) for energy trading, financial analysis, research, and application development.
 
-**[Get your free API key →](https://oilpriceapi.com/auth/signup)** to run these examples.
+**[Create an API key →](https://oilpriceapi.com/auth/signup)** to run these examples.
 
 ## 📊 Table of Contents
 
@@ -262,7 +262,7 @@ print(f"Predicted change: {((predictions[-1] - y[-1]) / y[-1] * 100):.2f}%")
 
 ## 💻 Web & Mobile Applications
 
-### Example 7: Real-Time Price Dashboard (Streamlit)
+### Example 7: Current Price Dashboard (Streamlit)
 
 Create an interactive web dashboard for monitoring oil prices.
 
@@ -320,7 +320,7 @@ try:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.success(f"✅ Data updates every 5 minutes • [View all commodities](https://docs.oilpriceapi.com/commodities)")
+    st.success(f"✅ Values include API-provided source timestamps • [View commodity metadata](https://docs.oilpriceapi.com/commodities)")
 
 except Exception as e:
     st.error(f"Error: {e}")
@@ -456,7 +456,7 @@ def monitor_prices():
             elif price.value < limits['low']:
                 send_alert(commodity, price.value, limits['low'], 'BELOW')
 
-        # Check every 5 minutes (aligned with API update frequency)
+        # Example caller-selected interval; honor API limit and freshness metadata.
         time.sleep(300)
 
 if __name__ == '__main__':
@@ -621,7 +621,7 @@ print("📊 Powered by https://oilpriceapi.com")
 
 Ready to build with these examples?
 
-1. **[Sign up for free](https://oilpriceapi.com/auth/signup)** - Get 50 requests/day
+1. **[Create an API key](https://oilpriceapi.com/auth/signup)** - The current free-account allowance is 50 requests/day; verify the [product facts](https://api.oilpriceapi.com/product-facts.json)
 2. **[Install the SDK](https://pypi.org/project/oilpriceapi/)** - `pip install oilpriceapi`
 3. **[Read the docs](https://docs.oilpriceapi.com/sdk/python)** - Complete API reference
 4. **[Choose a plan](https://oilpriceapi.com/pricing)** - Upgrade for more requests
