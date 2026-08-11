@@ -4,7 +4,33 @@ EI Well Permits Resource
 Energy Intelligence well permit data operations.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from ...exceptions import OilPriceAPIError
+
+
+def unwrap_well_permit_search_response(response: Any) -> List[Dict[str, Any]]:
+    """Return a typed permit list or fail on an unknown successful shape."""
+    permits: Any
+    if isinstance(response, list):
+        permits = response
+    elif isinstance(response, dict) and "well_permits" in response:
+        permits = response["well_permits"]
+    elif isinstance(response, dict) and isinstance(response.get("data"), dict):
+        data = response["data"]
+        permits = data.get("well_permits") if "well_permits" in data else None
+    elif isinstance(response, dict) and "data" in response:
+        permits = response["data"]
+    else:
+        permits = None
+
+    if not isinstance(permits, list) or not all(isinstance(item, dict) for item in permits):
+        raise OilPriceAPIError(
+            "Malformed well-permit search response: expected a well_permits list",
+            code="MALFORMED_RESPONSE",
+            raw_body=response,
+        )
+    return permits
 
 
 class EIWellPermitsResource:
@@ -181,29 +207,32 @@ class EIWellPermitsResource:
             return response["data"]
         return response
 
-    def search(self, query: str, **params) -> List[Dict[str, Any]]:
+    def search(
+        self,
+        query: Optional[str] = None,
+        **params: Any,
+    ) -> List[Dict[str, Any]]:
         """Search well permits.
 
         Args:
-            query: Search query string
-            **params: Optional query parameters for filtering
+            query: Optional legacy free-form query string.
+            **params: Live search filters such as ``states``, ``county``,
+                ``well_name``, ``permit_type``, and date or radius fields.
 
         Returns:
             List of matching permit records
 
         Example:
-            >>> results = client.ei.well_permits.search("Chevron")
+            >>> results = client.ei.well_permits.search(states="TX", well_name="Eagle")
             >>> for result in results:
-            ...     print(f"{result['operator']}: {result['state']}")
+            ...     print(f"{result['operator']['name']}: {result['state_code']}")
         """
-        params["query"] = query
+        if query is not None:
+            params["query"] = query
         response = self.client.request(
             method="GET",
             path="/v1/ei/well-permits/search",
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_well_permit_search_response(response)

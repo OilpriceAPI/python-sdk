@@ -6,8 +6,8 @@ name: Live API Tests
 #      secret. Runs unconditionally on every push/PR, so route health and
 #      envelope-shape coverage can never silently skip (this tier caught
 #      the 442->436 catalog change keyless).
-#   2. Keyed live tests — auth path + gated endpoints, only when the
-#      OILPRICEAPI_TEST_KEY secret is available (skips loudly on forks).
+#   2. Keyed live tests — auth path + gated endpoints, required for exact
+#      default-branch code and never exposed to pull requests or other refs.
 
 on:
   push:
@@ -16,16 +16,22 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   live-tests:
     name: Live API tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
 
@@ -38,24 +44,26 @@ jobs:
       - name: Keyless demo smoke (always runs)
         run: pytest tests/integration/test_demo_contract.py -m live --no-cov -v
 
-      # Tier 2: full live suite, gated on the repo secret (forks skip loudly).
+      # Tier 2: full live suite is required only for protected default-branch code.
       - name: Keyed live tests
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
           OILPRICEAPI_TEST_KEY: ${{ secrets.OILPRICEAPI_TEST_KEY }}
         run: |
           if [ -z "$OILPRICEAPI_TEST_KEY" ]; then
-            echo "::warning::OILPRICEAPI_TEST_KEY not available (fork?); keyed live tests skipped. Keyless demo smoke above still ran."
-            exit 0
+            echo "::error::OILPRICEAPI_TEST_KEY is required for default-branch live tests"
+            exit 1
           fi
           pytest tests/integration -m live --no-cov -v
 
       - name: Run canonical success snippets against production
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
           OILPRICEAPI_KEY: ${{ secrets.OILPRICEAPI_TEST_KEY }}
         run: |
           if [ -z "$OILPRICEAPI_KEY" ]; then
-            echo "::warning::OILPRICEAPI_TEST_KEY not available; canonical snippet smoke skipped."
-            exit 0
+            echo "::error::OILPRICEAPI_TEST_KEY is required for default-branch snippet smoke"
+            exit 1
           fi
           python examples/snippets/latest_price.py
           python examples/snippets/history.py

@@ -137,6 +137,55 @@ print(
 Use the raw first-request pattern when downstream logic requires the exact
 source and timestamp-field semantics from the API response.
 
+## Permit To Production
+
+Well-level production coverage is narrower than permit coverage. Check the
+live coverage response before following a permit into monthly production:
+
+```python
+import os
+
+from oilpriceapi import OilPriceAPI
+from oilpriceapi.exceptions import DataNotFoundError
+
+with OilPriceAPI(api_key=os.environ["OILPRICEAPI_KEY"]) as client:
+    summary = client.well_production.summary()
+    if not isinstance(summary, dict):
+        raise RuntimeError("MALFORMED_RESPONSE: well-production summary is invalid")
+    coverage = summary.get("coverage")
+    if not isinstance(coverage, dict):
+        raise RuntimeError("MALFORMED_RESPONSE: well-production coverage is missing")
+
+    covered_state_values = coverage.get("well_level_states_with_data")
+    if not isinstance(covered_state_values, list):
+        raise RuntimeError("MALFORMED_RESPONSE: well-level state coverage is missing")
+    covered_states = set(covered_state_values)
+    permits = client.ei.well_permits.search(states="TX", well_name="Eagle")
+
+    for permit in permits:
+        api_number = permit.get("api_number")
+        if (
+            permit.get("state_code") not in covered_states
+            or not isinstance(api_number, str)
+            or len(api_number) != 14
+            or not api_number.isascii()
+            or not api_number.isdigit()
+        ):
+            continue
+
+        try:
+            production = client.well_production.well(api_number)
+        except DataNotFoundError:
+            continue
+        well = permit.get("well")
+        well_name = well.get("name") if isinstance(well, dict) else None
+        print(well_name, production.get("data", []))
+```
+
+An empty permit search or production history is a valid data state. Do not
+infer broader well-level coverage from the presence of permit data or an SDK
+helper; dataset and account availability come from the current API response.
+
 ## Complete pandas DataFrames
 
 Install the optional pandas support, then request a historical DataFrame:
