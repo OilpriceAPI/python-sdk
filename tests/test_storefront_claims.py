@@ -157,12 +157,38 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
         "100 API requests every hour",
         "daily cap is 50 calls",
         "50-call-per-day allowance",
+        "50 requests per 24 hours",
+        "50 requests every 24 hours",
+        "50 API calls in a day",
+        "daily 50-request limit",
+        "24-hour quota of 50 calls",
+        "API call rate limit is 200 every hour",
+        "weekly 5,000-credit allowance",
+        "2,000 queries per 30 days",
+        "50/day API calls",
+        "50 daily API calls",
+        "API calls: 50 per day",
+        "API calls daily: 50",
+        "daily API calls: 50",
+        "50 requests over a rolling 24-hour window",
+        "50 API calls during any one-hour period",
+        "50 request limit per day",
+        "50-call limit per day",
+        "50 requests allowed daily",
+        "<p>daily <strong>50</strong> API calls</p>",
     ],
 )
 def test_rejects_fixed_rate_aliases_in_installed_text(tmp_path: Path, claim: str) -> None:
     failures = _installed_text_failures(tmp_path, claim)
 
     assert any("fixed demo rate" in failure for failure in failures), failures
+
+
+def test_reports_one_failure_for_overlapping_monthly_rate(tmp_path: Path) -> None:
+    failures = _installed_text_failures(tmp_path, "50 API requests per month")
+
+    matching = [failure for failure in failures if "50 API requests per month" in failure]
+    assert len(matching) == 1, failures
 
 
 @pytest.mark.parametrize(
@@ -172,6 +198,12 @@ def test_rejects_fixed_rate_aliases_in_installed_text(tmp_path: Path, claim: str
         "Run 50 tests daily.",
         "The response contains 50 records per page.",
         "Retry attempt 50 failed.",
+        "Daily 50-test limit.",
+        "A 24-hour test window contains 50 assertions.",
+        "The monthly report contains 50 records.",
+        "1 week queries",
+        "return 120  # 2 minutes for year queries",
+        "50 records are returned. Requests include timestamps updated daily.",
     ],
 )
 def test_fixed_rate_aliases_do_not_match_versions_or_test_counts(
