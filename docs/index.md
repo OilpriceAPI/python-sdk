@@ -1,6 +1,6 @@
 # OilPriceAPI Python SDK Documentation
 
-Welcome to the official Python SDK for [OilPriceAPI](https://oilpriceapi.com) - the most affordable way to access professional-grade oil and commodity price data.
+Welcome to the official Python SDK for [OilPriceAPI](https://oilpriceapi.com), providing source-timestamped oil and commodity data.
 
 ## 🚀 Getting Started
 
@@ -33,9 +33,9 @@ print(f"Brent Crude: ${price.value:.2f}")
 
 ## 📚 Core Features
 
-### Real-Time Price Data
+### Current Price Data
 
-Get the latest commodity prices updated every 5 minutes:
+Get the latest available commodity prices with API-provided source timestamps:
 
 ```python
 # Single commodity
@@ -119,7 +119,7 @@ prices = asyncio.run(get_all_prices())
 ## 🎯 Use Cases
 
 ### Energy Trading
-Build algorithmic trading strategies with real-time price feeds and historical data for backtesting.
+Build algorithmic trading strategies with current and historical data while retaining source timestamps for backtesting.
 
 **[Explore trading examples →](https://oilpriceapi.com/use-cases/trading)**
 
@@ -213,31 +213,15 @@ commodity suggestions, plan or feature requirements, retry metadata, sanitized
 response headers, and raw diagnostics remain available without exposing the
 configured API key.
 
-## 💰 Pricing & Plans
+## 💰 Access & Plans
 
-Choose the plan that fits your needs:
+Dataset access, allowances, and feature availability depend on the current
+account entitlement. Review the [current pricing](https://oilpriceapi.com/pricing)
+and the machine-readable [product facts](https://api.oilpriceapi.com/product-facts.json)
+instead of relying on values bundled into an SDK release. API responses retain
+the applicable source, observation timestamp, and limit metadata.
 
-### Free Tier
-- 1,000 API requests/month
-- Real-time data
-- No credit card required
-
-**[Start free →](https://oilpriceapi.com/auth/signup)**
-
-### Paid Plans
-- **Developer**: $19/month - 10,000 requests
-- **Starter**: $49/month - 50,000 requests (adds webhooks)
-- **Professional**: $99/month - 100,000 requests (adds webhooks + WebSocket streaming)
-- **Scale**: $299/month - 1,000,000 requests
-
-**All plans include:**
-- ✅ Real-time price updates every 5 minutes
-- ✅ Historical data access
-- ✅ 99.9% uptime SLA
-- ✅ Email support
-- ✅ No hidden fees
-
-**[View detailed pricing →](https://oilpriceapi.com/pricing)**
+**[Create an API key →](https://oilpriceapi.com/auth/signup)**
 
 ## 🛠️ Development
 
@@ -298,7 +282,7 @@ MIT License - see [LICENSE](https://github.com/OilpriceAPI/python-sdk/blob/main/
 
 ---
 
-**Ready to get started?** [Sign up for your free API key →](https://oilpriceapi.com/auth/signup)
+**Ready to get started?** [Create an API key →](https://oilpriceapi.com/auth/signup)
 
 **Questions?** [Contact our support team →](mailto:support@oilpriceapi.com)
 

@@ -155,7 +155,7 @@ class AsyncOilPriceAPI:
         # Agent watch subscriptions + event polling (#3245 Phase 2).
         self.subscriptions = AsyncSubscriptionsResource(self)
 
-        # Real-time WebSocket streaming namespace (requires the [stream] extra).
+        # WebSocket price-update namespace (requires the [stream] extra).
         # Lazily imports `websockets` only when a stream is actually opened.
         from .streaming import AsyncStreamNamespace
 

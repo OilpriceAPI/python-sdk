@@ -1,5 +1,5 @@
 """
-Real-time WebSocket streaming for OilPriceAPI.
+WebSocket price-update streaming for OilPriceAPI.
 
 Exposes an async streaming client over the Rails ActionCable ``/cable``
 endpoint (``EnergyPricesChannel``). Available via ``AsyncOilPriceAPI.stream``.

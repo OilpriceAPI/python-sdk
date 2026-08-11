@@ -28,6 +28,11 @@ trap 'rm -rf "$smoke_dir"' EXIT
 python -m venv "$smoke_dir/venv"
 "$smoke_dir/venv/bin/python" -m pip install --quiet "$wheel"
 "$smoke_dir/venv/bin/python" -m pip check
+site_packages="$(
+  "$smoke_dir/venv/bin/python" -c 'import site; print(site.getsitepackages()[0])'
+)"
+"$smoke_dir/venv/bin/python" "$root_dir/scripts/validate_storefront_claims.py" \
+  --package-root "$site_packages"
 "$smoke_dir/venv/bin/python" -c '
 import sys
 from oilpriceapi import OilPriceAPI, __version__

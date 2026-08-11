@@ -231,23 +231,23 @@ while True:
 **Problems:**
 - Wastes API quota
 - Unnecessary load on API
-- Price only updates ~every 5 minutes
+- Ignores the record's API-provided source timestamp and freshness metadata
 
 **Solution:**
 ```python
-# Poll at reasonable interval
+# Choose an interval from API limits and the application's freshness need
 import time
 
 while True:
     price = client.prices.get("WTI_USD")
     print(f"WTI: ${price.value}")
-    time.sleep(300)  # Poll every 5 minutes
+    time.sleep(300)  # Example client-selected interval
 ```
 
-**Better Solution (for real-time):**
+**Better Solution (for streamed updates):**
 ```python
-# Use WebSocket for real-time updates (if available)
-# Or increase polling interval to match update frequency
+# Use WebSocket streaming when the account is entitled to it.
+# Otherwise use response metadata to select the polling interval.
 ```
 
 ### Pitfall 2: Fetching All Historical Data
@@ -335,24 +335,30 @@ price = client.prices.get("WTI_USD")  # Resilient
 
 **Basic In-Memory Cache:**
 ```python
-from datetime import datetime, timedelta
-from functools import lru_cache
+from datetime import datetime, timedelta, timezone
 
-@lru_cache(maxsize=100)
-def get_cached_price(commodity, cache_key):
-    """Cache prices for 5 minutes."""
-    client = OilPriceAPI()
-    return client.prices.get(commodity)
+price_cache = {}
+# Illustrative application policy; choose this for your freshness requirement.
+MAX_SOURCE_AGE = timedelta(minutes=5)
 
-# Cache key changes every 5 minutes
 def get_current_price(commodity):
-    cache_key = int(datetime.now().timestamp() / 300)
-    return get_cached_price(commodity, cache_key)
+    cached = price_cache.get(commodity)
+    if cached:
+        source_age = datetime.now(timezone.utc) - cached["source_timestamp"]
+        if source_age <= MAX_SOURCE_AGE:
+            return cached["price"]
+
+    price = client.prices.get(commodity)
+    price_cache[commodity] = {
+        "price": price,
+        "source_timestamp": price.timestamp,
+    }
+    return price
 
 # First call: API request (150ms)
 price1 = get_current_price("WTI_USD")
 
-# Second call within 5 min: cached (<1ms)
+# A second call is cached only while its source timestamp meets the policy.
 price2 = get_current_price("WTI_USD")
 ```
 
@@ -360,27 +366,33 @@ price2 = get_current_price("WTI_USD")
 ```python
 import redis
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+
+from oilpriceapi.models import Price
 
 redis_client = redis.Redis(host='localhost', port=6379)
+# Illustrative application policy; use your required maximum source age.
+MAX_SOURCE_AGE = timedelta(minutes=5)
 
 def get_cached_price(client, commodity):
-    """Cache price in Redis for 5 minutes."""
-    cache_key = f"oilprice:{commodity}"
+    cache_key = f"oilprice:{commodity}:latest"
 
-    # Check cache
     cached = redis_client.get(cache_key)
     if cached:
-        return json.loads(cached)
+        payload = json.loads(cached)
+        source_timestamp = datetime.fromisoformat(payload["source_timestamp"])
+        if datetime.now(timezone.utc) - source_timestamp <= MAX_SOURCE_AGE:
+            return Price.model_validate(payload["price"])
 
-    # Fetch from API
     price = client.prices.get(commodity)
-
-    # Cache for 5 minutes
+    payload = {
+        "price": price.model_dump(mode="json"),
+        "source_timestamp": price.timestamp.isoformat(),
+    }
     redis_client.setex(
         cache_key,
-        timedelta(minutes=5),
-        json.dumps(price.dict())
+        int(MAX_SOURCE_AGE.total_seconds()),
+        json.dumps(payload),
     )
 
     return price
@@ -389,13 +401,13 @@ def get_cached_price(client, commodity):
 ### When to Cache
 
 ✅ **Good candidates for caching:**
-- Latest prices (updates every 5 minutes)
+- Latest prices, keyed by the API-provided source timestamp
 - Historical data (never changes)
 - Commodity metadata
 - Static reference data
 
 ❌ **Don't cache:**
-- Real-time price updates (if using WebSocket)
+- Streamed price updates (when using WebSocket)
 - User-specific data
 - Data that changes frequently
 

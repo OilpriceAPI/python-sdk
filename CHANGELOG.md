@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-08-11
+
+### Fixed
+
+- Remove stale fixed plan-price, monthly allowance, cadence, uptime, and
+  generic real-time claims from documentation and packaged docstrings.
+- Recursively validate authored docs and package source, then scan the exact
+  installed wheel and PyPI metadata during the release smoke test.
+
 ## [1.12.1] - 2026-08-11
 
 ### Fixed

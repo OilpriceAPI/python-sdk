@@ -154,8 +154,8 @@ class PriceStream:
                 return
             if msg_type == "reject_subscription":
                 raise ConnectionError(
-                    "Subscription rejected — check your plan tier and API key "
-                    "(WebSocket streaming requires the Professional plan ($99/mo) or higher)."
+                    "Subscription rejected; confirm the API key and streaming entitlement at "
+                    "https://www.oilpriceapi.com/pricing."
                 )
             # Ignore pings / pre-confirmation noise.
 
@@ -289,7 +289,7 @@ class AsyncStreamNamespace:
         reconnect_max_delay: float = 30.0,
         open_timeout: float = 10.0,
     ) -> PriceStream:
-        """Open a real-time price stream over ``EnergyPricesChannel``.
+        """Open a price-update stream over ``EnergyPricesChannel``.
 
         Args:
             commodities: Optional list of commodity codes to tag the
