@@ -159,7 +159,7 @@ def test_package_version_helper_reads_the_project_version() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "1.12.6"
+    assert result.stdout.strip() == "1.12.7"
 
 
 def test_every_workflow_pins_actions_and_hardens_each_checkout_step() -> None:

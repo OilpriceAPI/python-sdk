@@ -142,7 +142,7 @@ class OilPriceAPI:
             "X-Client-Type": "sdk",
         }
 
-        # Add optional telemetry headers (10% bonus for app_url!)
+        # Add optional usage-attribution headers.
         if self.app_url:
             self.headers["X-App-URL"] = self.app_url
         if self.app_name:

@@ -41,6 +41,39 @@ _RATE_BOUNDARY_PATTERN = re.compile(
 _HTML_TAG_PATTERN = re.compile(r"<[^>]{1,500}>")
 _MAX_ACTION_COUNT_GAP = 64
 _MAX_RATE_SPAN = 200
+_MAX_TELEMETRY_REWARD_SPAN = 320
+_TELEMETRY_IDENTITY_PATTERN = re.compile(
+    r"\b(?:telemetry|app(?:lication)?[- ]+(?:metadata|url|name)|"
+    r"app[_ -]?url|app[_ -]?name|x-app-(?:url|name))\b",
+    re.IGNORECASE,
+)
+_TELEMETRY_STRONG_REWARD_PATTERN = re.compile(
+    r"\b(?:bonus|increase(?:s|d)?|unlock(?:s|ed)?|"
+    r"earn(?:s|ed)?|grant(?:s|ed)?|reward(?:s|ed)?|boost(?:s|ed)?)\b",
+    re.IGNORECASE,
+)
+_TELEMETRY_MODIFIER_REWARD_PATTERN = re.compile(
+    r"\b(?:more|extra|additional)\b", re.IGNORECASE
+)
+_TELEMETRY_QUOTA_SIGNAL_PATTERN = re.compile(
+    r"\b(?:api[- ]+)?(?:requests?|calls?|quota|limits?|allowances?|credits?)\b|"
+    r"(?<![\w.])\d+(?:\.\d+)?\s*%",
+    re.IGNORECASE,
+)
+_TELEMETRY_MODIFIER_GAP_WORDS = {
+    "account",
+    "annual",
+    "api",
+    "call",
+    "daily",
+    "hourly",
+    "monthly",
+    "quota",
+    "rate",
+    "request",
+    "usage",
+}
+_MAX_STRONG_REWARD_SPAN = 160
 BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
     ("real-time claim", re.compile(r"\breal[ -]?time\b", re.IGNORECASE)),
     (
@@ -230,6 +263,52 @@ def _fixed_rate_claims(text: str) -> List[str]:
     return claims
 
 
+def _telemetry_reward_claims(text: str) -> List[str]:
+    """Find attribution identity + reward + quota signals in one bounded sentence."""
+    claims: List[str] = []
+    seen: Set[Tuple[int, str]] = set()
+
+    for segment_offset, segment in _bounded_rate_segments(text):
+        searchable = _HTML_TAG_PATTERN.sub(" ", segment)
+        identities = list(_TELEMETRY_IDENTITY_PATTERN.finditer(searchable))
+        quota_signals = list(_TELEMETRY_QUOTA_SIGNAL_PATTERN.finditer(searchable))
+        strong_rewards = list(_TELEMETRY_STRONG_REWARD_PATTERN.finditer(searchable))
+        modifier_rewards = list(_TELEMETRY_MODIFIER_REWARD_PATTERN.finditer(searchable))
+        reward_pairs: List[Tuple[int, int]] = []
+        for reward in strong_rewards:
+            for quota_signal in quota_signals:
+                start = min(reward.start(), quota_signal.start())
+                end = max(reward.end(), quota_signal.end())
+                if end - start <= _MAX_STRONG_REWARD_SPAN:
+                    reward_pairs.append((start, end))
+        for reward in modifier_rewards:
+            for quota_signal in quota_signals:
+                if reward.end() > quota_signal.start():
+                    continue
+                gap = searchable[reward.end() : quota_signal.start()]
+                gap_words = re.findall(r"[a-z]+", gap.lower())
+                if len(gap) <= 48 and all(
+                    word in _TELEMETRY_MODIFIER_GAP_WORDS for word in gap_words
+                ):
+                    reward_pairs.append((reward.start(), quota_signal.end()))
+        for identity in identities:
+            candidates = [
+                (min(identity.start(), start), max(identity.end(), end))
+                for start, end in reward_pairs
+                if max(identity.end(), end) - min(identity.start(), start)
+                <= _MAX_TELEMETRY_REWARD_SPAN
+            ]
+            if not candidates:
+                continue
+            start, end = min(candidates, key=lambda span: span[1] - span[0])
+            claim = re.sub(r"\s+", " ", searchable[start:end]).strip()
+            key = (segment_offset + start, claim)
+            if key not in seen:
+                seen.add(key)
+                claims.append(claim)
+    return claims
+
+
 def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
     failures: List[str] = []
     for path in surfaces:
@@ -242,6 +321,10 @@ def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
         for claim in _fixed_rate_claims(text):
             failures.append(
                 f"{path.relative_to(root)}: fixed demo rate matched {claim!r}"
+            )
+        for claim in _telemetry_reward_claims(text):
+            failures.append(
+                f"{path.relative_to(root)}: telemetry quota reward matched {claim!r}"
             )
     return failures
 
