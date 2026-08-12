@@ -8,6 +8,7 @@ from typing import Dict, List
 import pytest
 
 from scripts.validate_storefront_claims import (
+    MAX_SDIST_TEXT_BYTES,
     discover_installed_surfaces,
     discover_public_surfaces,
     validate,
@@ -288,6 +289,22 @@ def test_sdist_guard_excludes_test_fixtures_and_binary_data(tmp_path: Path) -> N
             "scripts/claim_fixture.py": stale_claim,
             "oilpriceapi/future/fixture.wasm": b"\x00asm\xff\x00",
             "oilpriceapi/future/public.txt": b"Optional usage-attribution metadata.\n",
+        },
+    )
+
+    result = _validate_sdist(archive)
+
+    assert result.returncode == 0, result.stderr
+    assert "validated exact Python sdist claims" in result.stdout
+
+
+def test_sdist_guard_excludes_large_known_binary_package_data(tmp_path: Path) -> None:
+    archive = _write_sdist(
+        tmp_path,
+        {
+            "oilpriceapi/future/runtime.wasm": (
+                b"\x00asm" + b"\xff" * (MAX_SDIST_TEXT_BYTES + 1)
+            )
         },
     )
 

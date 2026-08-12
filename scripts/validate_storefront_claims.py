@@ -20,6 +20,7 @@ BINARY_SUFFIXES = {
     ".pyc",
     ".pyo",
     ".so",
+    ".wasm",
 }
 SDIST_DEVELOPMENT_ROOTS = {".github", ".pytest_cache", ".tox", "scripts", "test", "tests"}
 ACTIVE_ROOT_SURFACES = (
@@ -410,6 +411,8 @@ def validate_sdist(sdist: Path) -> List[str]:
                 relative.parts[0] in SDIST_DEVELOPMENT_ROOTS
                 or "__pycache__" in relative.parts
             ):
+                continue
+            if relative.suffix.lower() in BINARY_SUFFIXES:
                 continue
             if member.size > MAX_SDIST_TEXT_BYTES:
                 failures.append(f"source distribution text candidate is too large: {relative}")
