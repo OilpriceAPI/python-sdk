@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oilpriceapi"
-version = "1.12.7"
+version = "1.12.8"
 description = "Official Python SDK for source-timestamped OilPriceAPI energy data"
 authors = [
     {name = "OilPriceAPI", email = "support@oilpriceapi.com"}

@@ -43,6 +43,20 @@ jobs:
       - name: Validate public storefront claims
         run: python scripts/validate_storefront_claims.py
 
+      - name: Build and validate exact source distribution
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          python -m pip install 'build==1.5.0'
+          python -m build --sdist
+          PACKAGE_VERSION="$(python scripts/package_version.py)"
+          SDIST="dist/oilpriceapi-${PACKAGE_VERSION}.tar.gz"
+          if [ ! -f "$SDIST" ]; then
+            echo "::error::Exact source distribution not found: $SDIST"
+            exit 1
+          fi
+          python scripts/validate_storefront_claims.py --sdist "$SDIST"
+
       - name: Run unit tests
         run: pytest tests/ --ignore=tests/integration --ignore=tests/contract -m 'not slow' --cov=oilpriceapi --cov-report=xml -v
 

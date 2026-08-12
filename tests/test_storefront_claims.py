@@ -1,9 +1,14 @@
+import io
+import subprocess
+import sys
+import tarfile
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import pytest
 
 from scripts.validate_storefront_claims import (
+    MAX_SDIST_TEXT_BYTES,
     discover_installed_surfaces,
     discover_public_surfaces,
     validate,
@@ -11,6 +16,48 @@ from scripts.validate_storefront_claims import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _write_sdist(tmp_path: Path, overrides: Dict[str, bytes]) -> Path:
+    source = tmp_path / "source" / "oilpriceapi-9.9.9"
+    files = {
+        "README.md": (
+            "https://api.oilpriceapi.com/product-facts.json\n"
+        ).encode(),
+        "CHANGELOG.md": b"Reviewed historical release notes.\n",
+        "PKG-INFO": (
+            "Metadata-Version: 2.1\n"
+            "Name: oilpriceapi\n"
+            "Version: 9.9.9\n\n"
+            "https://api.oilpriceapi.com/product-facts.json\n"
+        ).encode(),
+        "oilpriceapi/version.py": b'__version__ = "9.9.9"\n',
+    }
+    files.update(overrides)
+    for relative, content in files.items():
+        path = source / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+    archive = tmp_path / "oilpriceapi-9.9.9.tar.gz"
+    with tarfile.open(archive, "w:gz") as package:
+        package.add(source, arcname=source.name)
+    return archive
+
+
+def _validate_sdist(archive: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "validate_storefront_claims.py"),
+            "--sdist",
+            str(archive),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _installed_text_failures(tmp_path: Path, text: str) -> List[str]:
@@ -64,6 +111,24 @@ def test_discovers_docs_examples_and_nested_package_source() -> None:
     assert "docs/index.md" in surfaces
     assert "docs/index.html" in surfaces
     assert "oilpriceapi/streaming/client.py" in surfaces
+    assert ".env.example" in surfaces
+    assert "CONTRIBUTING.md" in surfaces
+    assert "SECURITY.md" in surfaces
+
+
+def test_rejects_active_claim_in_manifest_published_root_surface(
+    tmp_path: Path,
+) -> None:
+    _authored_text_failures(tmp_path, "Reviewed package source.\n")
+    (tmp_path / ".env.example").write_text(
+        "Add optional telemetry headers (10% bonus for app_url!).\n"
+    )
+
+    failures = validate(tmp_path)
+
+    assert any(
+        ".env.example: telemetry quota reward" in failure for failure in failures
+    ), failures
 
 
 def test_rejects_claim_introduced_only_in_installed_wheel(tmp_path: Path) -> None:
@@ -158,6 +223,133 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
         and "matched '50 requests/day'" in failure
         for failure in failures
     )
+
+
+def test_sdist_guard_rejects_never_existent_reward_in_changelog(
+    tmp_path: Path,
+) -> None:
+    archive = _write_sdist(
+        tmp_path,
+        {
+            "CHANGELOG.md": (
+                b"Add optional telemetry headers (10% bonus for app_url!).\n"
+            )
+        },
+    )
+
+    result = _validate_sdist(archive)
+
+    assert result.returncode != 0
+    assert "CHANGELOG.md: telemetry quota reward" in result.stderr
+
+
+def test_authored_guard_rejects_never_existent_reward_in_changelog(
+    tmp_path: Path,
+) -> None:
+    _authored_text_failures(tmp_path, "Reviewed package source.\n")
+    (tmp_path / "CHANGELOG.md").write_text(
+        "Add optional telemetry headers (10% bonus for app_url!).\n"
+    )
+
+    failures = validate(tmp_path)
+
+    assert any(
+        "CHANGELOG.md: telemetry quota reward" in failure for failure in failures
+    ), failures
+
+
+def test_sdist_guard_recursively_rejects_future_customer_package_data(
+    tmp_path: Path,
+) -> None:
+    archive = _write_sdist(
+        tmp_path,
+        {
+            "oilpriceapi/future/guides/claim.txt": (
+                b"Application metadata unlocks additional API calls.\n"
+            ),
+            "oilpriceapi/scripts/claim.md": (
+                b"X-App-URL earns extra request credits.\n"
+            ),
+        },
+    )
+
+    result = _validate_sdist(archive)
+
+    assert result.returncode != 0
+    assert "oilpriceapi/future/guides/claim.txt: telemetry quota reward" in result.stderr
+    assert "oilpriceapi/scripts/claim.md: telemetry quota reward" in result.stderr
+
+
+def test_sdist_guard_excludes_test_fixtures_and_binary_data(tmp_path: Path) -> None:
+    stale_claim = b"Add optional telemetry headers (10% bonus for app_url!).\n"
+    archive = _write_sdist(
+        tmp_path,
+        {
+            "tests/test_claim_fixtures.py": stale_claim,
+            "scripts/claim_fixture.py": stale_claim,
+            "oilpriceapi/future/fixture.wasm": b"\x00asm\xff\x00",
+            "oilpriceapi/future/public.txt": b"Optional usage-attribution metadata.\n",
+        },
+    )
+
+    result = _validate_sdist(archive)
+
+    assert result.returncode == 0, result.stderr
+    assert "validated exact Python sdist claims" in result.stdout
+
+
+def test_sdist_guard_excludes_large_known_binary_package_data(tmp_path: Path) -> None:
+    archive = _write_sdist(
+        tmp_path,
+        {
+            "oilpriceapi/future/runtime.wasm": (
+                b"\x00asm" + b"\xff" * (MAX_SDIST_TEXT_BYTES + 1)
+            )
+        },
+    )
+
+    result = _validate_sdist(archive)
+
+    assert result.returncode == 0, result.stderr
+    assert "validated exact Python sdist claims" in result.stdout
+
+
+def test_sdist_guard_rejects_version_drift(tmp_path: Path) -> None:
+    archive = _write_sdist(
+        tmp_path,
+        {"oilpriceapi/version.py": b'__version__ = "9.9.8"\n'},
+    )
+
+    result = _validate_sdist(archive)
+
+    assert result.returncode != 0
+    assert "filename, metadata, and module versions differ" in result.stderr
+
+
+def test_sdist_guard_rejects_links_duplicates_and_traversal(tmp_path: Path) -> None:
+    _write_sdist(tmp_path, {})
+    source = tmp_path / "source" / "oilpriceapi-9.9.9"
+    unsafe = tmp_path / "oilpriceapi-9.9.9-unsafe.tar.gz"
+    with tarfile.open(unsafe, "w:gz") as package:
+        package.add(source, arcname="oilpriceapi-9.9.9")
+        package.add(
+            source / "README.md",
+            arcname="oilpriceapi-9.9.9/README.md",
+        )
+        link = tarfile.TarInfo("oilpriceapi-9.9.9/oilpriceapi/linked.py")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "version.py"
+        package.addfile(link)
+        traversal = tarfile.TarInfo("oilpriceapi-9.9.9/../outside.txt")
+        traversal.size = 4
+        package.addfile(traversal, io.BytesIO(b"text"))
+
+    result = _validate_sdist(unsafe)
+
+    assert result.returncode != 0
+    assert "duplicate member" in result.stderr
+    assert "contains a link" in result.stderr
+    assert "unsafe source-distribution member path" in result.stderr
 
 
 def test_rejects_telemetry_quota_reward_in_future_nested_authored_source(
