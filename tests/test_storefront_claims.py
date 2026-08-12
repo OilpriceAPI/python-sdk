@@ -35,6 +35,24 @@ def _installed_text_failures(tmp_path: Path, text: str) -> List[str]:
     return validate_package(tmp_path)
 
 
+def _authored_text_failures(tmp_path: Path, text: str) -> List[str]:
+    package = tmp_path / "oilpriceapi" / "future"
+    package.mkdir(parents=True)
+    (tmp_path / "README.md").write_text(
+        "https://api.oilpriceapi.com/product-facts.json\n"
+    )
+    (tmp_path / "EXAMPLES.md").write_text("Reviewed examples.\n")
+    (tmp_path / "CHANGELOG.md").write_text("Reviewed history.\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "oilpriceapi"\nversion = "9.9.9"\n'
+    )
+    (tmp_path / "oilpriceapi" / "version.py").write_text(
+        '__version__ = "9.9.9"\n'
+    )
+    (package / "types.pyi").write_text(text)
+    return validate(tmp_path)
+
+
 def test_storefront_claims_match_reviewed_contract() -> None:
     assert validate() == []
 
@@ -140,6 +158,54 @@ def test_rejects_claim_in_future_installed_package_data(tmp_path: Path) -> None:
         and "matched '50 requests/day'" in failure
         for failure in failures
     )
+
+
+def test_rejects_telemetry_quota_reward_in_future_nested_authored_source(
+    tmp_path: Path,
+) -> None:
+    failures = _authored_text_failures(
+        tmp_path,
+        '"""Application telemetry unlocks additional API calls for your app."""\n',
+    )
+
+    assert any(
+        "oilpriceapi/future/types.pyi" in failure
+        and "telemetry quota reward" in failure
+        for failure in failures
+    ), failures
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Add optional telemetry headers (10% bonus for app_url!).",
+        "App telemetry may unlock a 10% bonus to your request limit.",
+        "X-App-URL earns extra request credits.",
+        "More requests are granted when application metadata is sent.",
+        "Sending app_url increases your quota allowance.",
+    ],
+)
+def test_rejects_telemetry_quota_rewards_in_future_wheel_text(
+    tmp_path: Path, claim: str
+) -> None:
+    failures = _installed_text_failures(tmp_path, claim)
+
+    assert any("telemetry quota reward" in failure for failure in failures), failures
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Optional telemetry headers identify SDK usage.",
+        "Application metadata supports usage attribution; entitlements come from Product Facts.",
+        "X-App-URL and X-App-Name are optional attribution headers.",
+        "Telemetry sends extra application metadata with API requests.",
+    ],
+)
+def test_allows_telemetry_attribution_without_a_quota_reward(
+    tmp_path: Path, text: str
+) -> None:
+    assert _installed_text_failures(tmp_path, text) == []
 
 
 @pytest.mark.parametrize(

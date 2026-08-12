@@ -2,6 +2,16 @@
 
 All notable changes to the OilPriceAPI Python SDK will be documented in this file.
 
+## [1.12.7] - 2026-08-12
+
+### Fixed
+
+- Removed a nonexistent request-limit bonus claim from sync and async
+  usage-attribution header comments.
+- Added red-first recursive authored and installed-wheel claim coverage so
+  telemetry or application metadata cannot be presented as changing account
+  entitlements.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -151,7 +161,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Data Sources Resource**: `client.data_sources.list()`, `get()`, `create()`, `update()`, `delete()`, `test()`, `logs()`, `health()`, `rotate_credentials()` for data connector management
 - **Enhanced Alerts**: Added `test()`, `triggers()`, `analytics_history()` methods to existing alerts resource
 - **Data Connector Support**: `client.get_data_connector_prices()` for BYOS (Bring Your Own Subscription) prices
-- **Telemetry Headers**: `app_url` and `app_name` parameters for API usage attribution (10% rate limit bonus for app_url)
+- **Telemetry Headers**: `app_url` and `app_name` parameters for API usage attribution
 
 ### Fixed
 
