@@ -4,8 +4,9 @@
 import argparse
 import csv
 import re
-from pathlib import Path
-from typing import Iterable, Iterator, List, Match, Pattern, Sequence, Set, Tuple
+import tarfile
+from pathlib import Path, PurePosixPath
+from typing import Dict, Iterable, Iterator, List, Match, Pattern, Sequence, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = "https://api.oilpriceapi.com/product-facts.json"
@@ -20,6 +21,17 @@ BINARY_SUFFIXES = {
     ".pyo",
     ".so",
 }
+SDIST_DEVELOPMENT_ROOTS = {".github", ".pytest_cache", ".tox", "scripts", "test", "tests"}
+ACTIVE_ROOT_SURFACES = (
+    ".env.example",
+    "CONTRIBUTING.md",
+    "EXAMPLES.md",
+    "MANIFEST.in",
+    "README.md",
+    "SECURITY.md",
+    "pyproject.toml",
+)
+MAX_SDIST_TEXT_BYTES = 5_000_000
 _RATE_COUNT = r"\d[\d,]*"
 _RATE_ACTION = r"(?:(?:api[- ]+)?(?:requests?|calls?|queries?|hits?|credits?)|reqs?\.?)"
 _RATE_UNIT_SINGULAR = r"(?:second|sec|minute|min|hour|hr|day|week|month|year)"
@@ -141,7 +153,7 @@ BLOCKED: Sequence[Tuple[str, Pattern[str]]] = (
 
 
 def discover_public_surfaces(root: Path = ROOT) -> List[Path]:
-    surfaces = [root / "README.md", root / "EXAMPLES.md", root / "pyproject.toml"]
+    surfaces = [root / name for name in ACTIVE_ROOT_SURFACES if (root / name).is_file()]
     for directory in (root / "docs", root / "oilpriceapi"):
         surfaces.extend(path for path in directory.rglob("*") if _is_public_text(path))
     return sorted(set(surfaces))
@@ -309,28 +321,167 @@ def _telemetry_reward_claims(text: str) -> List[str]:
     return claims
 
 
+def _text_claim_failures(surface: str, text: str) -> List[str]:
+    failures: List[str] = []
+    for label, pattern in BLOCKED:
+        for match in pattern.finditer(text):
+            failures.append(f"{surface}: {label} matched {match.group(0)!r}")
+    for claim in _fixed_rate_claims(text):
+        failures.append(f"{surface}: fixed demo rate matched {claim!r}")
+    failures.extend(_telemetry_claim_failures(surface, text))
+    return failures
+
+
+def _telemetry_claim_failures(surface: str, text: str) -> List[str]:
+    return [
+        f"{surface}: telemetry quota reward matched {claim!r}"
+        for claim in _telemetry_reward_claims(text)
+    ]
+
+
 def _claim_failures(root: Path, surfaces: Iterable[Path]) -> List[str]:
     failures: List[str] = []
     for path in surfaces:
-        text = path.read_text(encoding="utf-8")
-        for label, pattern in BLOCKED:
-            for match in pattern.finditer(text):
+        failures.extend(
+            _text_claim_failures(
+                path.relative_to(root).as_posix(),
+                path.read_text(encoding="utf-8"),
+            )
+        )
+    return failures
+
+
+def _safe_sdist_member_path(name: str) -> PurePosixPath:
+    path = PurePosixPath(name)
+    if path.is_absolute() or ".." in path.parts or "\\" in name:
+        raise ValueError(f"unsafe source-distribution member path: {name!r}")
+    if not path.parts:
+        raise ValueError(f"source-distribution member has an empty path: {name!r}")
+    return path
+
+
+def validate_sdist(sdist: Path) -> List[str]:
+    """Validate every customer-readable surface in the exact built sdist."""
+    sdist = sdist.resolve()
+    archive_suffix = ".tar.gz"
+    if not sdist.name.endswith(archive_suffix):
+        return ["source distribution filename must end in .tar.gz"]
+    failures: List[str] = []
+    text_members: Dict[str, str] = {}
+    package_roots: Set[str] = set()
+    seen_members: Set[str] = set()
+
+    try:
+        archive = tarfile.open(sdist, mode="r:gz")
+    except (OSError, tarfile.TarError) as error:
+        return [f"source distribution could not be opened: {error}"]
+
+    with archive:
+        for member in archive.getmembers():
+            try:
+                path = _safe_sdist_member_path(member.name)
+            except ValueError as error:
+                failures.append(str(error))
+                continue
+
+            normalized = path.as_posix()
+            if normalized in seen_members:
+                failures.append(f"source distribution contains duplicate member: {normalized}")
+                continue
+            seen_members.add(normalized)
+            package_roots.add(path.parts[0])
+
+            if member.issym() or member.islnk():
+                failures.append(f"source distribution contains a link: {normalized}")
+                continue
+            if member.isdir():
+                continue
+            if len(path.parts) < 2:
                 failures.append(
-                    f"{path.relative_to(root)}: {label} matched {match.group(0)!r}"
+                    f"source-distribution member is outside its package root: {normalized!r}"
                 )
-        for claim in _fixed_rate_claims(text):
-            failures.append(
-                f"{path.relative_to(root)}: fixed demo rate matched {claim!r}"
-            )
-        for claim in _telemetry_reward_claims(text):
-            failures.append(
-                f"{path.relative_to(root)}: telemetry quota reward matched {claim!r}"
-            )
+                continue
+            if not member.isfile():
+                failures.append(f"source distribution contains a special member: {normalized}")
+                continue
+
+            relative = PurePosixPath(*path.parts[1:])
+            if (
+                relative.parts[0] in SDIST_DEVELOPMENT_ROOTS
+                or "__pycache__" in relative.parts
+            ):
+                continue
+            if member.size > MAX_SDIST_TEXT_BYTES:
+                failures.append(f"source distribution text candidate is too large: {relative}")
+                continue
+
+            extracted = archive.extractfile(member)
+            if extracted is None:
+                failures.append(f"source distribution member could not be read: {relative}")
+                continue
+            contents = extracted.read(MAX_SDIST_TEXT_BYTES + 1)
+            if len(contents) != member.size:
+                failures.append(f"source distribution member size changed while reading: {relative}")
+                continue
+            if b"\x00" in contents:
+                continue
+            try:
+                text_members[relative.as_posix()] = contents.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+
+    expected_root = sdist.name[: -len(archive_suffix)]
+    if package_roots != {expected_root}:
+        failures.append(
+            "source distribution package root differs from its filename: "
+            f"expected {expected_root!r}, found {sorted(package_roots)!r}"
+        )
+
+    for surface, text in sorted(text_members.items()):
+        if surface == "CHANGELOG.md":
+            # Historical release notes can truthfully describe retired plans.
+            # A telemetry quota reward never existed and is forbidden in history too.
+            failures.extend(_telemetry_claim_failures(surface, text))
+        else:
+            failures.extend(_text_claim_failures(surface, text))
+
+    metadata = text_members.get("PKG-INFO")
+    version_source = text_members.get("oilpriceapi/version.py")
+    if metadata is None:
+        failures.append("source distribution must contain readable PKG-INFO")
+    elif CONTRACT not in metadata:
+        failures.append("source distribution PKG-INFO: reviewed product-facts contract is not linked")
+    if version_source is None:
+        failures.append("source distribution must contain readable oilpriceapi/version.py")
+    if metadata is not None and version_source is not None:
+        metadata_match = re.search(r"^Version: ([^\s]+)$", metadata, re.MULTILINE)
+        module_match = re.search(r'^__version__ = "([^"]+)"', version_source, re.MULTILINE)
+        package_prefix = "oilpriceapi-"
+        expected_version = (
+            expected_root[len(package_prefix) :]
+            if expected_root.startswith(package_prefix)
+            else ""
+        )
+        versions = {
+            metadata_match.group(1) if metadata_match else None,
+            module_match.group(1) if module_match else None,
+            expected_version,
+        }
+        if None in versions or len(versions) != 1:
+            failures.append("source distribution filename, metadata, and module versions differ")
     return failures
 
 
 def validate(root: Path = ROOT) -> List[str]:
     failures = _claim_failures(root, discover_public_surfaces(root))
+
+    changelog = root / "CHANGELOG.md"
+    if changelog.is_file():
+        failures.extend(
+            _telemetry_claim_failures(
+                "CHANGELOG.md", changelog.read_text(encoding="utf-8")
+            )
+        )
 
     readme = (root / "README.md").read_text()
     if CONTRACT not in readme:
@@ -374,14 +525,23 @@ def validate_package(package_root: Path) -> List[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--package-root", type=Path)
+    inputs = parser.add_mutually_exclusive_group()
+    inputs.add_argument("--package-root", type=Path)
+    inputs.add_argument("--sdist", type=Path)
     args = parser.parse_args()
 
-    failures = validate_package(args.package_root) if args.package_root else validate()
+    if args.package_root:
+        failures = validate_package(args.package_root)
+    elif args.sdist:
+        failures = validate_sdist(args.sdist)
+    else:
+        failures = validate()
     if failures:
         raise SystemExit("\n".join(failures))
     if args.package_root:
         print("validated exact installed Python artifact claims")
+    elif args.sdist:
+        print("validated exact Python sdist claims")
     else:
         print(f"validated {len(discover_public_surfaces())} public surfaces")
 

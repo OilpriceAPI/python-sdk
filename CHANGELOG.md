@@ -2,6 +2,17 @@
 
 All notable changes to the OilPriceAPI Python SDK will be documented in this file.
 
+## [1.12.8] - 2026-08-12
+
+### Fixed
+
+- Validate every customer-readable member in the exact built source
+  distribution, including root release/configuration files and future nested
+  package data, while explicitly excluding intentional test/tooling fixtures.
+- Remove the unsupported universal-entitlement wording from the packaged
+  environment example and reject never-existent promises that attribution
+  headers change entitlements in authored and distributed release notes.
+
 ## [1.12.7] - 2026-08-12
 
 ### Fixed

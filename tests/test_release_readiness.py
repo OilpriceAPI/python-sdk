@@ -106,6 +106,7 @@ def test_packaged_futures_examples_prefer_instrument_generic_slugs() -> None:
 
 def test_publish_gate_audits_and_installs_the_built_wheel() -> None:
     workflow = (ROOT / ".github" / "workflows" / "publish.yml").read_text()
+    test_workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text()
     smoke = (ROOT / "scripts" / "clean-wheel-smoke.sh").read_text()
 
     assert "pip-audit" in workflow
@@ -115,6 +116,16 @@ def test_publish_gate_audits_and_installs_the_built_wheel() -> None:
     assert "--package-root" in smoke
     assert 'oilpriceapi-${expected_version}-py3-none-any.whl' in smoke
     assert "-name '*.whl' -print -quit" not in smoke
+    assert "--sdist" in workflow
+    assert 'oilpriceapi-${PACKAGE_VERSION}.tar.gz' in workflow
+    assert workflow.index("Build package") < workflow.index(
+        "Validate exact built source distribution"
+    ) < workflow.index("Prepare checksummed release artifact")
+    assert "Build and validate exact source distribution" in test_workflow
+    assert "python scripts/validate_storefront_claims.py --sdist" in test_workflow
+    assert "matrix.python-version == '3.12'" in test_workflow
+    assert "'build==1.5.0'" in workflow
+    assert "'build==1.5.0'" in test_workflow
 
 
 def test_oidc_publisher_consumes_only_the_verified_artifact() -> None:
@@ -143,7 +154,7 @@ def test_oidc_publisher_consumes_only_the_verified_artifact() -> None:
     assert action_refs
     assert all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
     assert "Verify exact public PyPI hashes" in workflow
-    assert workflow.count("python scripts/package_version.py") == 2
+    assert workflow.count("python scripts/package_version.py") == 3
     assert "seq 1 24" in workflow
     assert "sleep_seconds" in workflow
 
@@ -159,7 +170,7 @@ def test_package_version_helper_reads_the_project_version() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "1.12.7"
+    assert result.stdout.strip() == "1.12.8"
 
 
 def test_every_workflow_pins_actions_and_hardens_each_checkout_step() -> None:

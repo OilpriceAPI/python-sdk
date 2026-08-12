@@ -30,7 +30,7 @@ jobs:
       - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e '.[dev]' pip-audit build 'jsonschema>=4.17,<4.24'
+          python -m pip install -e '.[dev]' pip-audit 'build==1.5.0' 'jsonschema>=4.17,<4.24'
 
       - name: Verify release tag matches package version and protected main
         env:
@@ -68,6 +68,17 @@ jobs:
 
       - name: Build package
         run: python -m build
+
+      - name: Validate exact built source distribution
+        run: |
+          set -euo pipefail
+          PACKAGE_VERSION="$(python scripts/package_version.py)"
+          SDIST="dist/oilpriceapi-${PACKAGE_VERSION}.tar.gz"
+          if [ ! -f "$SDIST" ]; then
+            echo "::error::Exact source distribution not found: $SDIST"
+            exit 1
+          fi
+          python scripts/validate_storefront_claims.py --sdist "$SDIST"
 
       - name: Install and import the exact built wheel
         run: ./scripts/clean-wheel-smoke.sh
