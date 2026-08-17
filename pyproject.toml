@@ -1,7 +1,7 @@
 [build-system]
 # Setuptools 77+ warns on the legacy license table, while the older backend
 # available on supported Python 3.8 cannot parse the replacement string form.
-requires = ["setuptools>=70.1,<77", "wheel"]
+requires = ["setuptools>=70.1,<85", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
