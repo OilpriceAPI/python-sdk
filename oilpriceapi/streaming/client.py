@@ -27,6 +27,7 @@ import asyncio
 import json
 import logging
 import random
+import sys
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Type
 
@@ -115,7 +116,22 @@ class PriceStream:
         # also accepts the Authorization header (connection.rb find_verified_user).
         sep = "&" if "?" in self._cable_url else "?"
         url = f"{self._cable_url}{sep}token={self._api_key}"
-        headers = {"Authorization": f"Token {self._api_key}"}
+        # Identify the SDK on the handshake exactly as the HTTP client does.
+        # The upgrade request is an ordinary HTTP request, so without these
+        # headers a streaming client is indistinguishable from a hand-rolled
+        # WebSocket and drops out of SDK attribution entirely. The Go SDK
+        # (stream.go) already sets the User-Agent here.
+        from ..version import SDK_NAME, SDK_VERSION
+
+        python_version = (
+            f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        )
+        headers = {
+            "Authorization": f"Token {self._api_key}",
+            "User-Agent": f"{SDK_NAME}/{SDK_VERSION} python/{python_version}",
+            "X-SDK-Name": SDK_NAME,
+            "X-SDK-Version": SDK_VERSION,
+        }
 
         self._ws = await websockets.connect(
             url,
