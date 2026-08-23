@@ -16,8 +16,52 @@ from ..models import Price
 class PricesResource:
     """Resource for current price operations."""
 
+    #: The API accepts at most this many commodity codes in one request, and
+    #: that request counts ONCE against quota. Verified against production
+    #: 2026-08-23: 20 codes -> 200, 21 -> 400 "Too many commodity codes
+    #: requested (max: 20, requested: 21)". Raising this without a
+    #: corresponding API change turns every call into a 400.
+    MAX_CODES_PER_REQUEST = 20
+
     def __init__(self, client):
         self.client = client
+
+    @staticmethod
+    def _to_price(price_data: dict, fallback_code: Optional[str] = None) -> Price:
+        """Map one API price row onto the Price model.
+
+        Shared by get() and the batched path so the two cannot drift.
+        """
+        return Price(
+            commodity=price_data.get("code", fallback_code),
+            value=price_data.get("price"),
+            currency=price_data.get("currency"),
+            # Retain the established oil-only fallback for legacy minimal
+            # responses; any unit actually supplied by the API wins.
+            unit=price_data.get("unit", "barrel"),
+            timestamp=price_data.get("created_at"),
+        )
+
+    def _fetch_batch(self, codes: List[str]) -> List[Price]:
+        """One request for up to MAX_CODES_PER_REQUEST codes.
+
+        A single code returns a flat ``data`` object; two or more return
+        ``data.prices[]``. Both shapes are handled here so callers do not
+        have to care how many codes they asked for.
+        """
+        response = self.client.request(
+            method="GET",
+            path="/v1/prices/latest",
+            params={"by_code": ",".join(codes)},
+        )
+        data = response.get("data", response) if isinstance(response, dict) else response
+
+        if isinstance(data, dict) and "prices" in data:
+            rows = data["prices"]
+        else:
+            rows = [data]
+
+        return [self._to_price(row, codes[0] if len(codes) == 1 else None) for row in rows]
 
     def get(self, commodity: str) -> Price:
         """Get current price for a single commodity.
@@ -36,24 +80,8 @@ class PricesResource:
             method="GET", path="/v1/prices/latest", params={"by_code": commodity}
         )
 
-        # Parse response
-        if "data" in response:
-            price_data = response["data"]
-        else:
-            price_data = response
-
-        # Map API response to Price model without inventing source context.
-        mapped_data = {
-            "commodity": price_data.get("code", commodity),
-            "value": price_data.get("price"),
-            "currency": price_data.get("currency"),
-            # Retain the established oil-only fallback for legacy minimal
-            # responses; any unit actually supplied by the API wins.
-            "unit": price_data.get("unit", "barrel"),
-            "timestamp": price_data.get("created_at"),
-        }
-
-        return Price(**mapped_data)
+        price_data = response["data"] if "data" in response else response
+        return self._to_price(price_data, commodity)
 
     def get_multiple(
         self, commodities: List[str], raise_on_error: bool = False, return_failures: bool = False
@@ -93,15 +121,29 @@ class PricesResource:
         prices = []
         failures = []
 
-        for commodity in commodities:
+        for start in range(0, len(commodities), self.MAX_CODES_PER_REQUEST):
+            chunk = commodities[start : start + self.MAX_CODES_PER_REQUEST]
             try:
-                price = self.get(commodity)
-                prices.append(price)
-            except OilPriceAPIError as e:
+                prices.extend(self._fetch_batch(chunk))
+            except OilPriceAPIError:
                 if raise_on_error:
                     raise
-                failures.append((commodity, str(e)))
-                continue
+                # The API rejects the WHOLE request when any code in it is
+                # unknown, so a chunk failure does not say which code was at
+                # fault. Retry just this chunk per code to preserve the
+                # per-code failure contract. A one-code chunk has nothing to
+                # narrow down, so it is recorded directly rather than refetched.
+                if len(chunk) == 1:
+                    try:
+                        prices.append(self.get(chunk[0]))
+                    except OilPriceAPIError as exc:
+                        failures.append((chunk[0], str(exc)))
+                    continue
+                for commodity in chunk:
+                    try:
+                        prices.append(self.get(commodity))
+                    except OilPriceAPIError as exc:
+                        failures.append((commodity, str(exc)))
 
         if return_failures:
             return prices, failures
