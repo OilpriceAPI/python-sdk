@@ -235,14 +235,36 @@ while True:
 
 **Solution:**
 ```python
-# Choose an interval from API limits and the application's freshness need
+# Match the interval to your plan AND to how fast the data moves.
 import time
 
 while True:
     price = client.prices.get("WTI_USD")
     print(f"WTI: ${price.value}")
-    time.sleep(300)  # Example client-selected interval
+    time.sleep(1800)   # 30 min -> 48 requests/day, fits the free plan
+                       # Developer and above: 300 (5 minutes)
 ```
+
+**Pick the interval from your plan:**
+
+| Plan | Quota | Poll every | Requests/day |
+| --- | --- | --- | --- |
+| Free | 50 / day | **30 minutes** | 48 |
+| Developer | 10,000 / month | 5 minutes | 288 |
+| Starter | 50,000 / month | 5 minutes | 1,440 |
+| Professional+ | 100,000+ / month | 5 minutes | 2,880 |
+
+Polling faster than the data changes cannot return new information. Measured
+over a week: `BRENT_CRUDE_USD` updates about every 2.5 minutes, `WTI_USD` and
+`NATURAL_GAS_USD` about every 5, and refined products such as `DIESEL_USD`
+about twice a day. Above Developer, extra quota is better spent on more
+commodity codes than on a shorter timer.
+
+⚠️ **`get_multiple()` currently issues one HTTP request per code**, so it
+consumes quota per commodity rather than per call. Until that is batched
+(api#7240), a loop over `get()` and a call to `get_multiple()` cost the same.
+The REST API itself accepts up to 20 codes in a single request that counts
+once — see the rate-limiting guide if you are close to your quota.
 
 **Better Solution (for streamed updates):**
 ```python
