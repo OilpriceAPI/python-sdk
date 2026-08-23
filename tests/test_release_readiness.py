@@ -170,7 +170,13 @@ def test_package_version_helper_reads_the_project_version() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "1.12.8"
+    # Read the expected value from pyproject rather than hard-coding it. The
+    # helper's job is "does it report the PROJECT version", not "is the version
+    # 1.12.8" — pinning the literal made this test fail on every release for a
+    # reason unrelated to what it guards.
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    expected = re.search(r'^version = "([^"]+)"', pyproject, re.M).group(1)
+    assert result.stdout.strip() == expected
 
 
 def test_every_workflow_pins_actions_and_hardens_each_checkout_step() -> None:
