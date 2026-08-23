@@ -2,6 +2,38 @@
 
 All notable changes to the OilPriceAPI Python SDK will be documented in this file.
 
+## [1.13.0] - 2026-08-23
+
+### Fixed
+
+- **`get_multiple()` now batches — up to 20 codes per request instead of one
+  request per code.** The REST API accepts 20 commodity codes in a single
+  request that counts **once** against quota, so the method whose purpose is
+  fetching several prices previously cost up to **20x more quota than writing
+  the call by hand**. Through it the free plan was 50 code-reads a day; through
+  the raw API it is 1,000.
+- The same fix is applied to `AsyncPricesResource.get_multiple()`, which was
+  worse: `asyncio.gather` fanned out one request **per code** concurrently,
+  which could also trip the 60-per-60-second rate limit on a long list. Chunks
+  are still gathered concurrently, so 25 codes cost 2 requests rather than 25.
+
+### Changed
+
+- **Your quota consumption will drop.** This is in your favour and requires no
+  code change, but it is a behaviour change: a `get_multiple()` call that
+  previously consumed N requests now consumes `ceil(N / 20)`.
+- The per-code failure contract is unchanged. Because the API rejects the whole
+  request when any code in it is unknown, a failed batch is retried per code —
+  for that chunk only — so `return_failures=True` still reports exactly which
+  code was at fault.
+
+### Documentation
+
+- Polling examples now default to an interval that fits the free plan
+  (30 minutes), with a plan/interval table and the measured update cadence of
+  the underlying data. Nothing we publish moves faster than about every
+  2.5 minutes, so a shorter timer returns the same number.
+
 ## [1.12.8] - 2026-08-12
 
 ### Fixed
