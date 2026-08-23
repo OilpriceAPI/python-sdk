@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, AsyncGenerator, Dict, List, Optional, Union
+from datetime import datetime
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -375,14 +376,18 @@ class AsyncPricesResource:
         self.client = client
 
     @staticmethod
-    def _to_price(price_data: dict, fallback_code: Optional[str] = None) -> Price:
-        """Map one API price row onto the Price model."""
+    def _to_price(price_data: Dict[str, Any], fallback_code: Optional[str] = None) -> Price:
+        """Map one API price row onto the Price model.
+
+        Casts are for mypy; pydantic does the real validation. See
+        PricesResource._to_price.
+        """
         return Price(
-            commodity=price_data.get("code", fallback_code),
-            value=price_data.get("price"),
+            commodity=cast(str, price_data.get("code", fallback_code)),
+            value=cast(float, price_data.get("price")),
             currency=price_data.get("currency", "USD"),
-            unit=price_data.get("unit", "barrel"),
-            timestamp=price_data.get("created_at"),
+            unit=cast(str, price_data.get("unit", "barrel")),
+            timestamp=cast(datetime, price_data.get("created_at")),
         )
 
     async def _fetch_batch(self, codes: List[str]) -> List[Price]:

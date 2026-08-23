@@ -7,7 +7,7 @@ Current price operations.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 from .._pagination import validate_page_size
 from ..models import Price
@@ -27,19 +27,24 @@ class PricesResource:
         self.client = client
 
     @staticmethod
-    def _to_price(price_data: dict, fallback_code: Optional[str] = None) -> Price:
+    def _to_price(price_data: Dict[str, Any], fallback_code: Optional[str] = None) -> Price:
         """Map one API price row onto the Price model.
 
         Shared by get() and the batched path so the two cannot drift.
+
+        Values are passed to a pydantic model, which does the coercion and
+        raises on anything genuinely wrong. The casts here are for mypy: the
+        JSON payload is Dict[str, Any], and the previous Price(**mapped_data)
+        form simply hid that from the type checker.
         """
         return Price(
-            commodity=price_data.get("code", fallback_code),
-            value=price_data.get("price"),
+            commodity=cast(str, price_data.get("code", fallback_code)),
+            value=cast(float, price_data.get("price")),
             currency=price_data.get("currency"),
             # Retain the established oil-only fallback for legacy minimal
             # responses; any unit actually supplied by the API wins.
-            unit=price_data.get("unit", "barrel"),
-            timestamp=price_data.get("created_at"),
+            unit=cast(str, price_data.get("unit", "barrel")),
+            timestamp=cast(datetime, price_data.get("created_at")),
         )
 
     def _fetch_batch(self, codes: List[str]) -> List[Price]:
