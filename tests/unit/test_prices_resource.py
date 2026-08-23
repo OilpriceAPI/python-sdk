@@ -37,37 +37,36 @@ class TestPricesResource:
 
     @patch("httpx.Client.request")
     def test_get_multiple_prices(self, mock_request, api_key, mock_price_response):
-        """Test getting multiple commodity prices."""
-        # Mock responses for each commodity
-        responses = [
-            Mock(
-                status_code=200,
-                json=lambda: {
-                    "status": "success",
-                    "data": {
-                        "code": "BRENT_CRUDE_USD",
-                        "price": 75.50,
-                        "currency": "USD",
-                        "created_at": "2024-01-15T10:00:00Z",
-                        "type": "spot_price",
-                    },
+        """Two codes are ONE batched request (api#7240).
+
+        This test previously asserted call_count == 2, encoding the defect:
+        get_multiple looped over get() and spent quota per code. The API
+        accepts 20 codes in one request that counts once.
+        """
+        mock_request.return_value = Mock(
+            status_code=200,
+            json=lambda: {
+                "status": "success",
+                "data": {
+                    "prices": [
+                        {
+                            "code": "BRENT_CRUDE_USD",
+                            "price": 75.50,
+                            "currency": "USD",
+                            "created_at": "2024-01-15T10:00:00Z",
+                            "type": "spot_price",
+                        },
+                        {
+                            "code": "WTI_USD",
+                            "price": 70.25,
+                            "currency": "USD",
+                            "created_at": "2024-01-15T10:00:00Z",
+                            "type": "spot_price",
+                        },
+                    ]
                 },
-            ),
-            Mock(
-                status_code=200,
-                json=lambda: {
-                    "status": "success",
-                    "data": {
-                        "code": "WTI_USD",
-                        "price": 70.25,
-                        "currency": "USD",
-                        "created_at": "2024-01-15T10:00:00Z",
-                        "type": "spot_price",
-                    },
-                },
-            ),
-        ]
-        mock_request.side_effect = responses
+            },
+        )
 
         client = OilPriceAPI(api_key=api_key)
         prices = client.prices.get_multiple(["BRENT_CRUDE_USD", "WTI_USD"])
@@ -77,7 +76,7 @@ class TestPricesResource:
         assert prices[0].value == 75.50
         assert prices[1].commodity == "WTI_USD"
         assert prices[1].value == 70.25
-        assert mock_request.call_count == 2
+        assert mock_request.call_count == 1, "two codes must cost ONE request"
 
     @patch("httpx.Client.request")
     def test_get_multiple_prices_with_failures(self, mock_request, api_key):
@@ -112,12 +111,18 @@ class TestPricesResource:
                 },
             ),
         ]
-        mock_request.side_effect = responses
+        # api#7240: the batch is tried first. The API rejects the WHOLE request
+        # when any code is unknown, so the chunk is retried per code — which is
+        # what the three per-code responses above now serve.
+        mock_request.side_effect = [
+            Mock(status_code=400, json=lambda: {"status": "fail", "data": {"error": "invalid_code"}}),
+            *responses,
+        ]
 
         client = OilPriceAPI(api_key=api_key)
         prices = client.prices.get_multiple(["BRENT_CRUDE_USD", "INVALID_CODE", "NATURAL_GAS_USD"])
 
-        # Should only return 2 prices (skips the failed one)
+        # Still returns the good ones and skips the failure — contract preserved
         assert len(prices) == 2
         assert prices[0].commodity == "BRENT_CRUDE_USD"
         assert prices[1].commodity == "NATURAL_GAS_USD"
@@ -414,3 +419,120 @@ class TestPricesResourceErrorHandling:
         assert price.value == 100.0
         assert price.currency is None
         assert price.unit == "index_points"
+
+
+class TestGetMultipleBatching:
+    """api#7240 — get_multiple must batch, not loop.
+
+    The REST API accepts up to 20 codes in ONE request that counts ONCE against
+    quota (verified against production 2026-08-23: 20 codes -> 200, 21 -> 400
+    "Too many commodity codes requested (max: 20, requested: 21)").
+
+    Looping made the SDK cost up to 20x more quota than writing the call by
+    hand, which is why these tests assert REQUEST COUNT, not just results.
+    """
+
+    @staticmethod
+    def _batch_response(codes):
+        return Mock(
+            status_code=200,
+            json=lambda: {
+                "status": "success",
+                "data": {
+                    "prices": [
+                        {
+                            "code": c,
+                            "price": 10.0 + i,
+                            "currency": "USD",
+                            "created_at": "2026-08-23T10:00:00Z",
+                            "type": "spot_price",
+                        }
+                        for i, c in enumerate(codes)
+                    ]
+                },
+            },
+        )
+
+    @patch("httpx.Client.request")
+    def test_three_codes_cost_one_request(self, mock_request, api_key):
+        codes = ["BRENT_CRUDE_USD", "WTI_USD", "NATURAL_GAS_USD"]
+        mock_request.return_value = self._batch_response(codes)
+
+        client = OilPriceAPI(api_key=api_key)
+        prices = client.prices.get_multiple(codes)
+
+        assert mock_request.call_count == 1, "3 codes must be ONE request, not three"
+        assert [p.commodity for p in prices] == codes
+        sent = mock_request.call_args.kwargs["params"]["by_code"]
+        assert sent == "BRENT_CRUDE_USD,WTI_USD,NATURAL_GAS_USD"
+
+    @patch("httpx.Client.request")
+    def test_twenty_five_codes_cost_two_requests(self, mock_request, api_key):
+        codes = [f"CODE_{i}_USD" for i in range(25)]
+        mock_request.side_effect = [
+            self._batch_response(codes[:20]),
+            self._batch_response(codes[20:]),
+        ]
+
+        client = OilPriceAPI(api_key=api_key)
+        prices = client.prices.get_multiple(codes)
+
+        assert mock_request.call_count == 2, "25 codes must be ceil(25/20) = 2 requests"
+        assert len(prices) == 25
+
+    @patch("httpx.Client.request")
+    def test_single_code_still_works(self, mock_request, api_key):
+        """One code returns a FLAT data object, not data.prices[]."""
+        mock_request.return_value = Mock(
+            status_code=200,
+            json=lambda: {
+                "status": "success",
+                "data": {
+                    "code": "BRENT_CRUDE_USD",
+                    "price": 75.5,
+                    "currency": "USD",
+                    "created_at": "2026-08-23T10:00:00Z",
+                    "type": "spot_price",
+                },
+            },
+        )
+        client = OilPriceAPI(api_key=api_key)
+        prices = client.prices.get_multiple(["BRENT_CRUDE_USD"])
+
+        assert mock_request.call_count == 1
+        assert len(prices) == 1
+        assert prices[0].value == 75.5
+
+    @patch("httpx.Client.request")
+    def test_bad_code_in_batch_falls_back_and_reports_per_code(self, mock_request, api_key):
+        """A 400 on the batch must not lose the good codes.
+
+        The API rejects the whole request when any code is unknown, so the
+        batch is retried per code — for that chunk only — to preserve the
+        per-code failure contract.
+        """
+        good = {
+            "status": "success",
+            "data": {
+                "code": "BRENT_CRUDE_USD",
+                "price": 75.5,
+                "currency": "USD",
+                "created_at": "2026-08-23T10:00:00Z",
+                "type": "spot_price",
+            },
+        }
+        mock_request.side_effect = [
+            Mock(status_code=400, json=lambda: {"status": "fail", "data": {"error": "invalid_code"}}),
+            Mock(status_code=200, json=lambda: good),
+            Mock(status_code=400, json=lambda: {"status": "fail", "data": {"error": "invalid_code"}}),
+        ]
+
+        client = OilPriceAPI(api_key=api_key)
+        prices, failures = client.prices.get_multiple(
+            ["BRENT_CRUDE_USD", "NOT_A_REAL_CODE"], return_failures=True
+        )
+
+        assert len(prices) == 1
+        assert prices[0].commodity == "BRENT_CRUDE_USD"
+        assert len(failures) == 1
+        assert failures[0][0] == "NOT_A_REAL_CODE"

@@ -122,14 +122,37 @@ class TestPricesResource:
             }
             return response
 
-        # Set up side_effect to return different responses
-        mock_request.side_effect = [
-            create_response("BRENT_CRUDE_USD", 75.50),
-            create_response("WTI_USD", 70.25),
-        ]
+        # api#7240: get_multiple now BATCHES — two codes are one request that
+        # returns data.prices[], not two requests each returning a flat object.
+        batch = Mock()
+        batch.status_code = 200
+        batch.json.return_value = {
+            "status": "success",
+            "data": {
+                "prices": [
+                    {
+                        "code": "BRENT_CRUDE_USD",
+                        "price": 75.50,
+                        "currency": "USD",
+                        "created_at": "2024-01-15T10:00:00Z",
+                        "type": "spot_price",
+                    },
+                    {
+                        "code": "WTI_USD",
+                        "price": 70.25,
+                        "currency": "USD",
+                        "created_at": "2024-01-15T10:00:00Z",
+                        "type": "spot_price",
+                    },
+                ]
+            },
+        }
+        mock_request.return_value = batch
 
         client = OilPriceAPI(api_key="test_key")
         prices = client.prices.get_multiple(["BRENT_CRUDE_USD", "WTI_USD"])
+
+        assert mock_request.call_count == 1, "two codes must cost ONE request"
 
         assert len(prices) == 2
         assert prices[0].commodity == "BRENT_CRUDE_USD"

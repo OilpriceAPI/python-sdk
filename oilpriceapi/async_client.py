@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, AsyncGenerator, Dict, List, Optional, Union
+from datetime import datetime
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -249,7 +250,9 @@ class AsyncOilPriceAPI:
                         await asyncio.sleep(wait_time)
                         continue
                 elif response.status_code >= 500:
-                    if self._retry_strategy.should_retry(attempt, response.status_code, response.headers):
+                    if self._retry_strategy.should_retry(
+                        attempt, response.status_code, response.headers
+                    ):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         self._retry_strategy.log_retry(
                             attempt,
@@ -365,8 +368,47 @@ class AsyncOilPriceAPI:
 class AsyncPricesResource:
     """Async resource for current prices."""
 
+    #: See PricesResource.MAX_CODES_PER_REQUEST — the API caps one request at
+    #: 20 codes and bills it once. Verified against production 2026-08-23.
+    MAX_CODES_PER_REQUEST = 20
+
     def __init__(self, client: AsyncOilPriceAPI):
         self.client = client
+
+    @staticmethod
+    def _to_price(price_data: Dict[str, Any], fallback_code: Optional[str] = None) -> Price:
+        """Map one API price row onto the Price model.
+
+        Casts are for mypy; pydantic does the real validation. See
+        PricesResource._to_price.
+        """
+        return Price(
+            commodity=cast(str, price_data.get("code", fallback_code)),
+            value=cast(float, price_data.get("price")),
+            currency=price_data.get("currency", "USD"),
+            unit=cast(str, price_data.get("unit", "barrel")),
+            timestamp=cast(datetime, price_data.get("created_at")),
+        )
+
+    async def _fetch_batch(self, codes: List[str]) -> List[Price]:
+        """One request for up to MAX_CODES_PER_REQUEST codes.
+
+        One code returns a flat ``data`` object; two or more return
+        ``data.prices[]``.
+        """
+        response = await self.client.request(
+            method="GET",
+            path="/v1/prices/latest",
+            params={"by_code": ",".join(codes)},
+        )
+        data = response.get("data", response) if isinstance(response, dict) else response
+
+        if isinstance(data, dict) and "prices" in data:
+            rows = data["prices"]
+        else:
+            rows = [data]
+
+        return [self._to_price(row, codes[0] if len(codes) == 1 else None) for row in rows]
 
     async def get(self, commodity: str) -> Price:
         """Get current price for commodity."""
@@ -409,20 +451,37 @@ class AsyncPricesResource:
             OilPriceAPIError: If raise_on_error=True and any commodity fails
         """
 
-        # Use gather for concurrent requests
-        tasks = [self.get(commodity) for commodity in commodities]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # api#7240: batch first, THEN fan out. Previously this issued one
+        # request per code concurrently, which spent quota per code and could
+        # trip the 60-per-60s rate limit instantly on a long list. Chunks of 20
+        # are still gathered concurrently, so 25 codes cost 2 requests, not 25.
+        chunks = [
+            commodities[i : i + self.MAX_CODES_PER_REQUEST]
+            for i in range(0, len(commodities), self.MAX_CODES_PER_REQUEST)
+        ]
+        results = await asyncio.gather(
+            *(self._fetch_batch(chunk) for chunk in chunks), return_exceptions=True
+        )
 
         prices = []
         failures = []
 
-        for commodity, result in zip(commodities, results):
-            if isinstance(result, Price):
-                prices.append(result)
-            elif isinstance(result, Exception):
-                if raise_on_error:
-                    raise result
-                failures.append((commodity, str(result)))
+        for chunk, result in zip(chunks, results):
+            if isinstance(result, list):
+                prices.extend(result)
+                continue
+            if raise_on_error:
+                raise result
+            # The API rejects the WHOLE request when any code in it is unknown,
+            # so retry this chunk per code to say which one was at fault.
+            retry = await asyncio.gather(
+                *(self.get(code) for code in chunk), return_exceptions=True
+            )
+            for code, item in zip(chunk, retry):
+                if isinstance(item, Price):
+                    prices.append(item)
+                else:
+                    failures.append((code, str(item)))
 
         if return_failures:
             return prices, failures
