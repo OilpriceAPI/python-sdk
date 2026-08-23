@@ -456,8 +456,10 @@ def monitor_prices():
             elif price.value < limits['low']:
                 send_alert(commodity, price.value, limits['low'], 'BELOW')
 
-        # Example caller-selected interval; honor API limit and freshness metadata.
-        time.sleep(300)
+        # Example caller-selected interval. Derive production polling from the
+        # account's current limit/reset response and the source timestamps.
+        # See https://docs.oilpriceapi.com/guides/rate-limiting#how-often-to-poll
+        time.sleep(1800)
 
 if __name__ == '__main__':
     print("Starting price monitor...")

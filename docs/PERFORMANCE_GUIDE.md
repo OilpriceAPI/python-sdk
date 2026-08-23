@@ -235,14 +235,26 @@ while True:
 
 **Solution:**
 ```python
-# Choose an interval from API limits and the application's freshness need
+# Match the interval to the account limit and how fast the data moves.
 import time
 
 while True:
     price = client.prices.get("WTI_USD")
     print(f"WTI: ${price.value}")
-    time.sleep(300)  # Example client-selected interval
+    # Example interval; derive this from current limit/reset metadata.
+    time.sleep(1800)
 ```
+
+Choose the interval from the current account response and the source timestamps
+returned with the data. Polling faster than the source changes cannot return new
+information, while a hard-coded schedule can exceed an account's current
+allowance when product limits change.
+
+⚠️ **`get_multiple()` currently issues one HTTP request per code**, so it
+consumes quota per commodity rather than per call. Until that is batched
+(api#7240), a loop over `get()` and a call to `get_multiple()` cost the same.
+See the rate-limiting guide for the current REST batching contract if you are
+close to your quota.
 
 **Better Solution (for streamed updates):**
 ```python
