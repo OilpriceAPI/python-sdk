@@ -456,10 +456,8 @@ def monitor_prices():
             elif price.value < limits['low']:
                 send_alert(commodity, price.value, limits['low'], 'BELOW')
 
-        # 30 minutes fits the free plan: 48 requests/day against a 50/day
-        # allowance. On Developer and above use 300 (5 minutes), which matches
-        # how often spot prices actually change - nothing we publish moves
-        # faster than ~2.5 minutes, so a shorter timer returns the same number.
+        # Example caller-selected interval. Derive production polling from the
+        # account's current limit/reset response and the source timestamps.
         # See https://docs.oilpriceapi.com/guides/rate-limiting#how-often-to-poll
         time.sleep(1800)
 
