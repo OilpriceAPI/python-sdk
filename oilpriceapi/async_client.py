@@ -285,10 +285,21 @@ class AsyncOilPriceAPI:
                         )
                         await asyncio.sleep(wait_time)
                         continue
-                raise error_from_response(
+                error = error_from_response(
                     response,
                     commodity=params.get("commodity") if params else None,
                 )
+                # A 5xx is ambiguous, not a refusal: a gateway can return 502
+                # after the origin already committed. The write was correctly
+                # sent once and not replayed -- tell the caller the outcome is
+                # unknown so they reconcile instead of assuming it failed
+                # (#116). 4xx and 429 refused the request outright, so nothing
+                # landed and there is nothing to reconcile.
+                if response.status_code >= 500 and not self._retry_strategy.is_replay_safe(
+                    method, idempotent
+                ):
+                    raise mark_ambiguous_write(error, method)
+                raise error
 
             except httpx.TimeoutException as error:
                 last_exception = error_from_exception(
