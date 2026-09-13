@@ -6,6 +6,8 @@ Energy Intelligence oil inventory data operations.
 
 from typing import Any, Dict, List
 
+from ._envelopes import ei_data, unwrap_ei_collection
+
 
 class EIOilInventoriesResource:
     """Resource for Energy Intelligence oil inventory data."""
@@ -38,10 +40,7 @@ class EIOilInventoriesResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def get(self, id: str) -> Dict[str, Any]:
         """Get a specific oil inventory record by ID.
@@ -61,51 +60,42 @@ class EIOilInventoriesResource:
             path=f"/v1/ei/oil_inventories/{id}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def latest(self) -> Dict[str, Any]:
         """Get latest oil inventory data.
 
         Returns:
-            Latest oil inventory summary
+            Report object with ``id``, ``report_date``, ``week_ending``,
+            ``source``, ``last_updated``, ``summary`` and ``inventories``.
 
         Example:
             >>> latest = client.ei.oil_inventories.latest()
-            >>> print(f"Total inventory: {latest['total']} barrels")
+            >>> print(f"Week ending: {latest['week_ending']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/oil_inventories/latest"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def summary(self) -> Dict[str, Any]:
         """Get oil inventory summary.
 
         Returns:
-            Summary statistics for oil inventories
+            Object with ``week_ending``, ``inventories`` and ``headline``.
 
         Example:
             >>> summary = client.ei.oil_inventories.summary()
-            >>> print(f"Crude: {summary['crude']} barrels")
-            >>> print(f"Products: {summary['products']} barrels")
+            >>> print(summary['headline'])
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/oil_inventories/summary"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def by_product(self, **params) -> List[Dict[str, Any]]:
         """Get oil inventories by product type.
@@ -114,12 +104,14 @@ class EIOilInventoriesResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of product inventories
+            The ``products`` list from ``data``. Each record has
+            ``product_type``, ``location``, ``volume_mmbbl``,
+            ``week_over_week``, ``direction`` and ``vs_five_year_avg``.
 
         Example:
             >>> products = client.ei.oil_inventories.by_product()
             >>> for product in products:
-            ...     print(f"{product['type']}: {product['volume']} barrels")
+            ...     print(f"{product['product_type']}: {product['volume_mmbbl']} MMbbl")
         """
         response = self.client.request(
             method="GET",
@@ -127,10 +119,9 @@ class EIOilInventoriesResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="products", subject="oil-inventory by-product"
+        )
 
     def historical(self, **params) -> List[Dict[str, Any]]:
         """Get historical oil inventory data.
@@ -139,12 +130,13 @@ class EIOilInventoriesResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of historical inventory records
+            The ``records`` list from ``data``. Each record has
+            ``week_ending``, ``volume_mmbbl`` and ``week_over_week``.
 
         Example:
             >>> history = client.ei.oil_inventories.historical()
             >>> for record in history:
-            ...     print(f"{record['date']}: {record['volume']} barrels")
+            ...     print(f"{record['week_ending']}: {record['volume_mmbbl']} MMbbl")
         """
         response = self.client.request(
             method="GET",
@@ -152,27 +144,23 @@ class EIOilInventoriesResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="records", subject="oil-inventory historical"
+        )
 
     def cushing(self) -> Dict[str, Any]:
         """Get Cushing, OK oil inventory data.
 
         Returns:
-            Cushing inventory data
+            Object with ``location``, ``latest`` and ``history``.
 
         Example:
             >>> cushing = client.ei.oil_inventories.cushing()
-            >>> print(f"Cushing inventory: {cushing['volume']} barrels")
+            >>> print(f"Cushing: {cushing['latest']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/oil_inventories/cushing"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)

@@ -6,6 +6,8 @@ Energy Intelligence OPEC production data operations.
 
 from typing import Any, Dict, List
 
+from ._envelopes import ei_data, unwrap_ei_collection
+
 
 class EIOpecProductionResource:
     """Resource for Energy Intelligence OPEC production data."""
@@ -38,10 +40,7 @@ class EIOpecProductionResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def get(self, id: str) -> Dict[str, Any]:
         """Get a specific OPEC production record by ID.
@@ -61,50 +60,43 @@ class EIOpecProductionResource:
             path=f"/v1/ei/opec_productions/{id}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def latest(self) -> Dict[str, Any]:
         """Get latest OPEC production data.
 
         Returns:
-            Latest OPEC production summary
+            Report object with ``id``, ``report_month``,
+            ``publication_month``, ``production_month``, ``source``,
+            ``opec_total``, ``countries`` and ``headline``.
 
         Example:
             >>> latest = client.ei.opec_production.latest()
-            >>> print(f"Total OPEC production: {latest['total']} bpd")
+            >>> print(f"OPEC total: {latest['opec_total']} mbpd")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/opec_productions/latest"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def total(self) -> Dict[str, Any]:
         """Get total OPEC production.
 
         Returns:
-            Total OPEC production data
+            Object with ``latest``, ``history`` and ``trend``.
 
         Example:
             >>> total = client.ei.opec_production.total()
-            >>> print(f"OPEC total: {total['production']} bpd")
+            >>> print(total['trend'])
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/opec_productions/total"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def by_country(self, **params) -> List[Dict[str, Any]]:
         """Get OPEC production by country.
@@ -113,12 +105,14 @@ class EIOpecProductionResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of country production records
+            The ``countries`` list from ``data``. Each record has
+            ``country``, ``name``, ``report_month``, ``publication_month``,
+            ``production_month`` and ``production_mbpd``.
 
         Example:
             >>> countries = client.ei.opec_production.by_country()
             >>> for country in countries:
-            ...     print(f"{country['name']}: {country['production']} bpd")
+            ...     print(f"{country['name']}: {country['production_mbpd']} mbpd")
         """
         response = self.client.request(
             method="GET",
@@ -126,10 +120,9 @@ class EIOpecProductionResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="countries", subject="OPEC by-country"
+        )
 
     def historical(self, **params) -> List[Dict[str, Any]]:
         """Get historical OPEC production data.
@@ -138,12 +131,14 @@ class EIOpecProductionResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of historical production records
+            The ``records`` list from ``data``. Each record has
+            ``report_month``, ``publication_month``, ``production_month``
+            and ``production_mbpd``.
 
         Example:
-            >>> history = client.ei.opec_production.historical()
+            >>> history = client.ei.opec_production.historical(country="saudi_arabia")
             >>> for record in history:
-            ...     print(f"{record['date']}: {record['production']} bpd")
+            ...     print(f"{record['production_month']}: {record['production_mbpd']}")
         """
         response = self.client.request(
             method="GET",
@@ -151,10 +146,9 @@ class EIOpecProductionResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="records", subject="OPEC historical"
+        )
 
     def top_producers(self, **params) -> List[Dict[str, Any]]:
         """Get top OPEC producers.
@@ -163,12 +157,14 @@ class EIOpecProductionResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of top producer records
+            The ``producers`` list from ``data``. Each record has ``rank``,
+            ``country``, ``name``, ``production_mbpd``, ``share_of_opec``,
+            ``publication_month`` and ``production_month``.
 
         Example:
-            >>> top = client.ei.opec_production.top_producers()
-            >>> for producer in top:
-            ...     print(f"{producer['country']}: {producer['production']} bpd")
+            >>> producers = client.ei.opec_production.top_producers()
+            >>> for producer in producers:
+            ...     print(f"{producer['rank']}. {producer['name']}")
         """
         response = self.client.request(
             method="GET",
@@ -176,7 +172,6 @@ class EIOpecProductionResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="producers", subject="OPEC top-producers"
+        )

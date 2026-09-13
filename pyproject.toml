@@ -73,6 +73,9 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-timeout>=2.1.0",
+    # Intercepts httpx at the transport layer so a resource test can assert on
+    # the real request/response round trip instead of a stubbed client method.
+    "respx>=0.20.2",
     "jsonschema>=4.17.0,<4.27",
     "black>=23.0.0",
     # Pin <3 defensively: mypy 2.x tightened defaults and rejected the old

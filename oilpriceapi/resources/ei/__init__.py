@@ -6,6 +6,7 @@ Energy Intelligence data resource modules.
 
 from typing import Any, Dict
 
+from ._envelopes import ei_data
 from .drilling_productivity import EIDrillingProductivityResource
 from .forecasts import EIForecastsResource
 from .frac_focus import EIFracFocusResource
@@ -54,10 +55,7 @@ class EnergyIntelligenceResource:
             path=f"/v1/ei/wells/{api_number}/timeline"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
 
 __all__ = [

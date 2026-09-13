@@ -6,31 +6,19 @@ Energy Intelligence well permit data operations.
 
 from typing import Any, Dict, List, Optional
 
-from ...exceptions import OilPriceAPIError
+from ._envelopes import ei_data, unwrap_ei_collection, unwrap_ei_object
 
 
 def unwrap_well_permit_search_response(response: Any) -> List[Dict[str, Any]]:
-    """Return a typed permit list or fail on an unknown successful shape."""
-    permits: Any
-    if isinstance(response, list):
-        permits = response
-    elif isinstance(response, dict) and "well_permits" in response:
-        permits = response["well_permits"]
-    elif isinstance(response, dict) and isinstance(response.get("data"), dict):
-        data = response["data"]
-        permits = data.get("well_permits") if "well_permits" in data else None
-    elif isinstance(response, dict) and "data" in response:
-        permits = response["data"]
-    else:
-        permits = None
+    """Return a typed permit list or fail on an unknown successful shape.
 
-    if not isinstance(permits, list) or not all(isinstance(item, dict) for item in permits):
-        raise OilPriceAPIError(
-            "Malformed well-permit search response: expected a well_permits list",
-            code="MALFORMED_RESPONSE",
-            raw_body=response,
-        )
-    return permits
+    Kept as a named entry point because it is already public; the shape
+    knowledge now lives in the shared EI envelope helper so search and every
+    other permit collection stay in step.
+    """
+    return unwrap_ei_collection(
+        response, collection="well_permits", subject="well-permit search"
+    )
 
 
 class EIWellPermitsResource:
@@ -51,12 +39,17 @@ class EIWellPermitsResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of well permit records
+            The ``well_permits`` list from ``data``. Each record has
+            ``api_number``, ``state_code``, ``county``, ``permit_number``,
+            ``permit_type``, ``permit_status``, ``permit_date``,
+            ``operator``, ``well``, ``location``, ``target`` and
+            ``provenance``. Pagination lives in ``data['meta']`` and is not
+            returned here.
 
         Example:
             >>> permits = client.ei.well_permits.list()
             >>> for permit in permits:
-            ...     print(f"{permit['operator']}: {permit['state']}")
+            ...     print(f"{permit['operator']['name']}: {permit['well']['name']}")
         """
         response = self.client.request(
             method="GET",
@@ -64,10 +57,9 @@ class EIWellPermitsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="well_permits", subject="well-permit list"
+        )
 
     def get(self, id: str) -> Dict[str, Any]:
         """Get a specific well permit record by ID.
@@ -76,61 +68,60 @@ class EIWellPermitsResource:
             id: Well permit record ID
 
         Returns:
-            Well permit record details
+            The permit record from ``data['well_permit']``.
 
         Example:
-            >>> permit = client.ei.well_permits.get("123")
-            >>> print(f"Operator: {permit['operator']}")
+            >>> permit = client.ei.well_permits.get("05123534110000")
+            >>> print(f"Operator: {permit['operator']['name']}")
         """
         response = self.client.request(
             method="GET",
             path=f"/v1/ei/well-permits/{id}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_object(
+            response, key="well_permit", subject="well-permit record"
+        )
 
     def latest(self) -> Dict[str, Any]:
         """Get latest well permit data.
 
         Returns:
-            Latest well permit summary
+            The latest-permits envelope: an object with ``well_permits``
+            (the list of records) and ``meta`` (pagination and freshness).
+            This endpoint returns the envelope, not a bare list, so the
+            freshness counters stay reachable.
 
         Example:
             >>> latest = client.ei.well_permits.latest()
-            >>> print(f"Recent permits: {latest['count']}")
+            >>> print(f"Recent permits: {len(latest['well_permits'])}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/well-permits/latest"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def summary(self) -> Dict[str, Any]:
         """Get well permit summary.
 
         Returns:
-            Summary statistics for well permits
+            Object with ``period_days``, ``total_permits``, ``by_state``,
+            ``top_operators``, ``top_formations``, ``by_permit_type``,
+            ``weekly_trend``, ``last_updated`` and the staleness fields
+            ``as_of``, ``data_age_days``, ``stale`` and ``stale_states``.
 
         Example:
             >>> summary = client.ei.well_permits.summary()
-            >>> print(f"Total permits: {summary['total']}")
+            >>> print(f"Total permits: {summary['total_permits']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/well-permits/summary"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def by_state(self, **params) -> List[Dict[str, Any]]:
         """Get well permits by state.
@@ -139,12 +130,12 @@ class EIWellPermitsResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of state permit records
+            The ``well_permits`` list from ``data``.
 
         Example:
-            >>> states = client.ei.well_permits.by_state()
-            >>> for state in states:
-            ...     print(f"{state['name']}: {state['permit_count']}")
+            >>> permits = client.ei.well_permits.by_state(state="TX")
+            >>> for permit in permits:
+            ...     print(f"{permit['county']}: {permit['permit_number']}")
         """
         response = self.client.request(
             method="GET",
@@ -152,10 +143,9 @@ class EIWellPermitsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="well_permits", subject="well-permit by-state"
+        )
 
     def by_operator(self, **params) -> List[Dict[str, Any]]:
         """Get well permits by operator.
@@ -164,12 +154,12 @@ class EIWellPermitsResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of operator permit records
+            The ``well_permits`` list from ``data``.
 
         Example:
-            >>> operators = client.ei.well_permits.by_operator()
-            >>> for operator in operators:
-            ...     print(f"{operator['name']}: {operator['permit_count']}")
+            >>> permits = client.ei.well_permits.by_operator(operator="Chesapeake")
+            >>> for permit in permits:
+            ...     print(f"{permit['well']['name']}: {permit['state_code']}")
         """
         response = self.client.request(
             method="GET",
@@ -177,10 +167,11 @@ class EIWellPermitsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="well_permits",
+            subject="well-permit by-operator",
+        )
 
     def by_formation(self, **params) -> List[Dict[str, Any]]:
         """Get well permits by formation.
@@ -189,12 +180,12 @@ class EIWellPermitsResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of formation permit records
+            The ``well_permits`` list from ``data``.
 
         Example:
-            >>> formations = client.ei.well_permits.by_formation()
-            >>> for formation in formations:
-            ...     print(f"{formation['name']}: {formation['permit_count']}")
+            >>> permits = client.ei.well_permits.by_formation(formation="Wolfcamp")
+            >>> for permit in permits:
+            ...     print(f"{permit['well']['name']}: {permit['target']}")
         """
         response = self.client.request(
             method="GET",
@@ -202,10 +193,11 @@ class EIWellPermitsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="well_permits",
+            subject="well-permit by-formation",
+        )
 
     def search(
         self,

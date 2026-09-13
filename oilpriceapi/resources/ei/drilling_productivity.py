@@ -6,6 +6,8 @@ Energy Intelligence drilling productivity data operations.
 
 from typing import Any, Dict, List
 
+from ._envelopes import ei_data, unwrap_ei_collection
+
 
 class EIDrillingProductivityResource:
     """Resource for Energy Intelligence drilling productivity data."""
@@ -25,12 +27,13 @@ class EIDrillingProductivityResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of drilling productivity records
+            List of report summaries with ``id``, ``report_month``,
+            ``summary`` and ``status``.
 
         Example:
-            >>> productivity = client.ei.drilling_productivity.list()
-            >>> for record in productivity:
-            ...     print(f"{record['basin']}: {record['productivity']} bpd/rig")
+            >>> reports = client.ei.drilling_productivity.list()
+            >>> for report in reports:
+            ...     print(f"{report['report_month']}: {report['status']}")
         """
         response = self.client.request(
             method="GET",
@@ -38,10 +41,7 @@ class EIDrillingProductivityResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def get(self, id: str) -> Dict[str, Any]:
         """Get a specific drilling productivity record by ID.
@@ -50,61 +50,56 @@ class EIDrillingProductivityResource:
             id: Drilling productivity record ID
 
         Returns:
-            Drilling productivity record details
+            Report object with ``id``, ``report_month``, ``source``,
+            ``last_updated``, ``total_duc`` and ``basins``.
 
         Example:
-            >>> record = client.ei.drilling_productivity.get("123")
-            >>> print(f"Productivity: {record['productivity']} bpd/rig")
+            >>> report = client.ei.drilling_productivity.get("123")
+            >>> print(f"Total DUC: {report['total_duc']}")
         """
         response = self.client.request(
             method="GET",
             path=f"/v1/ei/drilling_productivities/{id}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def latest(self) -> Dict[str, Any]:
         """Get latest drilling productivity data.
 
         Returns:
-            Latest drilling productivity summary
+            Report object with ``id``, ``report_month``, ``source``,
+            ``last_updated``, ``total_duc`` and ``basins``.
 
         Example:
             >>> latest = client.ei.drilling_productivity.latest()
-            >>> print(f"Average productivity: {latest['average']} bpd/rig")
+            >>> print(f"Total DUC: {latest['total_duc']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/drilling_productivities/latest"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def summary(self) -> Dict[str, Any]:
         """Get drilling productivity summary.
 
         Returns:
-            Summary statistics for drilling productivity
+            Summary object with ``report_month``, ``total_duc_wells``,
+            ``average_oil_productivity``, ``average_gas_productivity``,
+            ``basins`` and ``headline``.
 
         Example:
             >>> summary = client.ei.drilling_productivity.summary()
-            >>> print(f"Total production: {summary['total_production']} bpd")
+            >>> print(f"Total DUC wells: {summary['total_duc_wells']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/drilling_productivities/summary"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def duc_wells(self, **params) -> List[Dict[str, Any]]:
         """Get DUC (Drilled but Uncompleted) wells data.
@@ -113,12 +108,14 @@ class EIDrillingProductivityResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of DUC well records
+            The ``by_basin`` list from ``data``. Each record has
+            ``basin``, ``basin_name``, ``duc_count``, ``region`` and
+            ``type``.
 
         Example:
             >>> ducs = client.ei.drilling_productivity.duc_wells()
             >>> for duc in ducs:
-            ...     print(f"{duc['basin']}: {duc['count']} DUCs")
+            ...     print(f"{duc['basin_name']}: {duc['duc_count']} DUCs")
         """
         response = self.client.request(
             method="GET",
@@ -126,10 +123,11 @@ class EIDrillingProductivityResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="by_basin",
+            subject="drilling-productivity DUC wells",
+        )
 
     def by_basin(self, **params) -> List[Dict[str, Any]]:
         """Get drilling productivity by basin.
@@ -138,12 +136,15 @@ class EIDrillingProductivityResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of basin productivity records
+            The ``months`` list from ``data`` — one entry per report month,
+            each with ``report_month`` and a ``basins`` list of per-basin
+            records. (``data['basins']`` is the echoed filter, not the
+            collection.)
 
         Example:
-            >>> basins = client.ei.drilling_productivity.by_basin()
-            >>> for basin in basins:
-            ...     print(f"{basin['name']}: {basin['productivity']} bpd/rig")
+            >>> months = client.ei.drilling_productivity.by_basin()
+            >>> for month in months:
+            ...     print(f"{month['report_month']}: {len(month['basins'])} basins")
         """
         response = self.client.request(
             method="GET",
@@ -151,10 +152,11 @@ class EIDrillingProductivityResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="months",
+            subject="drilling-productivity by-basin",
+        )
 
     def historical(self, **params) -> List[Dict[str, Any]]:
         """Get historical drilling productivity data.
@@ -163,12 +165,14 @@ class EIDrillingProductivityResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of historical productivity records
+            The ``records`` list from ``data``. Each record has
+            ``report_month``, ``duc_count``, ``new_well_oil_per_rig`` and
+            ``new_well_gas_per_rig``.
 
         Example:
-            >>> history = client.ei.drilling_productivity.historical()
+            >>> history = client.ei.drilling_productivity.historical(basin="permian")
             >>> for record in history:
-            ...     print(f"{record['date']}: {record['productivity']} bpd/rig")
+            ...     print(f"{record['report_month']}: {record['duc_count']} DUCs")
         """
         response = self.client.request(
             method="GET",
@@ -176,10 +180,11 @@ class EIDrillingProductivityResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="records",
+            subject="drilling-productivity historical",
+        )
 
     def trends(self, **params) -> List[Dict[str, Any]]:
         """Get drilling productivity trends.
@@ -188,12 +193,14 @@ class EIDrillingProductivityResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of trend data points
+            The ``trends`` list from ``data``. Each record has ``basin``,
+            ``current_duc``, ``previous_duc``, ``duc_change``,
+            ``duc_trend``, ``productivity_oil`` and ``productivity_gas``.
 
         Example:
             >>> trends = client.ei.drilling_productivity.trends()
             >>> for point in trends:
-            ...     print(f"{point['date']}: {point['trend']}")
+            ...     print(f"{point['basin']}: {point['duc_trend']}")
         """
         response = self.client.request(
             method="GET",
@@ -201,7 +208,8 @@ class EIDrillingProductivityResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="trends",
+            subject="drilling-productivity trends",
+        )
