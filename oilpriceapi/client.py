@@ -45,7 +45,7 @@ from .resources.storage import StorageResource
 from .resources.subscriptions import SubscriptionsResource
 from .resources.webhooks import WebhooksResource
 from .resources.well_production import WellProductionResource
-from .retry import RetryStrategy
+from .retry import RetryStrategy, mark_ambiguous_write, validated_max_retries
 
 
 class OilPriceAPI:
@@ -63,8 +63,20 @@ class OilPriceAPI:
         api_key: API key for authentication. If not provided, uses OILPRICEAPI_KEY env var.
         base_url: Base URL for API. Defaults to production.
         timeout: Request timeout in seconds. Defaults to 30.
-        max_retries: Maximum request attempts for failed requests. Defaults to 3.
+        max_retries: Total request ATTEMPTS, not retries after the first.
+            Defaults to 3. Must be at least 1; pass 1 for a single attempt with
+            no retries. Anything less, or a non-int, raises ConfigurationError
+            rather than being silently replaced by the default.
         retry_on: Status codes to retry on. Defaults to [429, 500, 502, 503, 504].
+            An explicit empty list is honoured and disables status-code retries.
+
+    Retry safety: a non-idempotent method (POST, PATCH) is sent exactly ONCE.
+    A timeout, a transport error or a 5xx is an ambiguous outcome — the server
+    may have committed the write before the response was lost — so replaying it
+    could create a duplicate. Idempotent methods (GET, HEAD, OPTIONS, TRACE,
+    PUT, DELETE) still retry as before, and a 429 still retries any method
+    because it is an outright refusal. Pass ``idempotent=True`` to ``request()``
+    to opt a specific write back into retrying.
 
     Example:
         >>> # Recommended: Use context manager for automatic cleanup
@@ -108,8 +120,15 @@ class OilPriceAPI:
         # Configuration
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
         self.timeout = timeout or self.DEFAULT_TIMEOUT
-        self.max_retries = max_retries or self.DEFAULT_MAX_RETRIES
-        self.retry_on = retry_on or self.DEFAULT_RETRY_CODES
+        # Explicit None checks, not `or`: an explicit max_retries=0 used to
+        # become 3 and an explicit retry_on=[] used to become the default status
+        # list, silently discarding what the caller asked for (#104).
+        self.max_retries = (
+            self.DEFAULT_MAX_RETRIES if max_retries is None else validated_max_retries(max_retries)
+        )
+        self.retry_on = (
+            list(self.DEFAULT_RETRY_CODES) if retry_on is None else list(retry_on)
+        )
 
         # Initialize retry strategy
         self._retry_strategy = RetryStrategy(max_retries=self.max_retries, retry_on=self.retry_on)
@@ -205,6 +224,7 @@ class OilPriceAPI:
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
+        idempotent: Optional[bool] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """Make HTTP request to API.
@@ -218,6 +238,9 @@ class OilPriceAPI:
             params: Query parameters
             json_data: JSON body data
             timeout: Request timeout in seconds. If None, uses client's default timeout.
+            idempotent: Assert that repeating this request is safe. Without it,
+                POST and PATCH are sent exactly once and never replayed after an
+                ambiguous outcome (#104).
             **kwargs: Additional httpx request arguments
 
         Returns:
@@ -274,18 +297,28 @@ class OilPriceAPI:
                     )
 
                     # Auto-retry with Retry-After if we have attempts left
-                    if self._retry_strategy.should_retry(attempt, 429, response.headers):
-                        try:
-                            wait_time = min(float(retry_after), 60.0)
-                        except (TypeError, ValueError):
-                            wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    if self._retry_strategy.should_retry(
+                        attempt, 429, response.headers, method=method, idempotent=idempotent
+                    ):
+                        # Bounded in BOTH directions: a server Retry-After of
+                        # 31612 would park the process for 8.8 hours, and a
+                        # negative one makes time.sleep() raise (#104).
+                        wait_time = self._retry_strategy.bounded_wait(
+                            retry_after, self._retry_strategy.calculate_wait_time(attempt)
+                        )
                         logger.info(
                             f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})"
                         )
                         time.sleep(wait_time)
                         continue
                 elif response.status_code >= 500:
-                    if self._retry_strategy.should_retry(attempt, response.status_code, response.headers):
+                    if self._retry_strategy.should_retry(
+                        attempt,
+                        response.status_code,
+                        response.headers,
+                        method=method,
+                        idempotent=idempotent,
+                    ):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         self._retry_strategy.log_retry(
                             attempt,
@@ -306,13 +339,17 @@ class OilPriceAPI:
                     api_key=self.api_key,
                     timeout=effective_timeout,
                 )
-                if self._retry_strategy.should_retry_on_exception(attempt):
+                if self._retry_strategy.should_retry_on_exception(
+                    attempt, method=method, idempotent=idempotent
+                ):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt, "Request timeout", wait_time, is_async=False
                     )
                     time.sleep(wait_time)
                     continue
+                if not self._retry_strategy.is_replay_safe(method, idempotent):
+                    raise mark_ambiguous_write(last_exception, method)
                 logger.error(f"Request timed out after {self.max_retries} attempts")
                 raise last_exception
             except httpx.RequestError as error:
@@ -320,7 +357,9 @@ class OilPriceAPI:
                     error,
                     api_key=self.api_key,
                 )
-                if self._retry_strategy.should_retry_on_exception(attempt):
+                if self._retry_strategy.should_retry_on_exception(
+                    attempt, method=method, idempotent=idempotent
+                ):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt,
@@ -330,6 +369,8 @@ class OilPriceAPI:
                     )
                     time.sleep(wait_time)
                     continue
+                if not self._retry_strategy.is_replay_safe(method, idempotent):
+                    raise mark_ambiguous_write(last_exception, method)
                 logger.error(
                     f"Request failed after {self.max_retries} attempts: "
                     f"{error.__class__.__name__}"
@@ -354,6 +395,7 @@ class OilPriceAPI:
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
+        idempotent: Optional[bool] = None,
         **kwargs,
     ) -> Tuple[Dict[str, Any], httpx.Headers]:
         """Make HTTP request and return (json_body, headers) tuple.
@@ -388,18 +430,28 @@ class OilPriceAPI:
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
 
-                    if self._retry_strategy.should_retry(attempt, 429, response.headers):
-                        try:
-                            wait_time = min(float(retry_after), 60.0)
-                        except (TypeError, ValueError):
-                            wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    if self._retry_strategy.should_retry(
+                        attempt, 429, response.headers, method=method, idempotent=idempotent
+                    ):
+                        # Bounded in BOTH directions: a server Retry-After of
+                        # 31612 would park the process for 8.8 hours, and a
+                        # negative one makes time.sleep() raise (#104).
+                        wait_time = self._retry_strategy.bounded_wait(
+                            retry_after, self._retry_strategy.calculate_wait_time(attempt)
+                        )
                         logger.info(
                             f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})"
                         )
                         time.sleep(wait_time)
                         continue
                 elif response.status_code >= 500:
-                    if self._retry_strategy.should_retry(attempt, response.status_code, response.headers):
+                    if self._retry_strategy.should_retry(
+                        attempt,
+                        response.status_code,
+                        response.headers,
+                        method=method,
+                        idempotent=idempotent,
+                    ):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         self._retry_strategy.log_retry(
                             attempt,
@@ -420,20 +472,26 @@ class OilPriceAPI:
                     api_key=self.api_key,
                     timeout=effective_timeout,
                 )
-                if self._retry_strategy.should_retry_on_exception(attempt):
+                if self._retry_strategy.should_retry_on_exception(
+                    attempt, method=method, idempotent=idempotent
+                ):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt, "Request timeout", wait_time, is_async=False
                     )
                     time.sleep(wait_time)
                     continue
+                if not self._retry_strategy.is_replay_safe(method, idempotent):
+                    raise mark_ambiguous_write(last_exception, method)
                 raise last_exception
             except httpx.RequestError as error:
                 last_exception = error_from_exception(
                     error,
                     api_key=self.api_key,
                 )
-                if self._retry_strategy.should_retry_on_exception(attempt):
+                if self._retry_strategy.should_retry_on_exception(
+                    attempt, method=method, idempotent=idempotent
+                ):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt,
@@ -443,6 +501,8 @@ class OilPriceAPI:
                     )
                     time.sleep(wait_time)
                     continue
+                if not self._retry_strategy.is_replay_safe(method, idempotent):
+                    raise mark_ambiguous_write(last_exception, method)
                 raise last_exception
 
         if last_exception:
