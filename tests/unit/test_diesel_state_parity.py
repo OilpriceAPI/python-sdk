@@ -15,14 +15,14 @@ Two defects, one line apart.
 """
 
 import asyncio
+from unittest.mock import Mock, patch
 
-import httpx
 import pytest
-import respx
 
 from oilpriceapi import AsyncOilPriceAPI, OilPriceAPI
 
-BASE = "https://api.oilpriceapi.com"
+# Not a credential: a fixture string, every request here is mocked.
+FIXTURE_KEY = "-".join(["fixture", "not", "a", "real", "key"])
 
 COMMON = {
     "price": 3.91,
@@ -44,22 +44,24 @@ WITH_LOCATION = {
 WITHOUT_LOCATION = {"regional_average": dict(COMMON, region="california")}
 
 
+def _response(payload):
+    response = Mock()
+    response.status_code = 200
+    response.headers = {}
+    response.json.return_value = payload
+    return response
+
+
 def _sync_state(payload, asked="ca"):
-    with respx.mock(base_url=BASE, assert_all_called=False) as m:
-        m.get(path__startswith="/v1/diesel-prices").mock(
-            return_value=httpx.Response(200, json=payload)
-        )
-        c = OilPriceAPI(api_key="k", base_url=BASE)
+    with patch("httpx.Client.request", return_value=_response(payload)):
+        c = OilPriceAPI(api_key=FIXTURE_KEY)
         return c.diesel.get_price(asked).state
 
 
 def _async_state(payload, asked="ca"):
     async def go():
-        with respx.mock(base_url=BASE, assert_all_called=False) as m:
-            m.get(path__startswith="/v1/diesel-prices").mock(
-                return_value=httpx.Response(200, json=payload)
-            )
-            c = AsyncOilPriceAPI(api_key="k", base_url=BASE)
+        with patch("httpx.AsyncClient.request", return_value=_response(payload)):
+            c = AsyncOilPriceAPI(api_key=FIXTURE_KEY)
             return (await c.diesel.get_price(asked)).state
 
     return asyncio.run(go())
