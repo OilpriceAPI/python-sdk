@@ -4,6 +4,8 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-09-13
+
 ### Added
 
 - **Typed `client.spreads` and `client.indicators` resources (#99), sync and
