@@ -4,6 +4,7 @@ import logging
 import random
 import warnings
 from typing import List, Mapping, Optional
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,43 @@ def validated_base_url(value: object) -> str:
             "base_url is empty. Pass base_url=None for the default "
             "(https://api.oilpriceapi.com) rather than an empty string."
         )
+
+    # The origin guard in `_url.resolve_api_url` pins every request to this
+    # value by comparing `_origin(url) != _origin(base_url)`, where `_origin`
+    # is (scheme, host, port) from `urlsplit`. A base_url with no scheme has no
+    # authority, so its origin is ("", "", 0) -- and the URL resolved against it
+    # is relative, so ITS origin is ("", "", 0) too. The comparison then has
+    # nothing on either side and passes everything, which silently disables one
+    # of the two layers protecting the caller's API key (#123).
+    #
+    # Refusing a non-absolute base at construction keeps the guard comparing two
+    # real origins. It also turns httpx's downstream
+    # `UnsupportedProtocol: Request URL is missing an 'http://' or 'https://'
+    # protocol` into an error that names the setting the caller got wrong.
+    parts = urlsplit(trimmed)
+    if parts.scheme.lower() not in ("http", "https"):
+        raise ConfigurationError(
+            f"base_url must start with 'http://' or 'https://', got {trimmed!r}. "
+            "A base_url without a scheme leaves the request-origin guard with no "
+            "origin to pin to, and httpx cannot send the request at all. "
+            "Pass base_url=None for the default (https://api.oilpriceapi.com)."
+        )
+    if not parts.hostname:
+        raise ConfigurationError(
+            f"base_url has no host, got {trimmed!r}. "
+            "Pass a full origin such as 'https://api.oilpriceapi.com', or "
+            "base_url=None for the default."
+        )
+    # `urlsplit(...).port` raises ValueError on an out-of-range port; surface it
+    # as the documented ConfigurationError rather than leaking a raw ValueError
+    # out of the constructor.
+    try:
+        parts.port
+    except ValueError as exc:
+        raise ConfigurationError(
+            f"base_url has an invalid port, got {trimmed!r}: {exc}"
+        ) from exc
+
     return trimmed
 
 
