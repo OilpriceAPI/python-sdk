@@ -14,6 +14,7 @@ from .client import (
     CHANNEL_NAME,
     AsyncStreamNamespace,
     PriceStream,
+    StreamAuthError,
     StreamingNotInstalledError,
 )
 from .models import (
@@ -30,6 +31,7 @@ from .models import (
 __all__ = [
     "AsyncStreamNamespace",
     "PriceStream",
+    "StreamAuthError",
     "StreamingNotInstalledError",
     "CHANNEL_NAME",
     "StreamUpdate",

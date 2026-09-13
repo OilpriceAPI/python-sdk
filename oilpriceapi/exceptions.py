@@ -322,14 +322,29 @@ class DataNotFoundError(OilPriceAPIError):
 class ValidationError(OilPriceAPIError):
     """Raised when request validation fails (HTTP 422)."""
 
+    #: Sentinel so `status_code=None` is distinguishable from "not supplied".
+    _UNSET = object()
+
     def __init__(
         self,
         message: str = "Validation error",
         field: Optional[str] = None,
         value: Optional[Any] = None,
+        status_code: Any = _UNSET,
         **kwargs: Any,
     ):
-        super().__init__(message, status_code=422, **kwargs)
+        # A refusal raised by a purely local guard -- `_url._reject`, which
+        # runs before any socket is opened -- has no HTTP status, because no
+        # request was ever sent. Hard-coding 422 made `.status_code` read 422
+        # and `.is_client_error` read True for a request that never reached the
+        # network, so anything logging or aggregating by status recorded a
+        # server response that did not exist (#123).
+        #
+        # The default stays 422 so existing callers and a real 422 from the API
+        # are unaffected; a local guard passes `status_code=None` explicitly.
+        if status_code is ValidationError._UNSET:
+            status_code = 422
+        super().__init__(message, status_code=status_code, **kwargs)
         self.field = field
         self.value = value
 

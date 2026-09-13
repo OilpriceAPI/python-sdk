@@ -16,6 +16,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+from ._body import decode_json_body
 from ._subscriptions_common import unwrap_data
 from ._url import resolve_api_url
 from .async_resources import (
@@ -254,12 +255,12 @@ class AsyncOilPriceAPI:
                 logger.debug(f"Async API response: {response.status_code} for {method} {url}")
 
                 if 200 <= response.status_code < 300:
-                    self._telemetry.track_request(
+                    self._track_telemetry(
                         operation=self._sanitize_path(method, path),
                         duration=_time.time() - start_time,
                         success=True,
                     )
-                    return response.json()
+                    return decode_json_body(response)
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
                     logger.warning(
@@ -352,7 +353,7 @@ class AsyncOilPriceAPI:
                 raise last_exception
 
         if last_exception:
-            self._telemetry.track_request(
+            self._track_telemetry(
                 operation=self._sanitize_path(method, path),
                 duration=_time.time() - start_time,
                 success=False,
@@ -361,6 +362,18 @@ class AsyncOilPriceAPI:
             raise last_exception
 
         raise OilPriceAPIError("Max retries exceeded")
+
+    def _track_telemetry(self, **fields: Any) -> None:
+        """
+        Record a telemetry event without ever affecting the request result.
+
+        Telemetry is opt-in and best effort: a failure inside the collector
+        must never change, delay, or fail an API call (#105).
+        """
+        try:
+            self._telemetry.track_request(**fields)
+        except Exception:  # pragma: no cover - telemetry must never surface
+            logger.debug("Telemetry tracking failed", exc_info=True)
 
     @staticmethod
     def _sanitize_path(method: str, path: str) -> str:
@@ -402,8 +415,11 @@ class AsyncOilPriceAPI:
         return MarketBrief(**unwrap_data(response))
 
     async def close(self):
-        """Close the HTTP client and flush telemetry."""
-        self._telemetry.close()
+        """Close the HTTP client and stop telemetry."""
+        try:
+            self._telemetry.close()
+        except Exception:  # pragma: no cover - telemetry must never surface
+            logger.debug("Telemetry close failed", exc_info=True)
         if self._client:
             await self._client.aclose()
             self._client = None

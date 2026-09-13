@@ -4,6 +4,7 @@ import logging
 import random
 import warnings
 from typing import List, Mapping, Optional
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,48 @@ def validated_base_url(value: object) -> str:
             "base_url is empty. Pass base_url=None for the default "
             "(https://api.oilpriceapi.com) rather than an empty string."
         )
+
+    # The origin guard in `_url.resolve_api_url` pins every request to this
+    # value by comparing `_origin(url) != _origin(base_url)`, where `_origin`
+    # is (scheme, host, port) from `urlsplit`. A base_url with no scheme has no
+    # authority, so its origin is ("", "", 0) -- and the URL resolved against it
+    # is relative, so ITS origin is ("", "", 0) too. The comparison then has
+    # nothing on either side and passes everything, which silently disables one
+    # of the two layers protecting the caller's API key (#123).
+    #
+    # Refusing a non-absolute base at construction keeps the guard comparing two
+    # real origins. It also turns httpx's downstream
+    # `UnsupportedProtocol: Request URL is missing an 'http://' or 'https://'
+    # protocol` into an error that names the setting the caller got wrong.
+    # `urlsplit` and its `.hostname`/`.port` accessors raise ValueError on an
+    # out-of-range port and on a non-ASCII netloc whose NFKC normalisation
+    # introduces one of /?#@: -- e.g. "https://\u2100evil.example". Neither is
+    # the ValidationError/ConfigurationError the constructor documents, so wrap
+    # the whole parse (#123).
+    try:
+        parts = urlsplit(trimmed)
+        host = parts.hostname
+        _ = parts.port  # accessor validates the port; value unused
+    except ValueError as exc:
+        raise ConfigurationError(
+            f"base_url is not a valid URL, got {trimmed!r}: {exc}. "
+            "Pass base_url=None for the default (https://api.oilpriceapi.com)."
+        ) from exc
+
+    if parts.scheme.lower() not in ("http", "https"):
+        raise ConfigurationError(
+            f"base_url must start with 'http://' or 'https://', got {trimmed!r}. "
+            "A base_url without a scheme leaves the request-origin guard with no "
+            "origin to pin to, and httpx cannot send the request at all. "
+            "Pass base_url=None for the default (https://api.oilpriceapi.com)."
+        )
+    if not host:
+        raise ConfigurationError(
+            f"base_url has no host, got {trimmed!r}. "
+            "Pass a full origin such as 'https://api.oilpriceapi.com', or "
+            "base_url=None for the default."
+        )
+
     return trimmed
 
 
@@ -353,7 +396,7 @@ class RetryStrategy:
             attempt: Current attempt number (0-indexed)
 
         Returns:
-            Wait time in seconds (capped at 60 seconds)
+            Wait time in seconds, never above ``MAX_WAIT_SECONDS`` (60).
 
         Examples:
             Without jitter:
@@ -361,17 +404,27 @@ class RetryStrategy:
             - Attempt 1: 2.0s
             - Attempt 2: 4.0s
 
-            With jitter (adds 0-30% randomization):
+            With jitter (adds 0-30% randomization, then clamps to 60s):
             - Attempt 0: 1.0-1.3s
             - Attempt 1: 2.0-2.6s
             - Attempt 2: 4.0-5.2s
+            - Attempt 6 and up: saturates at 60.0s
+
+        The clamp is the point. ``min(2 ** attempt, 60)`` bounded the BASE, then
+        up to 30% jitter was added on top, so the documented 60s cap was
+        exceeded from attempt 6 onwards -- 78s at the ceiling. #115 added
+        ``bounded_wait`` but wired it only into the 429/Retry-After path; the
+        5xx and transport-error paths in both clients call this method raw
+        (#123). Bounding here fixes every call site at once and cannot drift
+        between the sync and async clients.
         """
-        base_wait = min(2 ** attempt, 60)
+        base_wait = float(min(2 ** attempt, self.MAX_WAIT_SECONDS))
 
         if self.jitter:
-            # Add 0-30% random jitter to prevent synchronized retries
+            # Add 0-30% random jitter to prevent synchronized retries, then
+            # clamp -- jitter must not push the wait past the documented cap.
             jitter_amount = random.uniform(0, 0.3 * base_wait)
-            return base_wait + jitter_amount
+            return self.bounded_wait(base_wait + jitter_amount, base_wait)
 
         return base_wait
 
