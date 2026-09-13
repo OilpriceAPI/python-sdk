@@ -115,6 +115,21 @@ def _first_value(sources: Iterable[Mapping[str, Any]], *keys: str) -> Any:
     return None
 
 
+def _is_machine_code(value: Any) -> bool:
+    """True for a snake-case token such as ``VALIDATION_ERROR`` or ``invalid_code``.
+
+    The API sends both cases in ``data.error`` (``render_fail``): upper-snake
+    from the subscription and upgrade-trigger routes, lower-snake from
+    ``api_validations.rb`` and ``prices_controller.rb``. A sentence -- anything
+    with spaces or punctuation, or a single word -- is not a code.
+    """
+    if not isinstance(value, str) or "_" not in value or not value[:1].isalpha():
+        return False
+    if not all(part.isascii() and part.isalnum() for part in value.split("_")):
+        return False
+    return value.isupper() or value.islower()
+
+
 def _number(value: Any) -> Any:
     if value is None:
         return None
@@ -510,7 +525,11 @@ def error_from_response(
     message = str(message_value or raw_text.strip() or f"HTTP {status_code} error")
 
     code_value = _first_value(sources, "code", "error_code", "type")
-    if code_value is None and isinstance(nested_data_error, str):
+    # In the fail envelope `data.error` is either a machine code (the sentence is
+    # in `data.message`) or the sentence itself, as every fuel-surcharge 400/404
+    # sends. Only a code-shaped value is a code; a sentence stays the message
+    # and never becomes `error.code` (#145).
+    if code_value is None and _is_machine_code(nested_data_error):
         code_value = nested_data_error
     request_id_value = _first_value(
         sources,

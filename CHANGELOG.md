@@ -89,6 +89,17 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
     `None`. Watched codes are the keys of `event.snapshot`.
   - `created_at` is kept as a deprecated property. It returns `observed_at` and
     emits a `DeprecationWarning`.
+- **`error.code` is no longer set to a human sentence (#145).** For fail
+  envelopes, `{"status": "fail", "data": {"error": ...}}`, the SDK copied
+  `data.error` into `error.code` / `error.machine_code` whatever it held. Every
+  fuel-surcharge 400/404 puts the sentence itself there, for example
+  `"Unknown carrier 'nope'. Covered carriers: ..."`, so code-based branching
+  saw a different string on every request. `data.error` is now the code only
+  when it is a snake-case token: upper-snake like `VALIDATION_ERROR` or
+  `INTERVAL_FLOOR`, or lower-snake like `invalid_code` or `no_price_data`. A
+  sentence stays in `error.message` and `error.code` is `None`. A canonical
+  nested `error` object still takes precedence, and API-key redaction is
+  unchanged.
 - **`subscriptions.list()` and `subscriptions.events()` no longer report a
   malformed success as "nothing there" (#142), sync and async.** A 200 without
   a `data.subscriptions` list returned `[]`, and one without `data.events` /
