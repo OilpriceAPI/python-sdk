@@ -11,18 +11,18 @@ These tests pin the four defects called out in the issue:
 4. a telemetry failure must never alter or fail a request result
 
 No test here is ever allowed to make a real network call: every test replaces
-``oilpriceapi.telemetry.httpx.post`` with a local sink.
+``oilpriceapi.telemetry.httpx.post`` with a local sink, and the API calls are
+patched at ``httpx.Client.request`` / ``httpx.AsyncClient.request`` the way the
+rest of the unit suite does it.
 """
 
 import asyncio
 import inspect
 import threading
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-import httpx
 import pytest
-import respx
 
 from oilpriceapi import OilPriceAPI
 from oilpriceapi.async_client import AsyncOilPriceAPI
@@ -57,6 +57,11 @@ def sink(monkeypatch):
     _post.calls = calls
     monkeypatch.setattr("oilpriceapi.telemetry.httpx.post", _post)
     return _post
+
+
+def _ok_response(payload=None):
+    """A minimal stand-in for a 200 httpx.Response."""
+    return Mock(status_code=200, json=Mock(return_value=payload or {"status": "success", "data": {}}))
 
 
 def _track_n(telemetry, n):
@@ -110,12 +115,10 @@ def test_ten_tracked_events_do_not_block_the_calling_thread(sink):
         telemetry.close()
 
 
-@respx.mock
-def test_sync_client_requests_are_not_blocked_by_telemetry_delivery(sink):
+@patch("httpx.Client.request")
+def test_sync_client_requests_are_not_blocked_by_telemetry_delivery(mock_request, sink):
     sink.delay = 3.0
-    respx.get("https://api.oilpriceapi.com/v1/prices/latest").mock(
-        return_value=httpx.Response(200, json={"status": "success", "data": {}})
-    )
+    mock_request.return_value = _ok_response()
     client = OilPriceAPI(api_key=API_KEY, enable_telemetry=True)
     try:
         start = time.monotonic()
@@ -129,12 +132,10 @@ def test_sync_client_requests_are_not_blocked_by_telemetry_delivery(sink):
 
 
 @pytest.mark.asyncio
-@respx.mock
-async def test_async_client_event_loop_is_not_blocked_by_telemetry(sink):
+@patch("httpx.AsyncClient.request")
+async def test_async_client_event_loop_is_not_blocked_by_telemetry(mock_request, sink):
     sink.delay = 3.0
-    respx.get("https://api.oilpriceapi.com/v1/prices/latest").mock(
-        return_value=httpx.Response(200, json={"status": "success", "data": {}})
-    )
+    mock_request.return_value = _ok_response()
     client = AsyncOilPriceAPI(api_key=API_KEY, enable_telemetry=True)
 
     ticks = 0
@@ -259,25 +260,25 @@ class _ExplodingTelemetry:
         raise RuntimeError("telemetry close exploded")
 
 
-@respx.mock
-def test_sync_request_result_survives_a_telemetry_failure(sink):
+@patch("httpx.Client.request")
+def test_sync_request_result_survives_a_telemetry_failure(mock_request, sink):
     payload = {"status": "success", "data": {"code": "BRENT_CRUDE_USD", "price": 75.5}}
-    respx.get("https://api.oilpriceapi.com/v1/prices/latest").mock(
-        return_value=httpx.Response(200, json=payload)
-    )
+    mock_request.return_value = _ok_response(payload)
     client = OilPriceAPI(api_key=API_KEY)
     client._telemetry = _ExplodingTelemetry()
-    result = client.request("GET", "/v1/prices/latest")
-    assert result == payload
+    try:
+        result = client.request("GET", "/v1/prices/latest")
+        assert result == payload
+    finally:
+        client._telemetry = Telemetry(enabled=False)
+        client.close()
 
 
 @pytest.mark.asyncio
-@respx.mock
-async def test_async_request_result_survives_a_telemetry_failure(sink):
+@patch("httpx.AsyncClient.request")
+async def test_async_request_result_survives_a_telemetry_failure(mock_request, sink):
     payload = {"status": "success", "data": {"code": "BRENT_CRUDE_USD", "price": 75.5}}
-    respx.get("https://api.oilpriceapi.com/v1/prices/latest").mock(
-        return_value=httpx.Response(200, json=payload)
-    )
+    mock_request.return_value = _ok_response(payload)
     client = AsyncOilPriceAPI(api_key=API_KEY)
     client._telemetry = _ExplodingTelemetry()
     try:
