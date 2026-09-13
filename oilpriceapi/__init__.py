@@ -25,6 +25,7 @@ from oilpriceapi.exceptions import (
     RateLimitError,
     ServerError,
     TimeoutError,
+    FuturesContractError,
     ValidationError,
 )
 from oilpriceapi.models import (
@@ -60,6 +61,7 @@ __all__ = [
     "RateLimitError",
     "DataNotFoundError",
     "ServerError",
+    "FuturesContractError",
     "ValidationError",
     "NetworkError",
     "TimeoutError",

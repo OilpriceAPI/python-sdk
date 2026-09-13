@@ -535,9 +535,12 @@ class AlertsResource:
                 value=alert_id
             )
 
+        # Read-shaped POST: a simulated trigger that does not count against
+        # trigger limits and creates nothing, so it keeps its retries (#118).
         response = self.client.request(
             method="POST",
-            path=f"/v1/alerts/{alert_id}/test"
+            path=f"/v1/alerts/{alert_id}/test",
+            idempotent=True
         )
 
         # Parse response

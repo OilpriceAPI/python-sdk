@@ -216,6 +216,9 @@ class DieselResource:
                 )
 
         # Make API request (POST method for stations endpoint)
+        # Read-shaped POST: a lat/lng/radius query that creates nothing, so
+        # repeating it has the same effect as doing it once and it keeps the
+        # retries #115 removed from genuine writes (#118).
         response = self.client.request(
             method="POST",
             path="/v1/diesel-prices/stations",
@@ -223,7 +226,8 @@ class DieselResource:
                 "lat": lat,
                 "lng": lng,
                 "radius": radius
-            }
+            },
+            idempotent=True
         )
 
         # Same envelope as get_price: the stations block lives under `data`.

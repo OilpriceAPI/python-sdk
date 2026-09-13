@@ -24,6 +24,8 @@ Mappings verified against the Rails API
 
 from typing import Dict, Set
 
+from ..exceptions import FuturesContractError
+
 # Canonical slugs emitted by the SDK for latest-curve routes.
 VALID_SLUGS: Set[str] = {
     "brent",
@@ -145,7 +147,14 @@ def normalize_futures_slug(contract: str) -> str:
 
     valid = ", ".join(sorted(VALID_SLUGS))
     codes = ", ".join(sorted(CONTRACT_CODE_TO_SLUG))
-    raise ValueError(
+    # FuturesContractError subclasses both ValidationError -- so the SDK's
+    # documented `except OilPriceAPIError` catches it -- and ValueError, so
+    # callers written against the old bare `raise ValueError` are unaffected.
+    # #111 made this path far more common: it turned 18 live catalog codes from
+    # a wrong answer into a refusal, and a refusal must be catchable (#122).
+    raise FuturesContractError(
         f"Unknown futures contract/slug {contract!r}. "
-        f"Pass a slug ({valid}) or a contract code ({codes})."
+        f"Pass a slug ({valid}) or a contract code ({codes}).",
+        field="contract",
+        value=contract,
     )

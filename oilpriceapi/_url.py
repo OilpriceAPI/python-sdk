@@ -33,7 +33,12 @@ __all__ = ["resolve_api_url"]
 # reference after this SDK has already decided it was a plain path.
 # Control characters (including CR/LF and NUL) can split a request line or
 # smuggle a header. Neither can appear in a legitimate API path.
-_FORBIDDEN_CHARS = frozenset("\\") | frozenset(chr(c) for c in range(0x21)) | {chr(0x7F)}
+#
+# The range stops BELOW 0x20: U+0020 SPACE is legitimate in a path or an inline
+# query string, httpx percent-encodes it, and it cannot introduce an authority
+# or split a request line. `range(0x21)` forbade it and broke every caller who
+# built a query inline -- including this SDK's own demo resource (#119).
+_FORBIDDEN_CHARS = frozenset("\\") | frozenset(chr(c) for c in range(0x20)) | {chr(0x7F)}
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 

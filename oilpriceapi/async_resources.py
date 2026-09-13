@@ -61,9 +61,13 @@ class AsyncDieselResource:
                 raise ValidationError(
                     message="Radius must be between 0 and 50000 meters", field="radius", value=radius
                 )
+        # Read-shaped POST: a lat/lng/radius query that creates nothing, so
+        # repeating it has the same effect as doing it once and it keeps the
+        # retries #115 removed from genuine writes (#118).
         response = await self.client.request(
             method="POST", path="/v1/diesel-prices/stations",
-            json_data={"lat": lat, "lng": lng, "radius": radius}
+            json_data={"lat": lat, "lng": lng, "radius": radius},
+            idempotent=True
         )
         return DieselStationsResponse(**response)
 
@@ -263,7 +267,11 @@ class AsyncAlertsResource:
             raise ValidationError(
                 message="Alert ID must be a non-empty string", field="alert_id", value=alert_id
             )
-        response = await self.client.request(method="POST", path=f"/v1/alerts/{alert_id}/test")
+        # Read-shaped POST: a simulated trigger that does not count against
+        # trigger limits and creates nothing, so it keeps its retries (#118).
+        response = await self.client.request(
+            method="POST", path=f"/v1/alerts/{alert_id}/test", idempotent=True
+        )
         if "data" in response:
             return response["data"]
         return response
@@ -1440,7 +1448,11 @@ class AsyncWebhooksResource:
         await self.client.request(method="DELETE", path=f"/v1/webhooks/{webhook_id}")
 
     async def test(self, webhook_id: str) -> Dict[str, Any]:
-        response = await self.client.request(method="POST", path=f"/v1/webhooks/{webhook_id}/test")
+        # Read-shaped POST: a diagnostic against an already-configured
+        # webhook. It creates nothing, so it keeps its retries (#118).
+        response = await self.client.request(
+            method="POST", path=f"/v1/webhooks/{webhook_id}/test", idempotent=True
+        )
         if "data" in response:
             return response["data"]
         return response
