@@ -157,7 +157,7 @@ def validated_base_url(value: object) -> str:
     try:
         parts = urlsplit(trimmed)
         host = parts.hostname
-        parts.port
+        _ = parts.port  # accessor validates the port; value unused
     except ValueError as exc:
         raise ConfigurationError(
             f"base_url is not a valid URL, got {trimmed!r}: {exc}. "
