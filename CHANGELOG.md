@@ -4,6 +4,29 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
+### Added
+
+- **Typed LTL and parcel fuel-surcharge clients (#101).** `client.fuel_surcharge`
+  on both `OilPriceAPI` and `AsyncOilPriceAPI` covers all six
+  `/v1/fuel-surcharge` routes: `list()`, `latest(carrier)`,
+  `history(carrier, page=, per_page=)`, `parcel_list()`,
+  `parcel_latest(carrier)`, `parcel_latest_rate(carrier, service_level)` and
+  `parcel_history(carrier, service_level, page=, per_page=)`. Responses are
+  `FuelSurchargeRate`, `FuelSurchargeHistoryPage` (with the server's
+  `meta`) and `ParcelFuelSurchargeCarrier` models typed from production
+  payloads captured on 2026-09-13: `effective_date` is a `date`,
+  `retrieved_at` a timezone-aware `datetime`, and `source`, nullable
+  `doe_diesel_price` and `diesel_band` are kept as sent. A success body
+  missing a field the API always sends raises
+  `OilPriceAPIError(code="MALFORMED_RESPONSE")` instead of defaulting it.
+  Carrier slugs, service levels and pagination are validated before any
+  request; out-of-range `page`/`per_page` are refused because the API clamps
+  them silently.
+- **Fuel-surcharge 400/404 bodies populate `error.suggestions`.** The
+  `covered_carriers` and `available_service_levels` lists the API returns with
+  an unknown carrier or a missing service level are now surfaced the same way
+  commodity suggestions are.
+
 ## [1.15.0] - 2026-09-13
 
 ### Fixed

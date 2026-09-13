@@ -30,6 +30,7 @@ from .async_resources import (
     AsyncDrillingIntelligenceResource,
     AsyncEnergyIntelligenceResource,
     AsyncForecastsResource,
+    AsyncFuelSurchargeResource,
     AsyncFuturesResource,
     AsyncRigCountsResource,
     AsyncStorageResource,
@@ -178,6 +179,8 @@ class AsyncOilPriceAPI:
         self.data_sources = AsyncDataSourcesResource(self)
         # Agent watch subscriptions + event polling (#3245 Phase 2).
         self.subscriptions = AsyncSubscriptionsResource(self)
+        # LTL + parcel carrier fuel surcharges (#101).
+        self.fuel_surcharge = AsyncFuelSurchargeResource(self)
 
         # WebSocket price-update namespace (requires the [stream] extra).
         # Lazily imports `websockets` only when a stream is actually opened.
