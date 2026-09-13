@@ -8,7 +8,6 @@ import logging
 import os
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin
 
 import httpx
 
@@ -18,6 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 from ._subscriptions_common import unwrap_data
+from ._url import resolve_api_url
 from .exceptions import (
     ConfigurationError,
     OilPriceAPIError,
@@ -231,10 +231,10 @@ class OilPriceAPI:
             ServerError: On 5xx status
             TimeoutError: On request timeout
         """
-        # Ensure path starts with / for proper urljoin behavior
-        if not path.startswith("/"):
-            path = "/" + path
-        url = urljoin(self.base_url + "/", path)
+        # Pin the request to the configured API origin. A raw path may not
+        # move the destination host, because the API key rides on this client
+        # and would go with it (#102).
+        url = resolve_api_url(self.base_url, path)
 
         # Use provided timeout or default
         effective_timeout = timeout if timeout is not None else self.timeout
@@ -364,10 +364,10 @@ class OilPriceAPI:
         Returns:
             Tuple of (parsed JSON dict, httpx.Headers)
         """
-        # Ensure path starts with / for proper urljoin behavior
-        if not path.startswith("/"):
-            path = "/" + path
-        url = urljoin(self.base_url + "/", path)
+        # Pin the request to the configured API origin. A raw path may not
+        # move the destination host, because the API key rides on this client
+        # and would go with it (#102).
+        url = resolve_api_url(self.base_url, path)
 
         effective_timeout = timeout if timeout is not None else self.timeout
 
