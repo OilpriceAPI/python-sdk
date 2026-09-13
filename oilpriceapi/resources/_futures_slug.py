@@ -70,6 +70,17 @@ CONTRACT_CODE_TO_SLUG: Dict[str, str] = {
 }
 
 
+def _is_month_or_order_suffix(tail: str) -> bool:
+    """True when ``tail`` is a month/order marker rather than meaningful text.
+
+    A contract code carries an order or expiry after the symbol ("CL.1",
+    "CL1!", "BZ-2025-12"). A commodity code carries geography and currency
+    ("LNG_NW_EUROPE_EUR"). Only the former may be discarded.
+    """
+    stripped = tail.strip().strip("!").replace("-", "").replace("_", "").replace(".", "")
+    return stripped.isdigit() or stripped == ""
+
+
 def normalize_futures_slug(contract: str) -> str:
     """Resolve a futures ``contract`` argument to the API's canonical slug.
 
@@ -104,11 +115,27 @@ def normalize_futures_slug(contract: str) -> str:
     if exact_code_slug is not None:
         return exact_code_slug
 
-    # Contract code form: take the leading symbol before any month/order
-    # suffix such as ".1", "1!", "-2025-12", "_2025_12".
+    # Contract code form: take the leading symbol before a month/order suffix
+    # such as ".1", "1!", "-2025-12", "_2025_12".
+    #
+    # The discarded tail MUST look like a month/order marker. Splitting
+    # unconditionally truncated spot commodity codes into contract codes and
+    # returned a different instrument: measured against all 604 live catalog
+    # codes on 2026-09-13, 18 were silently rewritten --
+    #
+    #   LNG_NW_EUROPE_EUR  -> lng-jkm  (NW Europe LNG in EUR -> JKM in USD)
+    #   WTI_MIDLAND_USD    -> wti      (Permian basis grade -> Cushing WTI)
+    #
+    # -- discarding exactly the geography and currency that distinguish them.
+    # Same class as the mcp-server substitution fixed in its v3.3.0. An
+    # unrecognised input must raise, never guess: a refusal is recoverable, a
+    # wrong instrument's curve is not.
     for sep in (".", "!", "-", "_", " "):
         if sep in symbol:
-            symbol = symbol.split(sep, 1)[0]
+            head, tail = symbol.split(sep, 1)
+            if not _is_month_or_order_suffix(tail):
+                break
+            symbol = head
     # Strip a trailing contract-order number (e.g. TradingView "CL1!" -> "CL1").
     symbol = symbol.rstrip("0123456789").strip()
 
