@@ -114,6 +114,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The ActionCable handshake is bounded, and a failed setup no longer leaks the
+  socket (#108).** `open_timeout` was passed to the WebSocket upgrade and
+  nothing else: the waits for `welcome` and `confirm_subscription` that follow
+  had no deadline at all, so a socket that upgraded and then went quiet hung the
+  caller indefinitely, and cancelling out of that hang left the upgraded socket
+  open. Connect, `welcome` and `confirm_subscription` are now one bounded setup
+  lifecycle governed by a new `setup_timeout` (defaulting to `open_timeout`, so
+  the timeout you already configure does cover protocol setup), and every socket
+  the stream allocates is closed on any failure, timeout or cancellation --
+  including a `__aenter__` that raises, where `__aexit__` never runs.
+- **A failed reconnect consumes the reconnect budget instead of escaping on the
+  first attempt (#108).** An `OSError` raised while reconnecting inside the
+  `ConnectionClosed` handler propagated straight out of the iterator, so a
+  stream configured with `max_reconnect_attempts=10` gave up after one. Transient
+  failures now spend the configured consecutive-attempt budget with backoff and
+  end in `ConnectionError: Stream lost after N reconnect attempts`; a permanent
+  refusal stops immediately with the new `StreamAuthError` (a `ConnectionError`
+  subclass, so existing handlers are unaffected) rather than retrying a rejected
+  key ten times.
+- **`close()` retires the stream.** It is idempotent, closes the socket under a
+  bounded teardown timeout, and prevents any subsequent reconnect; `connect()`
+  on a closed stream raises instead of quietly opening a new socket. Reconnects
+  now close the socket they are replacing.
+
 ## [1.12.6] - 2026-08-11
 
 ### Changed

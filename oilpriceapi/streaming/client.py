@@ -19,6 +19,10 @@ ActionCable handshake (as implemented by the OilPriceAPI server):
 5. Broadcasts arrive as ``{"identifier": ..., "message": {...}}``.
 6. Server periodically sends ``{"type": "ping"}`` keepalives (ignored).
 
+The whole of steps 1-4 is bounded by ``setup_timeout`` (default:
+``open_timeout``), and every socket allocated along the way is closed on any
+failure or cancellation.
+
 Requires the optional ``[stream]`` extra (``pip install oilpriceapi[stream]``).
 """
 from __future__ import annotations
@@ -29,7 +33,7 @@ import logging
 import random
 import sys
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple, Type
 
 from .models import StreamUpdate
 
@@ -46,6 +50,24 @@ class StreamingNotInstalledError(ImportError):
     """Raised when the optional ``websockets`` dependency is missing."""
 
 
+class StreamAuthError(ConnectionError):
+    """A permanent streaming setup failure -- retrying will not fix it.
+
+    Raised when the server refuses the connection outright (an ActionCable
+    ``disconnect`` frame) or rejects the subscription (``reject_subscription``):
+    a bad API key, a missing streaming entitlement, or an unknown channel.
+    Subclasses :class:`ConnectionError` so existing ``except ConnectionError``
+    handlers keep working, while the reconnect loop can tell it apart from a
+    transient network failure and stop immediately instead of burning the
+    reconnect budget on a refusal that will not change.
+    """
+
+
+# Teardown is bounded too: a socket that refuses to close must not wedge the
+# caller inside ``close()`` or inside the cleanup path of a failed setup.
+TEARDOWN_TIMEOUT = 5.0
+
+
 def _import_websockets() -> Any:
     """Import the ``websockets`` library, raising a friendly error if absent."""
     try:
@@ -59,6 +81,17 @@ def _import_websockets() -> Any:
         ) from exc
 
 
+def _transient_errors() -> Tuple[Type[BaseException], ...]:
+    """Error types a reconnect should retry (as opposed to give up on).
+
+    ``OSError`` covers refused/reset connections and the ``ConnectionError``
+    the bounded setup raises on timeout; :class:`StreamAuthError` is a subclass
+    of it and is therefore matched *before* this tuple by the reconnect loop.
+    """
+    websockets = _import_websockets()
+    return (OSError, asyncio.TimeoutError, websockets.exceptions.WebSocketException)
+
+
 class PriceStream:
     """An async-iterable handle over a single ActionCable subscription.
 
@@ -66,6 +99,20 @@ class PriceStream:
     ActionCable handshake, and yields :class:`StreamUpdate` objects. On
     transient disconnects it reconnects with exponential backoff + jitter,
     transparently re-subscribing, up to ``max_reconnect_attempts``.
+
+    **Timeouts.** ``open_timeout`` is handed to the transport and bounds the
+    WebSocket upgrade only. ``setup_timeout`` bounds the *whole* setup
+    lifecycle -- upgrade, ``welcome`` and ``confirm_subscription`` -- and
+    defaults to ``open_timeout``, so by default the configured timeout does
+    cover protocol setup and there is no unbounded wait anywhere in
+    :meth:`connect`. Pass ``setup_timeout`` explicitly when a slow server needs
+    longer for the handshake than for the upgrade.
+
+    **Cleanup.** Every socket this stream allocates is closed on any failure or
+    cancellation, including a handshake that times out and a ``__aenter__``
+    that raises (where ``__aexit__`` never runs). Once :meth:`close` has been
+    called the stream is retired: it will not reconnect and :meth:`connect`
+    raises.
     """
 
     def __init__(
@@ -81,6 +128,7 @@ class PriceStream:
         reconnect_max_delay: float = 30.0,
         ping_interval: Optional[float] = None,
         open_timeout: float = 10.0,
+        setup_timeout: Optional[float] = None,
     ) -> None:
         self._cable_url = cable_url
         self._api_key = api_key
@@ -92,6 +140,8 @@ class PriceStream:
         self._reconnect_max_delay = reconnect_max_delay
         self._ping_interval = ping_interval
         self._open_timeout = open_timeout
+        # Default: the caller's open_timeout also bounds the handshake.
+        self._setup_timeout = open_timeout if setup_timeout is None else setup_timeout
 
         self._ws: Any = None
         self._closed = False
@@ -107,10 +157,60 @@ class PriceStream:
         # Sort keys for a stable identifier (ActionCable matches on exact string).
         return json.dumps(ident, sort_keys=True)
 
+    @property
+    def setup_timeout(self) -> float:
+        """Deadline, in seconds, for connect + welcome + confirm_subscription."""
+        return self._setup_timeout
+
     # -- connection lifecycle ---------------------------------------------
 
     async def connect(self) -> None:
-        """Open the WebSocket and complete the ActionCable handshake."""
+        """Open the WebSocket and complete the ActionCable handshake.
+
+        The entire lifecycle is bounded by :attr:`setup_timeout`; on timeout,
+        failure or cancellation the socket allocated by this call is closed
+        before the error propagates, so no upgraded socket is ever orphaned.
+        """
+        if self._closed:
+            raise ConnectionError(
+                "Stream is closed; open a new stream to reconnect."
+            )
+
+        # The socket lives in a box the *caller* of wait_for can reach, so the
+        # cleanup below runs outside the (possibly cancelled) setup coroutine.
+        box: Dict[str, Any] = {}
+        try:
+            ws = await asyncio.wait_for(self._setup(box), timeout=self._setup_timeout)
+        except asyncio.TimeoutError as exc:
+            await self._close_socket(box.get("ws"))
+            raise ConnectionError(
+                f"ActionCable setup timed out after {self._setup_timeout:g}s "
+                "(connect, welcome, confirm_subscription). Raise setup_timeout "
+                "if the server needs longer, or check the /cable endpoint."
+            ) from exc
+        except BaseException:
+            # Includes cancellation and a rejected subscription: close first.
+            await self._close_socket(box.get("ws"))
+            raise
+
+        if self._closed:
+            # close() landed while the handshake was in flight.
+            await self._close_socket(ws)
+            raise ConnectionError("Stream is closed; open a new stream to reconnect.")
+
+        self._ws = ws
+        self._subscribed = True
+
+    async def _setup(self, box: Dict[str, Any]) -> Any:
+        """Allocate a socket and run the handshake on it. Bounded by connect()."""
+        ws = await self._open_socket()
+        box["ws"] = ws
+        await self._await_welcome(ws)
+        await self._subscribe(ws)
+        return ws
+
+    async def _open_socket(self) -> Any:
+        """Open the raw WebSocket (the transport upgrade only)."""
         websockets = _import_websockets()
         # Auth via query param is the most portable across proxies; the server
         # also accepts the Authorization header (connection.rb find_verified_user).
@@ -133,66 +233,79 @@ class PriceStream:
             "X-SDK-Version": SDK_VERSION,
         }
 
-        self._ws = await websockets.connect(
+        return await websockets.connect(
             url,
             additional_headers=headers,
             ping_interval=self._ping_interval,
             open_timeout=self._open_timeout,
         )
-        await self._await_welcome()
-        await self._subscribe()
 
-    async def _await_welcome(self) -> None:
+    async def _await_welcome(self, ws: Any) -> None:
         """Wait for the ActionCable ``welcome`` frame before subscribing."""
         while True:
-            raw = await self._ws.recv()
+            raw = await ws.recv()
             data = json.loads(raw)
             msg_type = data.get("type")
             if msg_type == "welcome":
                 return
             if msg_type == "disconnect":
-                raise ConnectionError(
+                raise StreamAuthError(
                     f"Server refused connection: {data.get('reason', 'unknown')}"
                 )
             # Ignore stray pings while waiting for welcome.
 
-    async def _subscribe(self) -> None:
+    async def _subscribe(self, ws: Any) -> None:
         """Send the subscribe command and await ``confirm_subscription``."""
-        await self._ws.send(
+        await ws.send(
             json.dumps({"command": "subscribe", "identifier": self.identifier})
         )
         while True:
-            raw = await self._ws.recv()
+            raw = await ws.recv()
             data = json.loads(raw)
             msg_type = data.get("type")
             if msg_type == "confirm_subscription":
-                self._subscribed = True
                 return
             if msg_type == "reject_subscription":
-                raise ConnectionError(
+                raise StreamAuthError(
                     "Subscription rejected; confirm the API key and streaming entitlement at "
                     "https://www.oilpriceapi.com/pricing."
                 )
             # Ignore pings / pre-confirmation noise.
 
+    async def _close_socket(self, ws: Any) -> None:
+        """Close one socket. Best-effort and bounded; never raises."""
+        if ws is None:
+            return
+        try:
+            await asyncio.wait_for(ws.close(), timeout=TEARDOWN_TIMEOUT)
+        except Exception:  # noqa: BLE001 - best-effort teardown
+            logger.debug("Failed to close websocket cleanly", exc_info=True)
+
     async def close(self) -> None:
-        """Unsubscribe and close the underlying WebSocket."""
+        """Unsubscribe, close the socket, and retire the stream.
+
+        Idempotent. After this returns the stream will not reconnect, holds no
+        socket, and :meth:`connect` raises.
+        """
         self._closed = True
-        if self._ws is not None:
-            try:
-                if self._subscribed:
-                    await self._ws.send(
-                        json.dumps({"command": "unsubscribe", "identifier": self.identifier})
-                    )
-            except Exception:  # noqa: BLE001 - best-effort teardown
-                logger.debug("Failed to send unsubscribe on close", exc_info=True)
-            try:
-                await self._ws.close()
-            except Exception:  # noqa: BLE001 - best-effort teardown
-                logger.debug("Failed to close websocket cleanly", exc_info=True)
-            finally:
-                self._ws = None
-                self._subscribed = False
+        ws, self._ws = self._ws, None
+        subscribed, self._subscribed = self._subscribed, False
+        if ws is None:
+            return
+        try:
+            if subscribed:
+                await asyncio.wait_for(
+                    ws.send(
+                        json.dumps(
+                            {"command": "unsubscribe", "identifier": self.identifier}
+                        )
+                    ),
+                    timeout=TEARDOWN_TIMEOUT,
+                )
+        except Exception:  # noqa: BLE001 - best-effort teardown
+            logger.debug("Failed to send unsubscribe on close", exc_info=True)
+        finally:
+            await self._close_socket(ws)
 
     # -- async context manager --------------------------------------------
 
@@ -223,28 +336,34 @@ class PriceStream:
 
         attempts = 0
         while not self._closed:
+            ws = self._ws
+            if ws is None:
+                break
             try:
-                raw = await self._ws.recv()
+                raw = await ws.recv()
             except connection_closed_ok:
                 # Clean server-side close — end iteration, do not reconnect.
                 break
             except connection_closed:
                 if not self._auto_reconnect or self._closed:
                     break
-                attempts += 1
-                if attempts > self._max_reconnect_attempts:
-                    raise ConnectionError(
-                        f"Stream lost after {self._max_reconnect_attempts} reconnect attempts"
-                    )
-                await self._backoff(attempts)
-                await self._reconnect()
+                # Consume the configured budget here rather than letting a
+                # failed reconnect escape on the first attempt.
+                attempts = await self._reconnect_with_budget(attempts)
+                if self._closed or self._ws is None:
+                    break
                 continue
 
-            attempts = 0  # reset backoff after any successful receive
+            attempts = 0  # reset the budget after any successful receive
             data = json.loads(raw)
             update = self._dispatch(data)
             if update is not None:
                 yield update
+
+        # Iteration finished for good (clean close, close() by the caller, or
+        # auto_reconnect disabled): release the socket rather than leaving it
+        # to garbage collection.
+        await self.close()
 
     def _dispatch(self, data: Dict[str, Any]) -> Optional[StreamUpdate]:
         """Translate a raw ActionCable frame into a StreamUpdate (or None)."""
@@ -272,9 +391,50 @@ class PriceStream:
         logger.info("Reconnecting stream in %.2fs (attempt %d)", delay, attempt)
         await asyncio.sleep(delay)
 
+    async def _reconnect_with_budget(self, attempts: int) -> int:
+        """Reconnect, spending the bounded consecutive-failure budget.
+
+        A transient failure (refused connection, a setup that timed out, a drop
+        mid-handshake) costs one attempt and is retried after backoff. A
+        permanent failure (:class:`StreamAuthError` -- bad key, no entitlement,
+        rejected subscription) stops at once with that error, because no number
+        of retries changes the answer. Raises ``ConnectionError`` once
+        ``max_reconnect_attempts`` consecutive attempts have been spent.
+
+        Returns the number of consecutive attempts consumed so far, so the
+        caller can reset it on the next successful receive.
+        """
+        last_exc: Optional[BaseException] = None
+        while not self._closed:
+            attempts += 1
+            if attempts > self._max_reconnect_attempts:
+                raise ConnectionError(
+                    f"Stream lost after {self._max_reconnect_attempts} reconnect attempts"
+                ) from last_exc
+            await self._backoff(attempts)
+            if self._closed:
+                break
+            try:
+                await self._reconnect()
+            except StreamAuthError:
+                raise
+            except _transient_errors() as exc:
+                last_exc = exc
+                logger.warning(
+                    "Reconnect attempt %d/%d failed: %s",
+                    attempts,
+                    self._max_reconnect_attempts,
+                    exc,
+                )
+                continue
+            return attempts
+        return attempts
+
     async def _reconnect(self) -> None:
+        """Drop the current socket (closing it) and run a fresh setup."""
+        old, self._ws = self._ws, None
         self._subscribed = False
-        self._ws = None
+        await self._close_socket(old)
         await self.connect()
 
 
@@ -304,6 +464,7 @@ class AsyncStreamNamespace:
         reconnect_base_delay: float = 1.0,
         reconnect_max_delay: float = 30.0,
         open_timeout: float = 10.0,
+        setup_timeout: Optional[float] = None,
     ) -> PriceStream:
         """Open a price-update stream over ``EnergyPricesChannel``.
 
@@ -316,7 +477,12 @@ class AsyncStreamNamespace:
             max_reconnect_attempts: Give up after this many failures.
             reconnect_base_delay: Initial backoff delay (seconds).
             reconnect_max_delay: Maximum backoff delay (seconds).
-            open_timeout: Connection open timeout (seconds).
+            open_timeout: WebSocket upgrade timeout (seconds). Also the
+                default deadline for the whole ActionCable handshake.
+            setup_timeout: Deadline (seconds) for the complete setup
+                lifecycle -- upgrade, ``welcome`` and
+                ``confirm_subscription``. Defaults to ``open_timeout``; there
+                is no unbounded wait either way.
 
         Returns:
             A :class:`PriceStream` async context manager / iterator.
@@ -344,4 +510,5 @@ class AsyncStreamNamespace:
             reconnect_base_delay=reconnect_base_delay,
             reconnect_max_delay=reconnect_max_delay,
             open_timeout=open_timeout,
+            setup_timeout=setup_timeout,
         )
