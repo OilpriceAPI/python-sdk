@@ -52,6 +52,10 @@
 
 ::: oilpriceapi.resources.drilling.DrillingIntelligenceResource
 
+## Fuel Surcharges
+
+::: oilpriceapi.resources.fuel_surcharge.FuelSurchargeResource
+
 ## Well Production (Beta)
 
 ::: oilpriceapi.resources.well_production.WellProductionResource

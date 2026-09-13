@@ -3,13 +3,23 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
 
+from . import _fuel_surcharge_common as fs
 from ._subscriptions_common import (
     build_attribution_headers,
     build_create_body,
     unwrap_data,
 )
 from .exceptions import ValidationError
-from .models import DieselPrice, DieselStationsResponse, PriceAlert, Subscription, SubscriptionEvent
+from .models import (
+    DieselPrice,
+    DieselStationsResponse,
+    FuelSurchargeHistoryPage,
+    FuelSurchargeRate,
+    ParcelFuelSurchargeCarrier,
+    PriceAlert,
+    Subscription,
+    SubscriptionEvent,
+)
 from .resource_validators import (
     VALID_OPERATORS,
     extract_commodity_catalog,
@@ -1636,3 +1646,84 @@ class AsyncSubscriptionsResource:
         cursor = data.get("cursor")
         has_more = bool(data.get("has_more", False))
         return SubscriptionEventsPage(events=events, cursor=cursor, has_more=has_more)
+
+
+class AsyncFuelSurchargeResource:
+    """Async LTL and parcel carrier fuel surcharges (#101).
+
+    Same routes, validation and parsing as ``FuelSurchargeResource``; see its
+    docstrings for arguments, return types and errors.
+    """
+
+    def __init__(self, client: Any) -> None:
+        self.client = client
+
+    async def list(self) -> List[FuelSurchargeRate]:
+        """Latest LTL surcharge for every carrier that has data."""
+        response = await self.client.request(method="GET", path=fs.LTL_LIST_PATH)
+        return fs.parse_rate_list(response, subject="fuel-surcharge list")
+
+    async def latest(self, carrier: str) -> FuelSurchargeRate:
+        """Latest LTL surcharge for one carrier."""
+        path = fs.carrier_path(carrier, "latest")
+        response = await self.client.request(method="GET", path=path)
+        return fs.parse_rate(response, mode="ltl", subject="fuel-surcharge latest", carrier=carrier)
+
+    async def history(
+        self,
+        carrier: str,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
+    ) -> FuelSurchargeHistoryPage:
+        """Weekly LTL surcharge history for one carrier, newest first."""
+        path = fs.carrier_path(carrier, "history")
+        params = fs.history_params(page, per_page)
+        response = await self.client.request(method="GET", path=path, params=params or None)
+        return fs.parse_history(
+            response, mode="ltl", subject="fuel-surcharge history", carrier=carrier
+        )
+
+    async def parcel_list(self) -> List[ParcelFuelSurchargeCarrier]:
+        """Latest parcel surcharge per service level, for every parcel carrier."""
+        response = await self.client.request(method="GET", path=fs.PARCEL_LIST_PATH)
+        return fs.parse_parcel_carrier_list(response, subject="parcel fuel-surcharge list")
+
+    async def parcel_latest(self, carrier: str) -> ParcelFuelSurchargeCarrier:
+        """Latest surcharge for every service level of one parcel carrier."""
+        path = fs.parcel_carrier_path(carrier, "latest")
+        response = await self.client.request(method="GET", path=path)
+        return fs.parse_parcel_carrier(
+            response, subject="parcel fuel-surcharge latest", carrier=carrier
+        )
+
+    async def parcel_latest_rate(self, carrier: str, service_level: str) -> FuelSurchargeRate:
+        """Latest surcharge for one parcel carrier and service level."""
+        path = fs.parcel_carrier_path(carrier, "latest")
+        params = {"service_level": fs.validate_slug(service_level, "service_level")}
+        response = await self.client.request(method="GET", path=path, params=params)
+        return fs.parse_rate(
+            response,
+            mode="parcel",
+            subject="parcel fuel-surcharge latest",
+            carrier=carrier,
+            service_level=service_level,
+        )
+
+    async def parcel_history(
+        self,
+        carrier: str,
+        service_level: str,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
+    ) -> FuelSurchargeHistoryPage:
+        """Weekly surcharge history for one parcel carrier and service level."""
+        path = fs.parcel_carrier_path(carrier, "history")
+        params = fs.parcel_history_params(service_level, page, per_page)
+        response = await self.client.request(method="GET", path=path, params=params)
+        return fs.parse_history(
+            response,
+            mode="parcel",
+            subject="parcel fuel-surcharge history",
+            carrier=carrier,
+            service_level=service_level,
+        )
