@@ -11,13 +11,13 @@ import logging
 import os
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union, cast
-from urllib.parse import urljoin
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
 from ._subscriptions_common import unwrap_data
+from ._url import resolve_api_url
 from .async_resources import (
     AsyncAlertsResource,
     AsyncAnalyticsResource,
@@ -202,10 +202,10 @@ class AsyncOilPriceAPI:
         await self._ensure_client()
         assert self._client is not None  # set by _ensure_client
 
-        # Ensure path starts with / for proper urljoin behavior
-        if not path.startswith("/"):
-            path = "/" + path
-        url = urljoin(self.base_url + "/", path)
+        # Pin the request to the configured API origin. A raw path may not
+        # move the destination host, because the API key rides on this client
+        # and would go with it (#102).
+        url = resolve_api_url(self.base_url, path)
 
         # Retry logic
         import time as _time
