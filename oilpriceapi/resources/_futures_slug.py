@@ -72,6 +72,11 @@ CONTRACT_CODE_TO_SLUG: Dict[str, str] = {
 }
 
 
+#: A contract-order marker is one or two digits ("CL1", "CL12"). Three or more
+#: is a year ("WTI2026") or an unknown code, and must not be discarded (#128).
+_MAX_ORDER_MARKER_DIGITS = 2
+
+
 def _is_month_or_order_suffix(tail: str) -> bool:
     """True when ``tail`` is a month/order marker rather than meaningful text.
 
@@ -138,8 +143,28 @@ def normalize_futures_slug(contract: str) -> str:
             if not _is_month_or_order_suffix(tail):
                 break
             symbol = head
-    # Strip a trailing contract-order number (e.g. TradingView "CL1!" -> "CL1").
-    symbol = symbol.rstrip("0123456789").strip()
+    # Strip a trailing contract-ORDER marker (TradingView "CL1!" -> "CL1" -> "CL").
+    #
+    # This used to be an unconditional `rstrip("0123456789")`, which is the
+    # other half of the guess #111 removed from the separator branch above.
+    # A year is not an order marker, so "WTI2026" was answered with the
+    # generic front-month "wti" -- a different instrument -- and the call
+    # succeeded with nothing telling the caller their year had been discarded:
+    #
+    #   WTI2026   -> 'wti'        BRENT2027 -> 'brent'
+    #   NG2026    -> 'natural-gas'  TTF2026 -> 'ttf-gas'
+    #
+    # CONTRACT_CODE_TO_SLUG holds no key containing a digit, so every one of
+    # those came from the strip rather than a real mapping (#128).
+    #
+    # An order marker is one or two digits -- the same bound
+    # `_is_month_or_order_suffix` already implies for the separator branch, and
+    # wide enough for any front-month/second-month/"CL12" spelling. Anything
+    # longer is a year or an unknown code and must fall through to the refusal
+    # below: a refusal is recoverable, a wrong instrument's curve is not.
+    trailing = len(symbol) - len(symbol.rstrip("0123456789"))
+    if 0 < trailing <= _MAX_ORDER_MARKER_DIGITS:
+        symbol = symbol[: len(symbol) - trailing].strip()
 
     slug = CONTRACT_CODE_TO_SLUG.get(symbol)
     if slug is not None:
