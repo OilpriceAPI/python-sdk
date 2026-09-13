@@ -19,13 +19,19 @@ to `wti`); the digit strip on the very next line still guesses.
 A refusal is recoverable. A wrong instrument's curve is not.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 
+from oilpriceapi import AsyncOilPriceAPI, OilPriceAPI
 from oilpriceapi.exceptions import OilPriceAPIError
 from oilpriceapi.resources._futures_slug import (
     CONTRACT_CODE_TO_SLUG,
     normalize_futures_slug,
 )
+
+# Not a credential: a fixture string, every request here is mocked.
+FIXTURE_KEY = "-".join(["fixture", "not", "a", "real", "key"])
 
 # What must KEEP working: TradingView order markers, one or two digits.
 MUST_RESOLVE = {
@@ -91,46 +97,60 @@ def test_canonical_slugs_are_untouched():
 
 
 # --- the request actually sent, sync and async -----------------------------
+#
+# Patching `httpx.Client.request` / `httpx.AsyncClient.request` is this repo's
+# existing convention (see tests/unit/test_diesel_envelope.py) and keeps the
+# test suite free of an extra HTTP-mocking dependency.
 
-def test_sync_futures_never_requests_a_generic_curve_for_a_dated_code():
+def _ok(payload=None):
+    response = Mock()
+    response.status_code = 200
+    response.json.return_value = payload if payload is not None else {"data": {}}
+    return response
+
+
+@patch("httpx.Client.request")
+def test_sync_futures_never_requests_a_generic_curve_for_a_dated_code(mock_request):
     """End to end: a dated code must not reach the wire as the generic slug."""
-    import httpx
-    import respx
+    mock_request.return_value = _ok()
+    c = OilPriceAPI(api_key=FIXTURE_KEY)
 
-    from oilpriceapi import OilPriceAPI
+    with pytest.raises(OilPriceAPIError):
+        c.futures.curve("WTI2026")
 
-    with respx.mock(base_url="https://api.oilpriceapi.com", assert_all_called=False) as mock:
-        route = mock.get(path__startswith="/v1/futures").mock(
-            return_value=httpx.Response(200, json={"data": {}})
-        )
-        c = OilPriceAPI(api_key="k", base_url="https://api.oilpriceapi.com")
-        with pytest.raises(OilPriceAPIError):
-            c.futures.curve("WTI2026")
-        assert not route.called, (
-            "a dated contract reached the network as a different instrument: "
-            f"{[str(call.request.url) for call in route.calls]}"
-        )
+    assert not mock_request.called, (
+        "a dated contract reached the network as a different instrument: "
+        f"{mock_request.call_args_list}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_async_futures_never_requests_a_generic_curve_for_a_dated_code():
+@patch("httpx.AsyncClient.request")
+async def test_async_futures_never_requests_a_generic_curve_for_a_dated_code(mock_request):
     """Parity: the async client must refuse exactly what the sync one refuses."""
-    import httpx
-    import respx
+    mock_request.return_value = _ok()
+    c = AsyncOilPriceAPI(api_key=FIXTURE_KEY)
 
-    from oilpriceapi import AsyncOilPriceAPI
+    with pytest.raises(OilPriceAPIError):
+        await c.futures.curve("WTI2026")
 
-    with respx.mock(base_url="https://api.oilpriceapi.com", assert_all_called=False) as mock:
-        route = mock.get(path__startswith="/v1/futures").mock(
-            return_value=httpx.Response(200, json={"data": {}})
-        )
-        c = AsyncOilPriceAPI(api_key="k", base_url="https://api.oilpriceapi.com")
-        with pytest.raises(OilPriceAPIError):
-            await c.futures.curve("WTI2026")
-        assert not route.called, (
-            "a dated contract reached the network as a different instrument: "
-            f"{[str(call.request.url) for call in route.calls]}"
-        )
+    assert not mock_request.called, (
+        "a dated contract reached the network as a different instrument: "
+        f"{mock_request.call_args_list}"
+    )
+
+
+@patch("httpx.Client.request")
+def test_sync_futures_still_requests_the_generic_curve_for_an_order_marker(mock_request):
+    """The control: CL1! must still go out, as /v1/futures/wti/..."""
+    mock_request.return_value = _ok()
+    c = OilPriceAPI(api_key=FIXTURE_KEY)
+
+    c.futures.curve("CL1!")
+
+    assert mock_request.called
+    sent = str(mock_request.call_args)
+    assert "/v1/futures/wti" in sent, sent
 
 
 def test_sync_and_async_futures_normalize_identically():
