@@ -16,6 +16,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+from ._body import decode_json_body
 from ._subscriptions_common import unwrap_data
 from ._url import resolve_api_url
 from .async_resources import (
@@ -259,7 +260,7 @@ class AsyncOilPriceAPI:
                         duration=_time.time() - start_time,
                         success=True,
                     )
-                    return response.json()
+                    return decode_json_body(response)
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
                     logger.warning(
