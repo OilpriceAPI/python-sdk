@@ -112,9 +112,42 @@ class TestCommodityCodesAreNeverRewritten:
             # order markers on a real contract code. These must keep working.
             ("CL.1", "wti"),
             ("CL1!", "wti"),
+            ("CL", "wti"),
+            ("CL1", "wti"),
             ("BZ", "brent"),
+            ("BZ1!", "brent"),
+            ("BZ.1", "brent"),
             ("NG", "natural-gas"),
         ],
     )
     def test_month_and_order_suffixes_still_resolve(self, contract, expected):
         assert normalize_futures_slug(contract) == expected
+
+
+class TestDatedContractsRefuseResolution:
+    """Dated contracts must raise rather than silently stripping the year (#128).
+
+    Stripping trailing digits unconditionally caused dated contracts like
+    ``WTI2026`` or ``BRENT2027`` to discard their date and resolve to the
+    generic front-month contract, returning the wrong instrument's curve.
+    """
+
+    DATED_CONTRACTS = [
+        "WTI2026",
+        "BRENT2027",
+        "NG2026",
+        "TTF2026",
+        "GASOIL2026",
+    ]
+
+    @pytest.mark.parametrize("code", DATED_CONTRACTS)
+    def test_dated_contract_raises_futures_contract_error(self, code):
+        from oilpriceapi.exceptions import FuturesContractError
+
+        with pytest.raises(FuturesContractError) as excinfo:
+            normalize_futures_slug(code)
+
+        assert excinfo.value.field == "contract"
+        assert excinfo.value.value == code
+        assert f"Unknown futures contract/slug {code!r}" in str(excinfo.value)
+

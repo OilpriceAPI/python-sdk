@@ -139,7 +139,12 @@ def normalize_futures_slug(contract: str) -> str:
                 break
             symbol = head
     # Strip a trailing contract-order number (e.g. TradingView "CL1!" -> "CL1").
-    symbol = symbol.rstrip("0123456789").strip()
+    # Only remove 1-2 trailing digits when the prefix is a recognized contract
+    # code. Do not strip 4-digit years (e.g. "WTI2026") or unmapped codes (#128).
+    stripped = symbol.rstrip("0123456789")
+    tail = symbol[len(stripped):]
+    if tail and len(tail) <= 2 and stripped in CONTRACT_CODE_TO_SLUG:
+        symbol = stripped.strip()
 
     slug = CONTRACT_CODE_TO_SLUG.get(symbol)
     if slug is not None:
