@@ -7,7 +7,11 @@ parsing, attribution header construction, and response unwrapping.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+import re
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+if TYPE_CHECKING:
+    from .models import Subscription
 
 # Default attribution source stamped on subscriptions created via this SDK.
 DEFAULT_SOURCE = "sdk-python"
@@ -101,6 +105,115 @@ def build_create_body(
     if name is not None:
         body["name"] = name
     return body
+
+
+# Watch.status is a string enum on the server: { active, paused }.
+VALID_STATUSES = ("active", "paused")
+
+# Watch ids are UUIDs. Anything outside this alphabet would change the URL the
+# request goes to (a "/" reaches another route, "?" or "#" rewrites the query),
+# so it is refused before a request is built.
+_SUBSCRIPTION_ID = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def validate_subscription_id(subscription_id: Any) -> str:
+    """Return ``subscription_id`` if it can be placed in a URL path segment.
+
+    Raises:
+        ValueError: If the id is not a non-empty string of letters, digits,
+            ``-`` or ``_``. Nothing is sent to the API.
+    """
+    if not isinstance(subscription_id, str) or not _SUBSCRIPTION_ID.fullmatch(subscription_id):
+        raise ValueError(
+            f"Invalid subscription id {subscription_id!r}: expected the id returned "
+            f"by subscriptions.list() or subscriptions.create()."
+        )
+    return subscription_id
+
+
+def build_update_body(
+    name: Optional[str] = None,
+    codes: Optional[List[str]] = None,
+    interval: Optional[Union[str, int]] = None,
+    deliver_webhook: Optional[bool] = None,
+    status: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build the PATCH /v1/subscriptions/:id body from the fields given.
+
+    Only arguments that are not ``None`` are sent, so an update never resets a
+    field the caller did not mention.
+
+    Raises:
+        ValueError: If no field is given or a field is invalid. Nothing is sent.
+    """
+    body: Dict[str, Any] = {}
+    if name is not None:
+        if not isinstance(name, str):
+            raise ValueError(f"name must be a string, got {type(name).__name__}")
+        body["name"] = name
+    if codes is not None:
+        if isinstance(codes, (str, bytes)) or not isinstance(codes, (list, tuple)):
+            raise ValueError("codes must be a list of commodity codes, e.g. ['BRENT_CRUDE_USD']")
+        if not codes:
+            raise ValueError("codes must contain at least one commodity code")
+        if not all(isinstance(code, str) and code.strip() for code in codes):
+            raise ValueError("every code must be a non-empty string")
+        body["codes"] = list(codes)
+    if interval is not None:
+        body["interval_seconds"] = normalize_interval(interval)
+    if deliver_webhook is not None:
+        if not isinstance(deliver_webhook, bool):
+            raise ValueError(
+                f"deliver_webhook must be True or False, got {deliver_webhook!r}"
+            )
+        body["deliver_webhook"] = deliver_webhook
+    if status is not None:
+        if status not in VALID_STATUSES:
+            raise ValueError(
+                f"status must be one of {', '.join(VALID_STATUSES)}, got {status!r}"
+            )
+        body["status"] = status
+    if not body:
+        raise ValueError(
+            "update() needs at least one of: name, codes, interval, deliver_webhook, status"
+        )
+    return body
+
+
+def unwrap_subscription(response: Any, *, subject: str) -> "Subscription":
+    """Return the typed ``data.subscription`` record from a success body.
+
+    Every single-subscription endpoint (show, create, update, pause, resume)
+    answers ``{"status": "success", "data": {"subscription": {...}}}``.
+
+    Raises:
+        OilPriceAPIError: ``code="MALFORMED_RESPONSE"`` when the record is
+            missing, is not an object, or lacks a required field. A malformed
+            success is reported, never turned into a partial or invented record.
+    """
+    from pydantic import ValidationError as PydanticValidationError
+
+    from .exceptions import OilPriceAPIError
+    from .models import Subscription
+
+    data = response.get("data") if isinstance(response, dict) else None
+    record = data.get("subscription") if isinstance(data, dict) else None
+    if not isinstance(record, dict):
+        raise OilPriceAPIError(
+            f"Malformed {subject} response: expected data.subscription to be an object",
+            code="MALFORMED_RESPONSE",
+            raw_body=response,
+        )
+    try:
+        return Subscription(**record)
+    except PydanticValidationError as error:
+        raise OilPriceAPIError(
+            f"Malformed {subject} response: {error.error_count()} invalid or missing "
+            f"subscription field(s): "
+            + ", ".join(".".join(str(part) for part in item["loc"]) for item in error.errors()),
+            code="MALFORMED_RESPONSE",
+            raw_body=response,
+        ) from error
 
 
 def unwrap_data(response: Any) -> Dict[str, Any]:

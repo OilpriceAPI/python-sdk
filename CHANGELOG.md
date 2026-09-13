@@ -4,6 +4,36 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
+### Added
+
+- **Subscription lifecycle: `get`, `update`, `pause`, `resume` (#100).** Sync
+  and async, against `GET`/`PATCH /v1/subscriptions/{id}` and
+  `POST /v1/subscriptions/{id}/pause|resume`. Each returns a typed
+  `Subscription` with the server's timestamps and nulls as sent. `update()`
+  sends only the fields you pass (`name`, `codes`, `interval`,
+  `deliver_webhook`, `status`). Ids and update payloads are validated before
+  any request is built, and an invalid one raises `ValueError` with nothing
+  sent. Unknown ids raise `DataNotFoundError`; a refused update (interval
+  below the plan minimum, webhook delivery the plan lacks) raises
+  `ValidationError` with the server's `details`. `update`, `pause` and
+  `resume` are writes and are sent once, like `create`: after an ambiguous
+  timeout or 5xx the error carries `ambiguous_write=True` and `get()` tells
+  you whether the change landed.
+
+### Fixed
+
+- **`subscriptions.create()` no longer turns a malformed success into a
+  half-built record.** It fell back to treating the whole `data` object as the
+  subscription when `data.subscription` was missing, and leaked a raw pydantic
+  or `TypeError` when the record was null or a list. It now raises
+  `OilPriceAPIError(code="MALFORMED_RESPONSE")`, the same as the new lifecycle
+  methods.
+- **`subscriptions.delete()` validates the id before sending.** An id such as
+  `"abc/pause"` or `""` previously produced a request to a different route.
+- **`Subscription.codes` is required.** A record with no `codes` used to
+  default to `[]`, reading as a watch on nothing; the API always sends it, so a
+  missing value now fails validation instead of being invented.
+
 ## [1.15.0] - 2026-09-13
 
 ### Fixed

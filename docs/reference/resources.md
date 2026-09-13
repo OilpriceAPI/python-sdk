@@ -63,3 +63,11 @@
 ## Data Sources
 
 ::: oilpriceapi.resources.data_sources.DataSourcesResource
+
+## Subscriptions
+
+Agent price watches: `list`, `create`, `get`, `update`, `pause`, `resume`,
+`delete`, and the `events` poll. A subscription here is a watch on commodity
+codes, not a billing subscription.
+
+::: oilpriceapi.resources.subscriptions.SubscriptionsResource

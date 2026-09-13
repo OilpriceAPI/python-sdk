@@ -10,7 +10,10 @@ from typing import Any, Dict, List, Optional, Union, cast
 from .._subscriptions_common import (
     build_attribution_headers,
     build_create_body,
+    build_update_body,
     unwrap_data,
+    unwrap_subscription,
+    validate_subscription_id,
 )
 from ..models import Subscription, SubscriptionEvent
 
@@ -98,9 +101,124 @@ class SubscriptionsResource:
             json_data=body,
             headers=headers,
         )
-        data = unwrap_data(response)
-        sub = data.get("subscription", data)
-        return Subscription(**sub)
+        return unwrap_subscription(response, subject="subscriptions.create")
+
+    def get(self, subscription_id: str) -> Subscription:
+        """Fetch one subscription.
+
+        Args:
+            subscription_id: The id returned by ``list()`` or ``create()``.
+
+        Returns:
+            The Subscription, with the server's timestamps and nulls as sent.
+
+        Raises:
+            ValueError: If the id is malformed. Nothing is sent.
+            DataNotFoundError: If no subscription with that id belongs to you.
+            OilPriceAPIError: ``code="MALFORMED_RESPONSE"`` on a malformed success.
+
+        Example:
+            >>> sub = client.subscriptions.get("f72ceac2-8b9a-406a-a57e-90c625785444")
+            >>> sub.status
+            'active'
+        """
+        subscription_id = validate_subscription_id(subscription_id)
+        response = self.client.request(
+            method="GET",
+            path=f"/v1/subscriptions/{subscription_id}",
+        )
+        return unwrap_subscription(response, subject="subscriptions.get")
+
+    def update(
+        self,
+        subscription_id: str,
+        *,
+        name: Optional[str] = None,
+        codes: Optional[List[str]] = None,
+        interval: Optional[Union[str, int]] = None,
+        deliver_webhook: Optional[bool] = None,
+        status: Optional[str] = None,
+    ) -> Subscription:
+        """Change a subscription. Only the arguments you pass are sent.
+
+        Sent once: a PATCH is not replayed after a timeout or 5xx. If one of
+        those is raised with ``ambiguous_write=True``, call ``get()`` to see
+        whether the change landed.
+
+        Args:
+            subscription_id: The subscription to change.
+            name: New name.
+            codes: Replacement list of commodity codes.
+            interval: Friendly interval ("5m", "1h", "daily") or seconds.
+            deliver_webhook: Whether events are delivered by webhook.
+            status: ``"active"`` or ``"paused"``.
+
+        Returns:
+            The updated Subscription as the server stored it.
+
+        Raises:
+            ValueError: If the id or any field is invalid, or no field is given.
+                Nothing is sent.
+            DataNotFoundError: If the subscription does not exist.
+            ValidationError: 422 when the server refuses the change, for example
+                an interval below your plan minimum or webhook delivery your
+                plan does not include.
+
+        Example:
+            >>> client.subscriptions.update(sub.id, name="Brent hourly", interval="1h")
+        """
+        subscription_id = validate_subscription_id(subscription_id)
+        body = build_update_body(
+            name=name,
+            codes=codes,
+            interval=interval,
+            deliver_webhook=deliver_webhook,
+            status=status,
+        )
+        response = self.client.request(
+            method="PATCH",
+            path=f"/v1/subscriptions/{subscription_id}",
+            json_data=body,
+        )
+        return unwrap_subscription(response, subject="subscriptions.update")
+
+    def pause(self, subscription_id: str) -> Subscription:
+        """Pause a subscription so it stops being evaluated.
+
+        Sent once, like every write in this SDK: after an ambiguous timeout or
+        5xx, call ``get()`` to check the status rather than retrying blind.
+
+        Returns:
+            The Subscription, with ``status == "paused"``.
+
+        Example:
+            >>> client.subscriptions.pause(sub.id).status
+            'paused'
+        """
+        subscription_id = validate_subscription_id(subscription_id)
+        response = self.client.request(
+            method="POST",
+            path=f"/v1/subscriptions/{subscription_id}/pause",
+        )
+        return unwrap_subscription(response, subject="subscriptions.pause")
+
+    def resume(self, subscription_id: str) -> Subscription:
+        """Resume a paused subscription. The server schedules it to run now.
+
+        Returns:
+            The Subscription, with ``status == "active"`` and the new
+            ``next_run_at``.
+
+        Example:
+            >>> client.subscriptions.resume(sub.id).status
+            'active'
+        """
+        subscription_id = validate_subscription_id(subscription_id)
+        response = self.client.request(
+            method="POST",
+            path=f"/v1/subscriptions/{subscription_id}/resume",
+        )
+        return unwrap_subscription(response, subject="subscriptions.resume")
 
     def delete(self, subscription_id: str) -> bool:
         """Delete a subscription.
@@ -111,9 +229,13 @@ class SubscriptionsResource:
         Returns:
             True on success.
 
+        Raises:
+            ValueError: If the id is malformed. Nothing is sent.
+
         Example:
             >>> client.subscriptions.delete(sub.id)
         """
+        subscription_id = validate_subscription_id(subscription_id)
         self.client.request(
             method="DELETE",
             path=f"/v1/subscriptions/{subscription_id}",
