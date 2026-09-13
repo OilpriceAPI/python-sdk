@@ -86,3 +86,30 @@ def test_sync_and_async_share_one_base_url_validator():
 
     assert "validated_base_url" in inspect.getsource(s.OilPriceAPI.__init__)
     assert "validated_base_url" in inspect.getsource(a.AsyncOilPriceAPI.__init__)
+
+
+# A bad port and a netloc whose NFKC normalisation introduces "/" make urlsplit
+# itself raise ValueError. The constructor documents ConfigurationError, so the
+# validator must not leak the raw stdlib error (#123).
+UNPARSEABLE = [
+    "https://api.oilpriceapi.com:99999",
+    "https://\u2100evil.example",
+]
+
+
+@pytest.mark.parametrize("base", UNPARSEABLE)
+def test_validated_base_url_wraps_raw_valueerror(base):
+    with pytest.raises(ConfigurationError):
+        validated_base_url(base)
+
+
+@pytest.mark.parametrize("base", UNPARSEABLE)
+def test_sync_client_wraps_raw_valueerror(base):
+    with pytest.raises(ConfigurationError):
+        OilPriceAPI(api_key="test-key", base_url=base)
+
+
+@pytest.mark.parametrize("base", UNPARSEABLE)
+def test_async_client_wraps_raw_valueerror(base):
+    with pytest.raises(ConfigurationError):
+        AsyncOilPriceAPI(api_key="test-key", base_url=base)

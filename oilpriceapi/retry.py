@@ -149,7 +149,21 @@ def validated_base_url(value: object) -> str:
     # real origins. It also turns httpx's downstream
     # `UnsupportedProtocol: Request URL is missing an 'http://' or 'https://'
     # protocol` into an error that names the setting the caller got wrong.
-    parts = urlsplit(trimmed)
+    # `urlsplit` and its `.hostname`/`.port` accessors raise ValueError on an
+    # out-of-range port and on a non-ASCII netloc whose NFKC normalisation
+    # introduces one of /?#@: -- e.g. "https://\u2100evil.example". Neither is
+    # the ValidationError/ConfigurationError the constructor documents, so wrap
+    # the whole parse (#123).
+    try:
+        parts = urlsplit(trimmed)
+        host = parts.hostname
+        parts.port
+    except ValueError as exc:
+        raise ConfigurationError(
+            f"base_url is not a valid URL, got {trimmed!r}: {exc}. "
+            "Pass base_url=None for the default (https://api.oilpriceapi.com)."
+        ) from exc
+
     if parts.scheme.lower() not in ("http", "https"):
         raise ConfigurationError(
             f"base_url must start with 'http://' or 'https://', got {trimmed!r}. "
@@ -157,21 +171,12 @@ def validated_base_url(value: object) -> str:
             "origin to pin to, and httpx cannot send the request at all. "
             "Pass base_url=None for the default (https://api.oilpriceapi.com)."
         )
-    if not parts.hostname:
+    if not host:
         raise ConfigurationError(
             f"base_url has no host, got {trimmed!r}. "
             "Pass a full origin such as 'https://api.oilpriceapi.com', or "
             "base_url=None for the default."
         )
-    # `urlsplit(...).port` raises ValueError on an out-of-range port; surface it
-    # as the documented ConfigurationError rather than leaking a raw ValueError
-    # out of the constructor.
-    try:
-        parts.port
-    except ValueError as exc:
-        raise ConfigurationError(
-            f"base_url has an invalid port, got {trimmed!r}: {exc}"
-        ) from exc
 
     return trimmed
 
