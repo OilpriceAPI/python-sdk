@@ -292,7 +292,7 @@ class OilPriceAPI:
                 logger.debug(f"API response: {response.status_code} for {method} {url}")
 
                 if 200 <= response.status_code < 300:
-                    self._telemetry.track_request(
+                    self._track_telemetry(
                         operation=self._sanitize_path_for_telemetry(method, path),
                         duration=time.time() - start_time,
                         success=True,
@@ -398,7 +398,7 @@ class OilPriceAPI:
                 raise last_exception
 
         if last_exception:
-            self._telemetry.track_request(
+            self._track_telemetry(
                 operation=f"{method} {path}",
                 duration=time.time() - start_time,
                 success=False,
@@ -541,6 +541,18 @@ class OilPriceAPI:
 
         raise OilPriceAPIError("Max retries exceeded")
 
+    def _track_telemetry(self, **fields: Any) -> None:
+        """
+        Record a telemetry event without ever affecting the request result.
+
+        Telemetry is opt-in and best effort: a failure inside the collector
+        must never change, delay, or fail an API call (#105).
+        """
+        try:
+            self._telemetry.track_request(**fields)
+        except Exception:  # pragma: no cover - telemetry must never surface
+            logger.debug("Telemetry tracking failed", exc_info=True)
+
     @staticmethod
     def _sanitize_path_for_telemetry(method: str, path: str) -> str:
         """Strip resource IDs from path to avoid leaking user data in telemetry."""
@@ -626,8 +638,11 @@ class OilPriceAPI:
         return MarketBrief(**unwrap_data(response))
 
     def close(self):
-        """Close the HTTP client and flush telemetry."""
-        self._telemetry.close()
+        """Close the HTTP client and stop telemetry."""
+        try:
+            self._telemetry.close()
+        except Exception:  # pragma: no cover - telemetry must never surface
+            logger.debug("Telemetry close failed", exc_info=True)
         self._client.close()
 
     def __enter__(self):
