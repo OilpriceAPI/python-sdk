@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 from ._subscriptions_common import unwrap_data
+from ._body import decode_json_body
 from ._url import resolve_api_url
 from .exceptions import (
     ConfigurationError,
@@ -297,7 +298,7 @@ class OilPriceAPI:
                         duration=time.time() - start_time,
                         success=True,
                     )
-                    return response.json()
+                    return decode_json_body(response)
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
                     logger.warning(
@@ -446,7 +447,7 @@ class OilPriceAPI:
                 )
 
                 if 200 <= response.status_code < 300:
-                    return response.json(), response.headers
+                    return decode_json_body(response), response.headers
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
 
