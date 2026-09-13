@@ -10,6 +10,18 @@ from ..exceptions import ValidationError
 from ..models import DieselPrice, DieselStationsResponse
 
 
+def _payload(response):
+    """Step inside the API's ``{"status": ..., "data": {...}}`` envelope.
+
+    ``/v1/diesel-prices`` nests everything under ``data``. Responses that are
+    already unwrapped (older shapes, hand-built fixtures) pass straight through,
+    so both forms keep working.
+    """
+    if isinstance(response, dict) and isinstance(response.get("data"), dict):
+        return response["data"]
+    return response
+
+
 class DieselResource:
     """Resource for diesel price operations.
 
@@ -85,13 +97,25 @@ class DieselResource:
             params={"state": state.upper()}
         )
 
-        # Parse response - API returns { regional_average: {...} }
-        if "regional_average" in response:
-            price_data = response["regional_average"]
-        elif "data" in response:
-            price_data = response["data"]
+        # Production returns {"status": ..., "data": {"regional_average": {...},
+        # "location": {...}, ...}}. The record is one level deeper than the old
+        # code looked, so it fell through and handed the whole envelope to the
+        # model (#110). Unwrap `data` first, then take `regional_average`.
+        payload = _payload(response)
+
+        if isinstance(payload, dict) and isinstance(payload.get("regional_average"), dict):
+            price_data = dict(payload["regional_average"])
+            location = payload.get("location")
         else:
-            price_data = response
+            price_data = dict(payload) if isinstance(payload, dict) else payload
+            location = None
+
+        # `regional_average` carries `region` ("california"), not `state`, which
+        # the model requires. The envelope's location block has the code; fall
+        # back to what the caller asked for.
+        if isinstance(price_data, dict) and not price_data.get("state"):
+            state_code = location.get("state_code") if isinstance(location, dict) else None
+            price_data["state"] = state_code or state.upper()
 
         return DieselPrice(**price_data)
 
@@ -202,7 +226,8 @@ class DieselResource:
             }
         )
 
-        return DieselStationsResponse(**response)
+        # Same envelope as get_price: the stations block lives under `data`.
+        return DieselStationsResponse(**_payload(response))
 
     def to_dataframe(
         self,
