@@ -29,6 +29,7 @@ from oilpriceapi.exceptions import (
     PaymentRequiredError,
     PermissionDeniedError,
     RateLimitError,
+    SubscriptionIntervalError,
     TimeoutError,
     ValidationError,
 )
@@ -252,49 +253,82 @@ def test_invalid_id_is_rejected_before_the_network(mode, bad_id, action):
     exc, transport = _run_expect(
         mode,
         lambda c: getattr(c.subscriptions, action)(bad_id),
-        ValueError,
+        ValidationError,
         responses=_success(WIRE_SUBSCRIPTION),
     )
+    # A plain ValidationError: these refusals are new in #100, so there is no
+    # ValueError contract to keep. No request was sent, so no HTTP status.
+    assert type(exc) is ValidationError
+    assert exc.status_code is None
+    assert exc.field == "subscription_id"
+    assert exc.value == bad_id
     assert transport.call_count == 0
 
 
 @pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("bad_id", BAD_IDS)
 def test_update_invalid_id_is_rejected_before_the_network(mode, bad_id):
-    _, transport = _run_expect(
+    exc, transport = _run_expect(
         mode,
         lambda c: c.subscriptions.update(bad_id, name="x"),
-        ValueError,
+        ValidationError,
         responses=_success(WIRE_SUBSCRIPTION),
     )
+    assert type(exc) is ValidationError
+    assert exc.status_code is None
+    assert exc.field == "subscription_id"
     assert transport.call_count == 0
 
 
 BAD_UPDATES = [
-    pytest.param({}, id="empty-payload"),
-    pytest.param({"interval": "5x"}, id="bad-interval"),
-    pytest.param({"interval": 0}, id="zero-interval"),
-    pytest.param({"deliver_webhook": "yes"}, id="non-bool-deliver_webhook"),
-    pytest.param({"deliver_webhook": 1}, id="int-deliver_webhook"),
-    pytest.param({"status": "cancelled"}, id="unknown-status"),
-    pytest.param({"status": "ACTIVE "}, id="unnormalized-status"),
-    pytest.param({"codes": []}, id="empty-codes"),
-    pytest.param({"codes": "BRENT_CRUDE_USD"}, id="codes-as-string"),
-    pytest.param({"codes": ["BRENT_CRUDE_USD", ""]}, id="blank-code"),
-    pytest.param({"codes": ["BRENT_CRUDE_USD", 5]}, id="non-string-code"),
-    pytest.param({"name": 5}, id="non-string-name"),
+    pytest.param({}, None, id="empty-payload"),
+    pytest.param({"interval": "5x"}, "interval", id="bad-interval"),
+    pytest.param({"interval": 0}, "interval", id="zero-interval"),
+    pytest.param({"deliver_webhook": "yes"}, "deliver_webhook", id="non-bool-deliver_webhook"),
+    pytest.param({"deliver_webhook": 1}, "deliver_webhook", id="int-deliver_webhook"),
+    pytest.param({"status": "cancelled"}, "status", id="unknown-status"),
+    pytest.param({"status": "ACTIVE "}, "status", id="unnormalized-status"),
+    pytest.param({"codes": []}, "codes", id="empty-codes"),
+    pytest.param({"codes": "BRENT_CRUDE_USD"}, "codes", id="codes-as-string"),
+    pytest.param({"codes": ["BRENT_CRUDE_USD", ""]}, "codes", id="blank-code"),
+    pytest.param({"codes": ["BRENT_CRUDE_USD", 5]}, "codes", id="non-string-code"),
+    pytest.param({"name": 5}, "name", id="non-string-name"),
 ]
 
 
 @pytest.mark.parametrize("mode", MODES)
-@pytest.mark.parametrize("fields", BAD_UPDATES)
-def test_invalid_update_payload_is_rejected_before_the_network(mode, fields):
-    _, transport = _run_expect(
+@pytest.mark.parametrize("fields,field", BAD_UPDATES)
+def test_invalid_update_payload_is_rejected_before_the_network(mode, fields, field):
+    exc, transport = _run_expect(
         mode,
         lambda c: c.subscriptions.update(WATCH_ID, **fields),
-        ValueError,
+        ValidationError,
         responses=_success(WIRE_SUBSCRIPTION),
     )
+    assert type(exc) is ValidationError
+    assert exc.status_code is None
+    assert exc.field == field
+    if field is not None:
+        assert exc.value == fields[field]
+    assert transport.call_count == 0
+
+
+@pytest.mark.parametrize("mode", MODES)
+@pytest.mark.parametrize("bad_interval", ["5x", 0, -60, True, "", 1.5])
+def test_create_bad_interval_keeps_value_error_and_is_a_validation_error(mode, bad_interval):
+    """create() raised ValueError for a bad interval before #100; keep that contract."""
+    exc, transport = _run_expect(
+        mode,
+        lambda c: c.subscriptions.create(["BRENT_CRUDE_USD"], interval=bad_interval),
+        SubscriptionIntervalError,
+        responses=_success(WIRE_SUBSCRIPTION),
+    )
+    assert isinstance(exc, ValidationError)
+    assert isinstance(exc, ValueError)
+    assert isinstance(exc, OilPriceAPIError)
+    assert exc.status_code is None
+    assert exc.field == "interval"
+    assert exc.value is bad_interval
     assert transport.call_count == 0
 
 
@@ -484,7 +518,7 @@ def test_non_json_200_is_a_parse_failure_not_an_empty_success(mode):
     _run_expect(
         mode,
         lambda c: c.subscriptions.get(WATCH_ID),
-        ValueError,
+        json.JSONDecodeError,
         responses=_response(200, body=b"<html>gateway</html>"),
     )
 

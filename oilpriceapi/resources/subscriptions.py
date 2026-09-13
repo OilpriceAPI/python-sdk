@@ -113,7 +113,8 @@ class SubscriptionsResource:
             The Subscription, with the server's timestamps and nulls as sent.
 
         Raises:
-            ValueError: If the id is malformed. Nothing is sent.
+            ValidationError: If the id is malformed (``field="subscription_id"``,
+                ``status_code=None``). Nothing is sent.
             DataNotFoundError: If no subscription with that id belongs to you.
             OilPriceAPIError: ``code="MALFORMED_RESPONSE"`` on a malformed success.
 
@@ -157,8 +158,9 @@ class SubscriptionsResource:
             The updated Subscription as the server stored it.
 
         Raises:
-            ValueError: If the id or any field is invalid, or no field is given.
-                Nothing is sent.
+            ValidationError: ``status_code=None``, ``field`` naming the argument,
+                if the id or any field is invalid, or no field is given. Nothing
+                is sent. (Distinct from the server's 422, which has a status.)
             DataNotFoundError: If the subscription does not exist.
             ValidationError: 422 when the server refuses the change, for example
                 an interval below your plan minimum or webhook delivery your
@@ -230,7 +232,8 @@ class SubscriptionsResource:
             True on success.
 
         Raises:
-            ValueError: If the id is malformed. Nothing is sent.
+            ValidationError: If the id is malformed (``field="subscription_id"``,
+                ``status_code=None``). Nothing is sent.
 
         Example:
             >>> client.subscriptions.delete(sub.id)

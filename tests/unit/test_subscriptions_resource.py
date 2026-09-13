@@ -47,8 +47,26 @@ class TestIntervalMapping:
 
     @pytest.mark.parametrize("bad", ["", "abc", "0", 0, -5, "-1h", "5x", True])
     def test_normalize_interval_invalid(self, bad):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError) as info:
             normalize_interval(bad)
+        # Still a ValueError for existing callers, and also an SDK refusal:
+        # catchable as OilPriceAPIError, local (no HTTP status), naming the field.
+        from oilpriceapi import OilPriceAPIError, SubscriptionIntervalError, ValidationError
+
+        assert isinstance(info.value, SubscriptionIntervalError)
+        assert isinstance(info.value, ValidationError)
+        assert isinstance(info.value, OilPriceAPIError)
+        assert info.value.status_code is None
+        assert info.value.field == "interval"
+
+    @pytest.mark.parametrize("bad", ["abc", 0])
+    def test_build_create_body_bad_interval_keeps_value_error(self, bad):
+        with pytest.raises(ValueError) as info:
+            build_create_body(["BRENT_CRUDE_USD"], bad)
+        from oilpriceapi import SubscriptionIntervalError
+
+        assert isinstance(info.value, SubscriptionIntervalError)
+        assert info.value.field == "interval"
 
     def test_build_create_body(self):
         body = build_create_body(["BRENT_CRUDE_USD"], "5m", name="Brent")

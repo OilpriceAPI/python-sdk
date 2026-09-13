@@ -12,8 +12,8 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
   `Subscription` with the server's timestamps and nulls as sent. `update()`
   sends only the fields you pass (`name`, `codes`, `interval`,
   `deliver_webhook`, `status`). Ids and update payloads are validated before
-  any request is built, and an invalid one raises `ValueError` with nothing
-  sent. Unknown ids raise `DataNotFoundError`; a refused update (interval
+  any request is built; an invalid one raises `ValidationError` with
+  `status_code=None`, `field` naming the argument, and nothing sent. Unknown ids raise `DataNotFoundError`; a refused update (interval
   below the plan minimum, webhook delivery the plan lacks) raises
   `ValidationError` with the server's `details`. `update`, `pause` and
   `resume` are writes and are sent once, like `create`: after an ambiguous
@@ -29,7 +29,15 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
   `OilPriceAPIError(code="MALFORMED_RESPONSE")`, the same as the new lifecycle
   methods.
 - **`subscriptions.delete()` validates the id before sending.** An id such as
-  `"abc/pause"` or `""` previously produced a request to a different route.
+  `"abc/pause"` or `""` previously produced a request to a different route; it
+  now raises `ValidationError(field="subscription_id", status_code=None)`.
+- **A bad subscription `interval` is now an SDK refusal as well as a
+  `ValueError`.** `subscriptions.create(interval=...)`, `normalize_interval` and
+  `build_create_body` raise the new `SubscriptionIntervalError`, a subclass of
+  both `ValidationError` and `ValueError` (like `FuturesContractError`), so
+  `except OilPriceAPIError` catches it and existing `except ValueError` code
+  keeps working. It carries `field="interval"`, the rejected `value`, and
+  `status_code=None`.
 - **`Subscription.codes` is required.** A record with no `codes` used to
   default to `[]`, reading as a watch on nothing; the API always sends it, so a
   missing value now fails validation instead of being invented.
