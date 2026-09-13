@@ -333,13 +333,31 @@ class ValidationError(OilPriceAPIError):
         self.field = field
         self.value = value
 
+    #: Rendered when the raiser supplied no message of its own.
+    DEFAULT_MESSAGE = "Validation error"
+
     def __str__(self) -> str:
-        message = super().__str__()
-        if self.field:
-            message = f"Validation error for '{self.field}'"
+        if not self.field:
+            return super().__str__()
+
+        # A supplied message is the only place the raiser's guidance lives --
+        # the origin guard in _url.py composes four sentences of remediation --
+        # and this method used to discard it whenever `field` was set, so no
+        # ordinary print, log or traceback could ever show it (#117). Keep the
+        # message and APPEND the field/value detail that other callers, and
+        # their tests, rely on.
+        #
+        # Historically the field-set form carried no "[422]" prefix; keep that.
+        if self.message in ("", self.DEFAULT_MESSAGE):
+            detail = f"Validation error for '{self.field}'"
             if self.value is not None:
-                message += f": invalid value '{self.value}'"
-        return message
+                detail += f": invalid value '{self.value}'"
+            return detail
+
+        detail = f"{self.message} (field '{self.field}'"
+        if self.value is not None:
+            detail += f", invalid value '{self.value}'"
+        return detail + ")"
 
 
 class ServerError(OilPriceAPIError):
