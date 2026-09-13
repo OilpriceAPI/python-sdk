@@ -25,6 +25,7 @@ from oilpriceapi.exceptions import (
     PermissionDeniedError,
     RateLimitError,
     ServerError,
+    SubscriptionIntervalError,
     TimeoutError,
     ValidationError,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "DataNotFoundError",
     "ServerError",
     "FuturesContractError",
+    "SubscriptionIntervalError",
     "ValidationError",
     "NetworkError",
     "TimeoutError",

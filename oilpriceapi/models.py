@@ -425,7 +425,10 @@ class Subscription(BaseModel):
 
     id: str = Field(description="Unique subscription identifier")
     name: Optional[str] = Field(default=None, description="User-friendly subscription name")
-    codes: List[str] = Field(default_factory=list, description="Commodity codes being watched")
+    # Required: the server always sends it, and a watch cannot exist without
+    # codes (Watch validates presence). Defaulting a missing value to [] would
+    # report a malformed record as a watch on nothing (#100).
+    codes: List[str] = Field(description="Commodity codes being watched")
     interval_seconds: Optional[int] = Field(default=None, description="Evaluation interval in seconds")
     status: Optional[str] = Field(default=None, description="Subscription status (active, paused, etc.)")
     deliver_webhook: Optional[bool] = Field(default=None, description="Whether events are delivered via webhook")

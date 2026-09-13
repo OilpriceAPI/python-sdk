@@ -7,7 +7,10 @@ from . import _fuel_surcharge_common as fs
 from ._subscriptions_common import (
     build_attribution_headers,
     build_create_body,
+    build_update_body,
     unwrap_data,
+    unwrap_subscription,
+    validate_subscription_id,
 )
 from .exceptions import ValidationError
 from .models import (
@@ -1606,12 +1609,67 @@ class AsyncSubscriptionsResource:
             json_data=body,
             headers=headers,
         )
-        data = unwrap_data(response)
-        sub = data.get("subscription", data)
-        return Subscription(**sub)
+        return unwrap_subscription(response, subject="subscriptions.create")
+
+    async def get(self, subscription_id: str) -> Subscription:
+        """Fetch one subscription. See ``SubscriptionsResource.get``."""
+        subscription_id = validate_subscription_id(subscription_id)
+        response = await self.client.request(
+            method="GET",
+            path=f"/v1/subscriptions/{subscription_id}",
+        )
+        return unwrap_subscription(response, subject="subscriptions.get")
+
+    async def update(
+        self,
+        subscription_id: str,
+        *,
+        name: Optional[str] = None,
+        codes: Optional[List[str]] = None,
+        interval: Optional[Union[str, int]] = None,
+        deliver_webhook: Optional[bool] = None,
+        status: Optional[str] = None,
+    ) -> Subscription:
+        """Change a subscription; only the arguments passed are sent.
+
+        Sent once (PATCH is not replayed). See ``SubscriptionsResource.update``.
+        """
+        subscription_id = validate_subscription_id(subscription_id)
+        body = build_update_body(
+            name=name,
+            codes=codes,
+            interval=interval,
+            deliver_webhook=deliver_webhook,
+            status=status,
+        )
+        response = await self.client.request(
+            method="PATCH",
+            path=f"/v1/subscriptions/{subscription_id}",
+            json_data=body,
+        )
+        return unwrap_subscription(response, subject="subscriptions.update")
+
+    async def pause(self, subscription_id: str) -> Subscription:
+        """Pause a subscription. See ``SubscriptionsResource.pause``."""
+        subscription_id = validate_subscription_id(subscription_id)
+        response = await self.client.request(
+            method="POST",
+            path=f"/v1/subscriptions/{subscription_id}/pause",
+        )
+        return unwrap_subscription(response, subject="subscriptions.pause")
+
+    async def resume(self, subscription_id: str) -> Subscription:
+        """Resume a paused subscription. See ``SubscriptionsResource.resume``."""
+        subscription_id = validate_subscription_id(subscription_id)
+        response = await self.client.request(
+            method="POST",
+            path=f"/v1/subscriptions/{subscription_id}/resume",
+        )
+        return unwrap_subscription(response, subject="subscriptions.resume")
 
     async def delete(self, subscription_id: str) -> bool:
         """Delete a subscription. Returns True on success."""
+        subscription_id = validate_subscription_id(subscription_id)
         await self.client.request(
             method="DELETE",
             path=f"/v1/subscriptions/{subscription_id}",
