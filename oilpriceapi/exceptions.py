@@ -360,6 +360,27 @@ class ValidationError(OilPriceAPIError):
         return detail + ")"
 
 
+class FuturesContractError(ValidationError, ValueError):
+    """Raised when a futures contract or slug cannot be resolved (#122).
+
+    Two base classes, deliberately:
+
+    * ``ValidationError`` -- so ``except OilPriceAPIError`` catches it. Every
+      documented recovery path in this SDK is written against that base class,
+      and #111 turned 18 live catalog codes from "resolved to a DIFFERENT
+      instrument" into "raises". A refusal is only recoverable if it is
+      catchable, and a bare builtin ``ValueError`` was not.
+    * ``ValueError`` -- so code written against the pre-#111 ``raise
+      ValueError`` keeps working. This is not a breaking change.
+    """
+
+    def __str__(self) -> str:
+        # The message lists every valid slug and contract code: it IS the
+        # remediation, so render it whole rather than letting a field/value
+        # summary stand in for it.
+        return self.message
+
+
 class ServerError(OilPriceAPIError):
     """Raised when the server returns HTTP 5xx."""
 

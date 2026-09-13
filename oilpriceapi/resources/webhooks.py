@@ -214,9 +214,12 @@ class WebhooksResource:
             >>> print(f"Test status: {result['status']}")
             >>> print(f"Response: {result['response']}")
         """
+        # Read-shaped POST: a diagnostic against an already-configured
+        # webhook. It creates nothing, so it keeps its retries (#118).
         response = self.client.request(
             method="POST",
-            path=f"/v1/webhooks/{webhook_id}/test"
+            path=f"/v1/webhooks/{webhook_id}/test",
+            idempotent=True
         )
 
         # Parse response
