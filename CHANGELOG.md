@@ -2,6 +2,76 @@
 
 All notable changes to the OilPriceAPI Python SDK will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **Energy Intelligence collection methods now return the collection they
+  promise (#107).** Every EI method typed `List[Dict[str, Any]]` returned
+  `response["data"]` -- but the EI controllers put their records under a *named*
+  key inside `data`. `client.ei.rig_counts.by_basin()` returned
+  `{"report_date": ..., "basins": [...]}` where the signature and the docstring
+  example promised the basin list, so the documented
+  `for basin in basins: basin["count"]` iterated dict *keys*. The same defect
+  ran through `by_state` (`states`), `historical` (`records`), OPEC
+  `by_country`/`historical`/`top_producers`, oil-inventory
+  `by_product`/`historical`, drilling-productivity
+  `duc_wells`/`by_basin`/`historical`/`trends`, forecast `historical`, and
+  every well-permit and frac-focus collection -- 27 methods, sync and async.
+  Each now returns the named list, and a success body missing that list raises
+  `OilPriceAPIError(code="MALFORMED_RESPONSE")` instead of handing back the
+  envelope. An empty collection is still an empty list.
+- **`ei.well_permits.get()` and `ei.frac_focus.get()` return the record, not its
+  wrapper.** Production nests these under `data.well_permit` /
+  `data.frac_focus_disclosure`, so the documented `permit["operator"]` raised
+  `KeyError`.
+- **`ei.forecasts.prices()` and `ei.forecasts.production()` are typed
+  `Dict[str, Any]`.** Both return a mapping keyed by commodity / series code,
+  never a list; the `List[Dict[str, Any]]` annotation was wrong from the start.
+  No behaviour change.
+- **Docstring examples across the EI resources now use the field names the API
+  actually returns** (`region`/`count`, not the invented `name`/`rig_count`),
+  verified live on 2026-09-13.
+- **The ActionCable handshake is bounded, and a failed setup no longer leaks the
+  socket (#108).** `open_timeout` was passed to the WebSocket upgrade and
+  nothing else: the waits for `welcome` and `confirm_subscription` that follow
+  had no deadline at all, so a socket that upgraded and then went quiet hung the
+  caller indefinitely, and cancelling out of that hang left the upgraded socket
+  open. Connect, `welcome` and `confirm_subscription` are now one bounded setup
+  lifecycle governed by a new `setup_timeout` (defaulting to `open_timeout`, so
+  the timeout you already configure does cover protocol setup), and every socket
+  the stream allocates is closed on any failure, timeout or cancellation --
+  including a `__aenter__` that raises, where `__aexit__` never runs.
+- **A failed reconnect consumes the reconnect budget instead of escaping on the
+  first attempt (#108).** An `OSError` raised while reconnecting inside the
+  `ConnectionClosed` handler propagated straight out of the iterator, so a
+  stream configured with `max_reconnect_attempts=10` gave up after one. Transient
+  failures now spend the configured consecutive-attempt budget with backoff and
+  end in `ConnectionError: Stream lost after N reconnect attempts`; a permanent
+  refusal stops immediately with the new `StreamAuthError` (a `ConnectionError`
+  subclass, so existing handlers are unaffected) rather than retrying a rejected
+  key ten times.
+- **`close()` retires the stream.** It is idempotent, closes the socket under a
+  bounded teardown timeout, and prevents any subsequent reconnect; `connect()`
+  on a closed stream raises instead of quietly opening a new socket. Reconnects
+  now close the socket they are replacing.
+
+### Changed
+
+- The per-method `if "data" in response: return response["data"]` repeated
+  through every EI resource is replaced by one shared helper
+  (`oilpriceapi/resources/ei/_envelopes.py`).
+  `unwrap_well_permit_search_response` keeps its name and its error message and
+  now delegates to it, so there is one unwrapping implementation rather than
+  two.
+
+**Behaviour change for callers who adapted to the bug:** code reading
+`by_basin()["basins"]`, `well_permits.list()["well_permits"]` or
+`well_permits.get(id)["well_permit"]` must drop that subscript. Code following
+the documented signature was broken before and works now. `ei.well_permits.latest()`
+and `ei.frac_focus.latest()` deliberately keep returning the envelope object so
+their pagination and freshness counters stay reachable.
+
 ## [1.14.0] - 2026-09-13
 
 ### Fixed
@@ -111,34 +181,6 @@ pass the value you want explicitly.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Fixed
-
-- **The ActionCable handshake is bounded, and a failed setup no longer leaks the
-  socket (#108).** `open_timeout` was passed to the WebSocket upgrade and
-  nothing else: the waits for `welcome` and `confirm_subscription` that follow
-  had no deadline at all, so a socket that upgraded and then went quiet hung the
-  caller indefinitely, and cancelling out of that hang left the upgraded socket
-  open. Connect, `welcome` and `confirm_subscription` are now one bounded setup
-  lifecycle governed by a new `setup_timeout` (defaulting to `open_timeout`, so
-  the timeout you already configure does cover protocol setup), and every socket
-  the stream allocates is closed on any failure, timeout or cancellation --
-  including a `__aenter__` that raises, where `__aexit__` never runs.
-- **A failed reconnect consumes the reconnect budget instead of escaping on the
-  first attempt (#108).** An `OSError` raised while reconnecting inside the
-  `ConnectionClosed` handler propagated straight out of the iterator, so a
-  stream configured with `max_reconnect_attempts=10` gave up after one. Transient
-  failures now spend the configured consecutive-attempt budget with backoff and
-  end in `ConnectionError: Stream lost after N reconnect attempts`; a permanent
-  refusal stops immediately with the new `StreamAuthError` (a `ConnectionError`
-  subclass, so existing handlers are unaffected) rather than retrying a rejected
-  key ten times.
-- **`close()` retires the stream.** It is idempotent, closes the socket under a
-  bounded teardown timeout, and prevents any subsequent reconnect; `connect()`
-  on a closed stream raises instead of quietly opening a new socket. Reconnects
-  now close the socket they are replacing.
 
 ## [1.12.6] - 2026-08-11
 

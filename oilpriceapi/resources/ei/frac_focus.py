@@ -6,6 +6,8 @@ Energy Intelligence FracFocus data operations.
 
 from typing import Any, Dict, List
 
+from ._envelopes import ei_data, unwrap_ei_collection, unwrap_ei_object
+
 
 class EIFracFocusResource:
     """Resource for Energy Intelligence FracFocus data."""
@@ -25,11 +27,15 @@ class EIFracFocusResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of FracFocus records
+            The ``frac_focus_disclosures`` list from ``data``. Each record
+            has ``upload_key``, ``api_number``, ``state_code``, ``county``,
+            ``operator``, ``well_name``, ``location``, ``job``, ``water``,
+            ``chemicals`` and ``provenance``. Pagination lives in
+            ``data['meta']`` and is not returned here.
 
         Example:
-            >>> frac_data = client.ei.frac_focus.list()
-            >>> for record in frac_data:
+            >>> records = client.ei.frac_focus.list()
+            >>> for record in records:
             ...     print(f"{record['operator']}: {record['well_name']}")
         """
         response = self.client.request(
@@ -38,10 +44,11 @@ class EIFracFocusResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus list",
+        )
 
     def get(self, id: str) -> Dict[str, Any]:
         """Get a specific FracFocus record by ID.
@@ -50,10 +57,13 @@ class EIFracFocusResource:
             id: FracFocus record ID
 
         Returns:
-            FracFocus record details
+            The disclosure record from ``data['frac_focus_disclosure']``,
+            with ``upload_key``, ``api_number``, ``well_name``,
+            ``operator``, ``location``, ``job``, ``water``, ``chemicals``,
+            ``additives`` and ``provenance``.
 
         Example:
-            >>> record = client.ei.frac_focus.get("123")
+            >>> record = client.ei.frac_focus.get("ec7d19aa-2004-4e39-bd88-e660230cf74e")
             >>> print(f"Operator: {record['operator']}")
         """
         response = self.client.request(
@@ -61,50 +71,50 @@ class EIFracFocusResource:
             path=f"/v1/ei/frac-focus/{id}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_object(
+            response,
+            key="frac_focus_disclosure",
+            subject="frac-focus record",
+        )
 
     def latest(self) -> Dict[str, Any]:
         """Get latest FracFocus data.
 
         Returns:
-            Latest FracFocus summary
+            The latest-disclosures envelope: an object with
+            ``frac_focus_disclosures`` (the list of records) and ``meta``
+            (pagination). This endpoint returns the envelope, not a bare
+            list, so the pagination counters stay reachable.
 
         Example:
             >>> latest = client.ei.frac_focus.latest()
-            >>> print(f"Recent jobs: {latest['count']}")
+            >>> print(f"Recent jobs: {len(latest['frac_focus_disclosures'])}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/frac-focus/latest"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def summary(self) -> Dict[str, Any]:
         """Get FracFocus summary.
 
         Returns:
-            Summary statistics for FracFocus data
+            Object with ``period_days``, ``total_disclosures``, ``by_state``,
+            ``top_operators``, ``water_usage``, ``monthly_trend`` and
+            ``last_updated``.
 
         Example:
             >>> summary = client.ei.frac_focus.summary()
-            >>> print(f"Total jobs: {summary['total']}")
+            >>> print(f"Total jobs: {summary['total_disclosures']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/frac-focus/summary"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def by_state(self, **params) -> List[Dict[str, Any]]:
         """Get FracFocus data by state.
@@ -113,12 +123,12 @@ class EIFracFocusResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of state FracFocus records
+            The ``frac_focus_disclosures`` list from ``data``.
 
         Example:
-            >>> states = client.ei.frac_focus.by_state()
-            >>> for state in states:
-            ...     print(f"{state['name']}: {state['job_count']}")
+            >>> records = client.ei.frac_focus.by_state(state="TX")
+            >>> for record in records:
+            ...     print(f"{record['county']}: {record['well_name']}")
         """
         response = self.client.request(
             method="GET",
@@ -126,10 +136,11 @@ class EIFracFocusResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus by-state",
+        )
 
     def by_operator(self, **params) -> List[Dict[str, Any]]:
         """Get FracFocus data by operator.
@@ -138,12 +149,12 @@ class EIFracFocusResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of operator FracFocus records
+            The ``frac_focus_disclosures`` list from ``data``.
 
         Example:
-            >>> operators = client.ei.frac_focus.by_operator()
-            >>> for operator in operators:
-            ...     print(f"{operator['name']}: {operator['job_count']}")
+            >>> records = client.ei.frac_focus.by_operator(operator="Chesapeake")
+            >>> for record in records:
+            ...     print(f"{record['well_name']}: {record['state_code']}")
         """
         response = self.client.request(
             method="GET",
@@ -151,10 +162,11 @@ class EIFracFocusResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus by-operator",
+        )
 
     def by_chemical(self, **params) -> List[Dict[str, Any]]:
         """Get FracFocus data by chemical.
@@ -163,12 +175,12 @@ class EIFracFocusResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of chemical usage records
+            The ``frac_focus_disclosures`` list from ``data``.
 
         Example:
-            >>> chemicals = client.ei.frac_focus.by_chemical()
-            >>> for chemical in chemicals:
-            ...     print(f"{chemical['name']}: {chemical['usage_count']}")
+            >>> records = client.ei.frac_focus.by_chemical(cas="7732-18-5")
+            >>> for record in records:
+            ...     print(f"{record['operator']}: {record['well_name']}")
         """
         response = self.client.request(
             method="GET",
@@ -176,10 +188,11 @@ class EIFracFocusResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus by-chemical",
+        )
 
     def search(self, query: str, **params) -> List[Dict[str, Any]]:
         """Search FracFocus data.
@@ -189,10 +202,10 @@ class EIFracFocusResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of matching FracFocus records
+            The ``frac_focus_disclosures`` list from ``data``.
 
         Example:
-            >>> results = client.ei.frac_focus.search("Exxon")
+            >>> results = client.ei.frac_focus.search("Eagle Ford")
             >>> for result in results:
             ...     print(f"{result['operator']}: {result['well_name']}")
         """
@@ -203,10 +216,11 @@ class EIFracFocusResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus search",
+        )
 
     def chemicals(self, id: str) -> List[Dict[str, Any]]:
         """Get chemicals for a specific FracFocus record.
@@ -215,22 +229,24 @@ class EIFracFocusResource:
             id: FracFocus record ID
 
         Returns:
-            List of chemicals used in the frac job
+            The ``chemicals`` list from ``data``. Each record has ``cas``,
+            ``name``, ``mass``, ``percent_hf_job`` and
+            ``percent_additive``. ``additives``, ``cas_numbers`` and
+            ``suppliers`` sit beside it in the envelope.
 
         Example:
-            >>> chemicals = client.ei.frac_focus.chemicals("123")
+            >>> chemicals = client.ei.frac_focus.chemicals("ec7d19aa-2004-4e39-bd88-e660230cf74e")
             >>> for chemical in chemicals:
-            ...     print(f"{chemical['name']}: {chemical['concentration']}%")
+            ...     print(f"{chemical['name']}: {chemical['percent_hf_job']}%")
         """
         response = self.client.request(
             method="GET",
             path=f"/v1/ei/frac-focus/{id}/chemicals"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="chemicals", subject="frac-focus chemicals"
+        )
 
     def for_well(self, api_number: str) -> List[Dict[str, Any]]:
         """Get FracFocus data for a specific well.
@@ -239,19 +255,20 @@ class EIFracFocusResource:
             api_number: Well API number
 
         Returns:
-            List of FracFocus records for the well
+            The ``frac_focus_disclosures`` list from ``data``.
 
         Example:
-            >>> well_data = client.ei.frac_focus.for_well("42-123-45678")
-            >>> for record in well_data:
-            ...     print(f"{record['job_date']}: {record['operator']}")
+            >>> records = client.ei.frac_focus.for_well("33053090090000")
+            >>> for record in records:
+            ...     print(f"{record['well_name']}: {record['job']}")
         """
         response = self.client.request(
             method="GET",
             path=f"/v1/ei/frac-focus/for-well/{api_number}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus for-well",
+        )

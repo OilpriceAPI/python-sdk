@@ -6,6 +6,8 @@ Energy Intelligence forecast data operations.
 
 from typing import Any, Dict, List
 
+from ._envelopes import ei_data, unwrap_ei_collection
+
 
 class EIForecastsResource:
     """Resource for Energy Intelligence forecast data."""
@@ -38,10 +40,7 @@ class EIForecastsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def get(self, id: str) -> Dict[str, Any]:
         """Get a specific forecast record by ID.
@@ -61,64 +60,61 @@ class EIForecastsResource:
             path=f"/v1/ei/forecasts/{id}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def latest(self) -> Dict[str, Any]:
         """Get latest forecast data.
 
         Returns:
-            Latest forecast summary
+            Report object with ``id``, ``report_date``, ``source``,
+            ``last_updated``, ``summary`` and ``forecasts`` (keyed by
+            ``prices``, ``production`` and ``supply_demand``).
 
         Example:
             >>> latest = client.ei.forecasts.latest()
-            >>> print(f"Next month forecast: ${latest['forecast_price']}")
+            >>> print(latest['forecasts'].keys())
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/forecasts/latest"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def summary(self) -> Dict[str, Any]:
         """Get forecast summary.
 
         Returns:
-            Summary statistics for forecasts
+            Summary object with ``report_month``, ``forecasts`` and
+            ``headline``.
 
         Example:
             >>> summary = client.ei.forecasts.summary()
-            >>> print(f"Average forecast: ${summary['average']}")
+            >>> print(summary['headline'])
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/forecasts/summary"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
-    def prices(self, **params) -> List[Dict[str, Any]]:
+    def prices(self, **params) -> Dict[str, Any]:
         """Get price forecasts.
 
         Args:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of price forecast records
+            Object with ``report_month`` and ``commodities`` — a mapping
+            keyed by commodity (``brent``, ``wti``, ``natural_gas``), each
+            holding that commodity's forecast series. This endpoint returns
+            a mapping, not a list.
 
         Example:
             >>> prices = client.ei.forecasts.prices()
-            >>> for price in prices:
-            ...     print(f"{price['date']}: ${price['forecast']}")
+            >>> for commodity, series in prices['commodities'].items():
+            ...     print(f"{commodity}: {len(series)} periods")
         """
         response = self.client.request(
             method="GET",
@@ -126,24 +122,23 @@ class EIForecastsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
-    def production(self, **params) -> List[Dict[str, Any]]:
+    def production(self, **params) -> Dict[str, Any]:
         """Get production forecasts.
 
         Args:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of production forecast records
+            Object with ``report_month`` and ``series`` — a mapping keyed by
+            series code, each holding that series' forecast. This endpoint
+            returns a mapping, not a list.
 
         Example:
             >>> production = client.ei.forecasts.production()
-            >>> for record in production:
-            ...     print(f"{record['date']}: {record['forecast']} bpd")
+            >>> for code, series in production['series'].items():
+            ...     print(f"{code}: {len(series)} periods")
         """
         response = self.client.request(
             method="GET",
@@ -151,10 +146,7 @@ class EIForecastsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def historical(self, **params) -> List[Dict[str, Any]]:
         """Get historical forecast data.
@@ -163,12 +155,13 @@ class EIForecastsResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            List of historical forecast records
+            The ``actuals`` list from ``data``. Each record has
+            ``report_month``, ``period`` and ``value``.
 
         Example:
-            >>> history = client.ei.forecasts.historical()
+            >>> history = client.ei.forecasts.historical(series_code="BREPUUS")
             >>> for record in history:
-            ...     print(f"{record['date']}: ${record['forecast']}")
+            ...     print(f"{record['period']}: {record['value']}")
         """
         response = self.client.request(
             method="GET",
@@ -176,10 +169,9 @@ class EIForecastsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="actuals", subject="forecast historical"
+        )
 
     def compare(self, **params) -> Dict[str, Any]:
         """Compare forecast vs actual data.
@@ -188,11 +180,12 @@ class EIForecastsResource:
             **params: Optional query parameters for filtering
 
         Returns:
-            Comparison data with accuracy metrics
+            Object with ``series_code``, ``month1``, ``month2`` and
+            ``comparison``.
 
         Example:
-            >>> comparison = client.ei.forecasts.compare()
-            >>> print(f"Accuracy: {comparison['accuracy']}%")
+            >>> comparison = client.ei.forecasts.compare(series_code="BREPUUS")
+            >>> print(comparison['comparison'])
         """
         response = self.client.request(
             method="GET",
@@ -200,7 +193,4 @@ class EIForecastsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)

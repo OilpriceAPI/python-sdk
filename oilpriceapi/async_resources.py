@@ -18,6 +18,7 @@ from .resource_validators import (
     search_commodity_catalog,
 )
 from .resources._futures_slug import normalize_futures_slug
+from .resources.ei._envelopes import ei_data, unwrap_ei_collection, unwrap_ei_object
 from .resources.ei.well_permits import unwrap_well_permit_search_response
 from .resources.subscriptions import SubscriptionEventsPage
 
@@ -950,45 +951,39 @@ class AsyncEIRigCountsResource:
 
     async def list(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(method="GET", path="/v1/ei/rig_counts", params=params)
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def get(self, id: str) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path=f"/v1/ei/rig_counts/{id}")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def latest(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/rig_counts/latest")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def by_basin(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/rig_counts/by_basin", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="basins", subject="rig-count by-basin"
+        )
 
     async def by_state(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/rig_counts/by_state", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="states", subject="rig-count by-state"
+        )
 
     async def historical(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/rig_counts/historical", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="records", subject="rig-count historical"
+        )
 
 
 class AsyncEIOilInventoriesResource:
@@ -997,49 +992,39 @@ class AsyncEIOilInventoriesResource:
 
     async def list(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(method="GET", path="/v1/ei/oil_inventories", params=params)
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def get(self, id: str) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path=f"/v1/ei/oil_inventories/{id}")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def latest(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/oil_inventories/latest")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def summary(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/oil_inventories/summary")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def by_product(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/oil_inventories/by_product", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="products", subject="oil-inventory by-product"
+        )
 
     async def historical(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/oil_inventories/historical", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="records", subject="oil-inventory historical"
+        )
 
     async def cushing(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/oil_inventories/cushing")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
 
 class AsyncEIOpecProductionResource:
@@ -1048,51 +1033,43 @@ class AsyncEIOpecProductionResource:
 
     async def list(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(method="GET", path="/v1/ei/opec_productions", params=params)
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def get(self, id: str) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path=f"/v1/ei/opec_productions/{id}")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def latest(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/opec_productions/latest")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def total(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/opec_productions/total")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def by_country(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/opec_productions/by_country", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="countries", subject="OPEC by-country"
+        )
 
     async def historical(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/opec_productions/historical", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="records", subject="OPEC historical"
+        )
 
     async def top_producers(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/opec_productions/top_producers", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="producers", subject="OPEC top-producers"
+        )
 
 
 class AsyncEIDrillingProductivityResource:
@@ -1103,65 +1080,65 @@ class AsyncEIDrillingProductivityResource:
         response = await self.client.request(
             method="GET", path="/v1/ei/drilling_productivities", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def get(self, id: str) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path=f"/v1/ei/drilling_productivities/{id}"
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def latest(self) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/ei/drilling_productivities/latest"
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def summary(self) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/ei/drilling_productivities/summary"
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def duc_wells(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/drilling_productivities/duc_wells", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="by_basin",
+            subject="drilling-productivity DUC wells",
+        )
 
     async def by_basin(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/drilling_productivities/by_basin", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="months",
+            subject="drilling-productivity by-basin",
+        )
 
     async def historical(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/drilling_productivities/historical", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="records",
+            subject="drilling-productivity historical",
+        )
 
     async def trends(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/drilling_productivities/trends", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="trends",
+            subject="drilling-productivity trends",
+        )
 
 
 class AsyncEIForecastsResource:
@@ -1170,59 +1147,45 @@ class AsyncEIForecastsResource:
 
     async def list(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(method="GET", path="/v1/ei/forecasts", params=params)
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def get(self, id: str) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path=f"/v1/ei/forecasts/{id}")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def latest(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/forecasts/latest")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def summary(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/forecasts/summary")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
-    async def prices(self, **params) -> List[Dict[str, Any]]:
+    async def prices(self, **params) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/ei/forecasts/prices", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
-    async def production(self, **params) -> List[Dict[str, Any]]:
+    async def production(self, **params) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/ei/forecasts/production", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def historical(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/forecasts/historical", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="actuals", subject="forecast historical"
+        )
 
     async def compare(self, **params) -> Dict[str, Any]:
         response = await self.client.request(
             method="GET", path="/v1/ei/forecasts/compare", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
 
 class AsyncEIWellPermitsResource:
@@ -1231,51 +1194,51 @@ class AsyncEIWellPermitsResource:
 
     async def list(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(method="GET", path="/v1/ei/well-permits", params=params)
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="well_permits", subject="well-permit list"
+        )
 
     async def get(self, id: str) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path=f"/v1/ei/well-permits/{id}")
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_object(
+            response, key="well_permit", subject="well-permit record"
+        )
 
     async def latest(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/well-permits/latest")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def summary(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/well-permits/summary")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def by_state(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/well-permits/by-state", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="well_permits", subject="well-permit by-state"
+        )
 
     async def by_operator(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/well-permits/by-operator", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="well_permits",
+            subject="well-permit by-operator",
+        )
 
     async def by_formation(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/well-permits/by-formation", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="well_permits",
+            subject="well-permit by-formation",
+        )
 
     async def search(
         self,
@@ -1296,76 +1259,86 @@ class AsyncEIFracFocusResource:
 
     async def list(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(method="GET", path="/v1/ei/frac-focus", params=params)
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus list",
+        )
 
     async def get(self, id: str) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path=f"/v1/ei/frac-focus/{id}")
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_object(
+            response,
+            key="frac_focus_disclosure",
+            subject="frac-focus record",
+        )
 
     async def latest(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/frac-focus/latest")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def summary(self) -> Dict[str, Any]:
         response = await self.client.request(method="GET", path="/v1/ei/frac-focus/summary")
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     async def by_state(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/frac-focus/by-state", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus by-state",
+        )
 
     async def by_operator(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/frac-focus/by-operator", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus by-operator",
+        )
 
     async def by_chemical(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path="/v1/ei/frac-focus/by-chemical", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus by-chemical",
+        )
 
     async def search(self, query: str, **params) -> List[Dict[str, Any]]:
         params["query"] = query
         response = await self.client.request(
             method="GET", path="/v1/ei/frac-focus/search", params=params
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus search",
+        )
 
     async def chemicals(self, id: str) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path=f"/v1/ei/frac-focus/{id}/chemicals"
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="chemicals", subject="frac-focus chemicals"
+        )
 
     async def for_well(self, api_number: str) -> List[Dict[str, Any]]:
         response = await self.client.request(
             method="GET", path=f"/v1/ei/frac-focus/for-well/{api_number}"
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response,
+            collection="frac_focus_disclosures",
+            subject="frac-focus for-well",
+        )
 
 
 class AsyncEnergyIntelligenceResource:
@@ -1383,9 +1356,7 @@ class AsyncEnergyIntelligenceResource:
         response = await self.client.request(
             method="GET", path=f"/v1/ei/wells/{api_number}/timeline"
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
 
 class AsyncWebhooksResource:

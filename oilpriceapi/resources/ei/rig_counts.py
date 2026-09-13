@@ -2,9 +2,15 @@
 EI Rig Counts Resource
 
 Energy Intelligence rig count data operations.
+
+Envelope reference (verified live 2026-09-13): every route below returns
+``{"data": ..., "meta": {...}}``. ``by_basin``, ``by_state`` and ``historical``
+put their records under a named key inside ``data``.
 """
 
 from typing import Any, Dict, List
+
+from ._envelopes import ei_data, unwrap_ei_collection
 
 
 class EIRigCountsResource:
@@ -19,18 +25,19 @@ class EIRigCountsResource:
         self.client = client
 
     def list(self, **params) -> List[Dict[str, Any]]:
-        """Get all rig count data.
+        """Get all rig count reports.
 
         Args:
-            **params: Optional query parameters for filtering
+            **params: Optional query parameters (``page``, ``per_page``)
 
         Returns:
-            List of rig count records
+            List of report summaries, each with ``id``, ``report_date``,
+            ``summary`` and ``status``.
 
         Example:
-            >>> rigs = client.ei.rig_counts.list()
-            >>> for rig in rigs:
-            ...     print(f"{rig['basin']}: {rig['count']} rigs")
+            >>> reports = client.ei.rig_counts.list()
+            >>> for report in reports:
+            ...     print(f"{report['report_date']}: {report['status']}")
         """
         response = self.client.request(
             method="GET",
@@ -38,67 +45,64 @@ class EIRigCountsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def get(self, id: str) -> Dict[str, Any]:
-        """Get a specific rig count record by ID.
+        """Get a specific rig count report by ID.
 
         Args:
-            id: Rig count record ID
+            id: Rig count report ID
 
         Returns:
-            Rig count record details
+            Report with ``report_date``, ``us_total``, ``basins``,
+            ``top_states`` and ``drilling_type``.
 
         Example:
-            >>> rig = client.ei.rig_counts.get("123")
-            >>> print(f"Rig count: {rig['count']}")
+            >>> report = client.ei.rig_counts.get("123")
+            >>> print(f"US total: {report['us_total']['total_rigs']}")
         """
         response = self.client.request(
             method="GET",
             path=f"/v1/ei/rig_counts/{id}"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def latest(self) -> Dict[str, Any]:
-        """Get latest rig count data.
+        """Get the latest rig count report.
 
         Returns:
-            Latest rig count summary
+            Report object with ``id``, ``report_date``, ``source``,
+            ``last_updated``, ``us_total``, ``basins`` (a mapping keyed by
+            basin), ``top_states`` and ``drilling_type``.
 
         Example:
             >>> latest = client.ei.rig_counts.latest()
-            >>> print(f"Total rigs: {latest['total']}")
+            >>> print(f"Total rigs: {latest['us_total']['total_rigs']}")
         """
         response = self.client.request(
             method="GET",
             path="/v1/ei/rig_counts/latest"
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return ei_data(response)
 
     def by_basin(self, **params) -> List[Dict[str, Any]]:
         """Get rig counts by basin.
 
         Args:
-            **params: Optional query parameters for filtering
+            **params: Optional ``basins`` (comma-separated) and ``date``
 
         Returns:
-            List of basin rig counts
+            The ``basins`` list from ``data``. Each record has ``region``,
+            ``region_type``, ``count``, ``week_over_week`` and
+            ``change_direction``. The report date itself is not part of this
+            list; call :meth:`latest` when you need it.
 
         Example:
             >>> basins = client.ei.rig_counts.by_basin()
             >>> for basin in basins:
-            ...     print(f"{basin['name']}: {basin['rig_count']} rigs")
+            ...     print(f"{basin['region']}: {basin['count']} rigs")
         """
         response = self.client.request(
             method="GET",
@@ -106,24 +110,25 @@ class EIRigCountsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="basins", subject="rig-count by-basin"
+        )
 
     def by_state(self, **params) -> List[Dict[str, Any]]:
         """Get rig counts by state.
 
         Args:
-            **params: Optional query parameters for filtering
+            **params: Optional ``states`` (comma-separated) and ``date``
 
         Returns:
-            List of state rig counts
+            The ``states`` list from ``data``. Each record has ``region``,
+            ``region_type``, ``count``, ``week_over_week`` and
+            ``change_direction``.
 
         Example:
             >>> states = client.ei.rig_counts.by_state()
             >>> for state in states:
-            ...     print(f"{state['name']}: {state['rig_count']} rigs")
+            ...     print(f"{state['region']}: {state['count']} rigs")
         """
         response = self.client.request(
             method="GET",
@@ -131,22 +136,23 @@ class EIRigCountsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="states", subject="rig-count by-state"
+        )
 
     def historical(self, **params) -> List[Dict[str, Any]]:
-        """Get historical rig count data.
+        """Get historical rig counts for one region.
 
         Args:
-            **params: Optional query parameters for filtering
+            **params: Optional ``region`` (default ``us``), ``start_date``,
+                ``end_date`` and ``limit``
 
         Returns:
-            List of historical rig count records
+            The ``records`` list from ``data``. Each record has ``date``,
+            ``count`` and ``week_over_week``.
 
         Example:
-            >>> history = client.ei.rig_counts.historical()
+            >>> history = client.ei.rig_counts.historical(region="us")
             >>> for record in history:
             ...     print(f"{record['date']}: {record['count']} rigs")
         """
@@ -156,7 +162,6 @@ class EIRigCountsResource:
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        return unwrap_ei_collection(
+            response, collection="records", subject="rig-count historical"
+        )
