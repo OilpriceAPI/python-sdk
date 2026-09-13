@@ -55,14 +55,23 @@ class Telemetry:
     Opt-in telemetry collector for SDK health monitoring.
 
     Helps detect issues like v1.4.1 timeout bug across user base.
+
+    Delivery is always performed on a background daemon thread; no SDK call
+    path ever blocks on the telemetry endpoint.
     """
+
+    #: Buffered events that trigger an early (still background) delivery.
+    FLUSH_THRESHOLD = 10
+    #: Hard cap on the buffer so an unreachable collector cannot leak memory.
+    MAX_BUFFERED_EVENTS = 1000
 
     def __init__(
         self,
         enabled: bool = False,
         endpoint: str = "https://telemetry.oilpriceapi.com/v1/events",
         flush_interval: int = 300,  # 5 minutes
-        debug: bool = False
+        debug: bool = False,
+        close_timeout: float = 2.0,
     ):
         """
         Initialize telemetry.
@@ -72,16 +81,25 @@ class Telemetry:
             endpoint: Telemetry endpoint URL
             flush_interval: Seconds between metric flushes
             debug: Print telemetry events (for testing)
+            close_timeout: Seconds close() waits for the flush thread to stop
         """
         self.enabled = enabled and HTTPX_AVAILABLE
         self.endpoint = endpoint
         self.flush_interval = flush_interval
         self.debug = debug
+        self.close_timeout = close_timeout
 
-        # Event buffer
+        # Event buffer. Bounded: telemetry must never grow without limit when
+        # the collector is unreachable.
         self._events: List[Dict[str, Any]] = []
         self._lock = threading.Lock()
         self._last_flush = time.time()
+
+        # Lifecycle. Delivery happens only on the background thread, which is
+        # woken either by the flush interval or by a full buffer.
+        self._flush_thread: Optional[threading.Thread] = None
+        self._wake = threading.Event()
+        self._stopping = False
 
         # Session info (collected once)
         self._session_id = self._generate_session_id()
@@ -159,17 +177,29 @@ class Telemetry:
 
         with self._lock:
             self._events.append(event)
+            overflow = len(self._events) - self.MAX_BUFFERED_EVENTS
+            if overflow > 0:
+                # Drop the oldest events rather than grow without bound.
+                del self._events[:overflow]
+            buffered = len(self._events)
 
         if self.debug:
             print(f"[Telemetry] {operation}: {duration*1000:.0f}ms success={success}")
 
-        # Flush if buffer is large or time elapsed
-        if len(self._events) >= 10 or (time.time() - self._last_flush) > self.flush_interval:
-            self._flush()
+        # Ask the background thread to deliver. Never send on the caller's
+        # thread: callers include AsyncOilPriceAPI, running on the event loop.
+        if buffered >= self.FLUSH_THRESHOLD:
+            self._wake.set()
 
     def _flush(self):
-        """Flush events to telemetry endpoint."""
-        if not self.enabled or not HTTPX_AVAILABLE:
+        """
+        Deliver buffered events to the telemetry endpoint.
+
+        Only ever called from the background flush thread. It is deliberately
+        not gated on ``self.enabled`` so the final flush during close() can
+        still drain the buffer after the collector has been disabled.
+        """
+        if not HTTPX_AVAILABLE:
             return
 
         with self._lock:
@@ -181,7 +211,7 @@ class Telemetry:
             self._last_flush = time.time()
 
         try:
-            # Send telemetry in background (non-blocking)
+            # Runs on the background flush thread, never on a caller's thread.
             payload = {
                 "events": events,
                 "sdk": "oilpriceapi-python",
@@ -205,15 +235,39 @@ class Telemetry:
             # Silently fail - don't affect SDK operations
 
     def _flush_loop(self):
-        """Background thread to flush telemetry periodically."""
-        while self.enabled:
-            time.sleep(self.flush_interval)
+        """Background thread that owns every telemetry delivery."""
+        while True:
+            # Wakes early when the buffer fills or when close() is called.
+            self._wake.wait(self.flush_interval)
+            self._wake.clear()
             self._flush()
+            if self._stopping:
+                return
 
     def close(self):
-        """Flush remaining events and close telemetry."""
-        if self.enabled:
-            self._flush()
+        """
+        Stop background delivery and drain what is buffered.
+
+        Idempotent: calling it twice (or on a disabled collector) is a no-op,
+        and it never raises. After close() the collector accepts no further
+        events and leaves no thread running.
+        """
+        self._stopping = True
+        was_enabled = self.enabled
+        self.enabled = False
+
+        thread = self._flush_thread
+        self._flush_thread = None
+        self._wake.set()
+
+        if not was_enabled or thread is None:
+            with self._lock:
+                self._events.clear()
+            return
+
+        if thread.is_alive() and thread is not threading.current_thread():
+            # Bounded: a stuck collector must not hang the caller's shutdown.
+            thread.join(timeout=self.close_timeout)
 
 
 # Global telemetry instance (disabled by default)
@@ -239,7 +293,13 @@ def configure_telemetry(
     if endpoint:
         kwargs["endpoint"] = endpoint
 
+    previous = _global_telemetry
     _global_telemetry = Telemetry(**kwargs)
+
+    # Replacing the global config must not leave the previous flush thread
+    # running.
+    if previous is not None:
+        previous.close()
 
 
 def get_telemetry() -> Optional[Telemetry]:
