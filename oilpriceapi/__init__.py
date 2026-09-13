@@ -18,6 +18,7 @@ from oilpriceapi.exceptions import (
     BadRequestError,
     ConfigurationError,
     DataNotFoundError,
+    FuturesContractError,
     NetworkError,
     OilPriceAPIError,
     PaymentRequiredError,
@@ -25,7 +26,6 @@ from oilpriceapi.exceptions import (
     RateLimitError,
     ServerError,
     TimeoutError,
-    FuturesContractError,
     ValidationError,
 )
 from oilpriceapi.models import (
