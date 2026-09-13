@@ -1,0 +1,1 @@
+{"error":{"code":"DATA_NOT_AVAILABLE","message":"No congressional trading data available. Requires QUIVER_API_KEY configuration.","status":404,"request_id":"aed753c0-294f-4739-b834-ea76b93a7846","docs":"https://docs.oilpriceapi.com#DATA_NOT_AVAILABLE"}}

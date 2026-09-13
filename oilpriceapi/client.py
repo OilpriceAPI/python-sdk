@@ -40,8 +40,10 @@ from .resources.ei import EnergyIntelligenceResource
 from .resources.forecasts import ForecastsResource
 from .resources.futures import FuturesResource
 from .resources.historical import HistoricalResource
+from .resources.indicators import IndicatorsResource
 from .resources.prices import PricesResource
 from .resources.rig_counts import RigCountsResource
+from .resources.spreads import SpreadsResource
 from .resources.storage import StorageResource
 from .resources.subscriptions import SubscriptionsResource
 from .resources.webhooks import WebhooksResource
@@ -210,6 +212,9 @@ class OilPriceAPI:
         self.data_sources = DataSourcesResource(self)
         # Agent watch subscriptions + event polling (#3245 Phase 2).
         self.subscriptions = SubscriptionsResource(self)
+        # Server-calculated spreads and market indicators (#99).
+        self.spreads = SpreadsResource(self)
+        self.indicators = IndicatorsResource(self)
         # Public, no-auth demo endpoints (/v1/demo/*).
         self.demo = DemoResource(self)
 

@@ -137,6 +137,34 @@ print(
 Use the raw first-request pattern when downstream logic requires the exact
 source and timestamp-field semantics from the API response.
 
+## Spreads and Indicators
+
+`client.spreads` and `client.indicators` return typed models for the
+server-calculated `/v1/spreads/*` and `/v1/indicators/*` routes: crack, gasoil
+crack, basis, curve structure, refinery margin, physical premium, fuel-switching
+parity, price context, storage analytics, market annotations, and CFTC
+positioning. The async client exposes the same methods. These routes require a
+paid plan; other plans receive `PermissionDeniedError` (`PREMIUM_REQUIRED`).
+
+```python
+import os
+
+from oilpriceapi import OilPriceAPI
+
+with OilPriceAPI(api_key=os.environ["OILPRICEAPI_KEY"]) as client:
+    crack = client.spreads.crack(spread_type="3-2-1")
+    history = client.spreads.crack_historical(start_date="2026-08-01")
+
+print(crack.value, crack.unit, crack.timestamp.isoformat())
+print(history.period.start, history.coverage.from_, history.coverage.observations)
+```
+
+Units, timestamps, and nulls are kept as sent. A history response reports the
+window the server applied (`period`) separately from what it returned
+(`coverage`, where available). A successful response that does not match its
+model raises `OilPriceAPIError` with code `MALFORMED_RESPONSE`. See
+[`examples/spreads_indicators.py`](examples/spreads_indicators.py).
+
 ## Permit To Production
 
 Well-level production coverage is narrower than permit coverage. Check the

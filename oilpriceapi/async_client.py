@@ -31,7 +31,9 @@ from .async_resources import (
     AsyncEnergyIntelligenceResource,
     AsyncForecastsResource,
     AsyncFuturesResource,
+    AsyncIndicatorsResource,
     AsyncRigCountsResource,
+    AsyncSpreadsResource,
     AsyncStorageResource,
     AsyncSubscriptionsResource,
     AsyncWebhooksResource,
@@ -178,6 +180,9 @@ class AsyncOilPriceAPI:
         self.data_sources = AsyncDataSourcesResource(self)
         # Agent watch subscriptions + event polling (#3245 Phase 2).
         self.subscriptions = AsyncSubscriptionsResource(self)
+        # Server-calculated spreads and market indicators (#99).
+        self.spreads = AsyncSpreadsResource(self)
+        self.indicators = AsyncIndicatorsResource(self)
 
         # WebSocket price-update namespace (requires the [stream] extra).
         # Lazily imports `websockets` only when a stream is actually opened.

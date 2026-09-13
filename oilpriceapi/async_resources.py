@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from ._subscriptions_common import (
     build_attribution_headers,
@@ -9,6 +9,27 @@ from ._subscriptions_common import (
     unwrap_data,
 )
 from .exceptions import ValidationError
+from .metrics_models import (
+    BasisSpread,
+    BasisSpreadHistory,
+    CftcPositioning,
+    CftcPositioningHistory,
+    CrackSpread,
+    CrackSpreadAll,
+    CrackSpreadHistory,
+    CurveStructure,
+    FuelSwitching,
+    FuelSwitchingHistory,
+    GasoilCrackSpread,
+    MarketAnnotations,
+    MarketAnnotationsBatch,
+    PhysicalPremium,
+    PhysicalPremiumHistory,
+    PriceContext,
+    RefineryMargin,
+    RefineryMarginHistory,
+    StorageAnalytics,
+)
 from .models import DieselPrice, DieselStationsResponse, PriceAlert, Subscription, SubscriptionEvent
 from .resource_validators import (
     VALID_OPERATORS,
@@ -17,6 +38,7 @@ from .resource_validators import (
     normalize_api_number,
     search_commodity_catalog,
 )
+from .resources import _calculated_metrics as metrics_ops
 from .resources._futures_slug import normalize_futures_slug
 from .resources.ei._envelopes import ei_data, unwrap_ei_collection, unwrap_ei_object
 from .resources.ei.well_permits import unwrap_well_permit_search_response
@@ -1636,3 +1658,171 @@ class AsyncSubscriptionsResource:
         cursor = data.get("cursor")
         has_more = bool(data.get("has_more", False))
         return SubscriptionEventsPage(events=events, cursor=cursor, has_more=has_more)
+
+
+class AsyncSpreadsResource:
+    """Async resource for ``/v1/spreads/*`` (#99).
+
+    Mirrors :class:`oilpriceapi.resources.spreads.SpreadsResource`: the same
+    request building, validation and typed parsing, shared through
+    ``oilpriceapi.resources._calculated_metrics``.
+    """
+
+    def __init__(self, client: Any) -> None:
+        self.client = client
+
+    async def crack(self, spread_type: Optional[str] = None, crude: Optional[str] = None) -> CrackSpread:
+        """Latest crack spread. See ``SpreadsResource.crack``."""
+        return await metrics_ops.run_async(self.client, metrics_ops.crack(spread_type, crude))
+
+    async def crack_historical(
+        self,
+        spread_type: Optional[str] = None,
+        crude: Optional[str] = None,
+        start_date: Optional[metrics_ops.DateInput] = None,
+        end_date: Optional[metrics_ops.DateInput] = None,
+    ) -> CrackSpreadHistory:
+        """Daily crack spread history. See ``SpreadsResource.crack_historical``."""
+        return await metrics_ops.run_async(
+            self.client, metrics_ops.crack_historical(spread_type, crude, start_date, end_date)
+        )
+
+    async def crack_all(self, crude: Optional[str] = None) -> CrackSpreadAll:
+        """Every crack spread type for one crude benchmark."""
+        return await metrics_ops.run_async(self.client, metrics_ops.crack_all(crude))
+
+    async def gasoil_crack(self) -> GasoilCrackSpread:
+        """European gasoil crack (ICE Low Sulphur Gasoil vs ICE Brent)."""
+        return await metrics_ops.run_async(self.client, metrics_ops.gasoil_crack())
+
+    async def basis(self, pair: str) -> BasisSpread:
+        """Latest basis spread for a pair. See ``SpreadsResource.basis``."""
+        return await metrics_ops.run_async(self.client, metrics_ops.basis(pair))
+
+    async def basis_historical(
+        self,
+        pair: str,
+        start_date: Optional[metrics_ops.DateInput] = None,
+        end_date: Optional[metrics_ops.DateInput] = None,
+    ) -> BasisSpreadHistory:
+        """Daily basis spread history. See ``SpreadsResource.basis_historical``."""
+        return await metrics_ops.run_async(
+            self.client, metrics_ops.basis_historical(pair, start_date, end_date)
+        )
+
+    async def basis_all(self) -> List[BasisSpread]:
+        """Latest value for every basis pair with data."""
+        return await metrics_ops.run_async(self.client, metrics_ops.basis_all())
+
+    async def curve_structure(self, commodity: str) -> CurveStructure:
+        """Futures curve structure for a market."""
+        return await metrics_ops.run_async(self.client, metrics_ops.curve_structure(commodity))
+
+    async def curve_structure_all(self) -> List[CurveStructure]:
+        """Curve structure for every market with a usable curve."""
+        return await metrics_ops.run_async(self.client, metrics_ops.curve_structure_all())
+
+    async def margin(self, index: Optional[str] = None) -> RefineryMargin:
+        """Latest refinery margin (``usgc``, ``singapore`` or ``nwe``)."""
+        return await metrics_ops.run_async(self.client, metrics_ops.margin(index))
+
+    async def margin_historical(
+        self,
+        index: Optional[str] = None,
+        start_date: Optional[metrics_ops.DateInput] = None,
+        end_date: Optional[metrics_ops.DateInput] = None,
+    ) -> RefineryMarginHistory:
+        """Daily refinery margin history."""
+        return await metrics_ops.run_async(
+            self.client, metrics_ops.margin_historical(index, start_date, end_date)
+        )
+
+    async def margin_all(self) -> List[RefineryMargin]:
+        """Latest margin for every index with data."""
+        return await metrics_ops.run_async(self.client, metrics_ops.margin_all())
+
+    async def physical_premium(self, commodity: Optional[str] = None) -> PhysicalPremium:
+        """Latest physical vs futures premium (``BRENT`` or ``WTI``)."""
+        return await metrics_ops.run_async(self.client, metrics_ops.physical_premium(commodity))
+
+    async def physical_premium_historical(
+        self,
+        commodity: Optional[str] = None,
+        start_date: Optional[metrics_ops.DateInput] = None,
+        end_date: Optional[metrics_ops.DateInput] = None,
+    ) -> PhysicalPremiumHistory:
+        """Daily physical premium history."""
+        return await metrics_ops.run_async(
+            self.client, metrics_ops.physical_premium_historical(commodity, start_date, end_date)
+        )
+
+    async def physical_premium_all(self) -> List[PhysicalPremium]:
+        """Latest premium for every commodity with data."""
+        return await metrics_ops.run_async(self.client, metrics_ops.physical_premium_all())
+
+
+class AsyncIndicatorsResource:
+    """Async resource for ``/v1/indicators/*`` (#99).
+
+    Mirrors :class:`oilpriceapi.resources.indicators.IndicatorsResource`.
+    """
+
+    def __init__(self, client: Any) -> None:
+        self.client = client
+
+    async def fuel_switching(self, gas: Optional[str] = None, crude: Optional[str] = None) -> FuelSwitching:
+        """Gas-to-oil parity. See ``IndicatorsResource.fuel_switching``."""
+        return await metrics_ops.run_async(self.client, metrics_ops.fuel_switching(gas, crude))
+
+    async def fuel_switching_historical(
+        self,
+        gas: Optional[str] = None,
+        crude: Optional[str] = None,
+        start_date: Optional[metrics_ops.DateInput] = None,
+        end_date: Optional[metrics_ops.DateInput] = None,
+    ) -> FuelSwitchingHistory:
+        """Daily gas-to-oil parity history."""
+        return await metrics_ops.run_async(
+            self.client, metrics_ops.fuel_switching_historical(gas, crude, start_date, end_date)
+        )
+
+    async def price_context(self, code: str, related_spreads: bool = False) -> PriceContext:
+        """Latest price with historical context. See ``IndicatorsResource.price_context``."""
+        return await metrics_ops.run_async(
+            self.client, metrics_ops.price_context(code, related_spreads)
+        )
+
+    async def storage_analytics(self, location: Optional[str] = None) -> StorageAnalytics:
+        """Storage analytics for ``CUSHING`` or ``SPR``."""
+        return await metrics_ops.run_async(self.client, metrics_ops.storage_analytics(location))
+
+    async def storage_analytics_all(self) -> List[StorageAnalytics]:
+        """Storage analytics for every location with data."""
+        return await metrics_ops.run_async(self.client, metrics_ops.storage_analytics_all())
+
+    async def annotations(self, code: str) -> MarketAnnotations:
+        """Notable-condition annotations for a commodity code."""
+        return await metrics_ops.run_async(self.client, metrics_ops.annotations(code))
+
+    async def annotations_batch(self, codes: Sequence[str]) -> MarketAnnotationsBatch:
+        """Annotations for up to 20 codes. See ``IndicatorsResource.annotations_batch``."""
+        return await metrics_ops.run_async(self.client, metrics_ops.annotations_batch(codes))
+
+    async def cftc_positioning(self, commodity: Optional[str] = None) -> CftcPositioning:
+        """Latest CFTC Commitments of Traders positioning."""
+        return await metrics_ops.run_async(self.client, metrics_ops.cftc_positioning(commodity))
+
+    async def cftc_positioning_historical(
+        self,
+        commodity: Optional[str] = None,
+        start_date: Optional[metrics_ops.DateInput] = None,
+        end_date: Optional[metrics_ops.DateInput] = None,
+    ) -> CftcPositioningHistory:
+        """Weekly CFTC speculative net positioning history."""
+        return await metrics_ops.run_async(
+            self.client, metrics_ops.cftc_positioning_historical(commodity, start_date, end_date)
+        )
+
+    async def cftc_positioning_all(self) -> List[CftcPositioning]:
+        """Latest positioning for every market with data."""
+        return await metrics_ops.run_async(self.client, metrics_ops.cftc_positioning_all())

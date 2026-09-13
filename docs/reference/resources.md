@@ -40,6 +40,14 @@
 
 ::: oilpriceapi.resources.analytics.AnalyticsResource
 
+## Spreads
+
+::: oilpriceapi.resources.spreads.SpreadsResource
+
+## Indicators
+
+::: oilpriceapi.resources.indicators.IndicatorsResource
+
 ## Forecasts
 
 ::: oilpriceapi.resources.forecasts.ForecastsResource

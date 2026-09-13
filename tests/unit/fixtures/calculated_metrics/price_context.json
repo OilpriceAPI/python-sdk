@@ -1,0 +1,1 @@
+{"status":"success","data":{"code":"DIESEL_USD","price":4.95,"timestamp":"2026-09-11T00:17:46Z","context":{"change_1d":0.0,"change_1d_pct":0.0,"change_1w":0.41,"change_1w_pct":9.03,"change_1m":0.72,"change_1m_pct":17.02,"high_52w":5.16,"low_52w":1.98,"percentile_1y":100,"percentile_5y":100,"anomaly":true,"anomaly_reason":"Price is 2.9 std dev above the 90-day mean"}}}
