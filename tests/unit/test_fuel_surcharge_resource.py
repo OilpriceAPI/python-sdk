@@ -727,32 +727,67 @@ def test_malformed_error_keeps_the_raw_body(transport, call):
 # --- local validation happens before the network ----------------------------------
 
 
-@pytest.mark.parametrize("carrier", ["", "   ", "odfl/latest", "odfl?x=1", "../prices", None, 7])
-def test_invalid_carrier_is_refused_locally(transport, call, carrier):
-    with pytest.raises(ValidationError) as info:
-        call(lambda c: c.fuel_surcharge.latest(carrier))
-
-    assert info.value.status_code is None
+def _assert_local_refusal(info, field, value, transport):
+    """A local refusal is a ValidationError with no HTTP status: nothing was sent."""
+    error = info.value
+    assert type(error) is ValidationError
+    assert error.status_code is None
+    assert error.is_client_error is False
+    assert error.field == field
+    assert error.value == value
     assert transport.calls == []
+
+
+@pytest.mark.parametrize("carrier", ["", "   ", "odfl/latest", "odfl?x=1", "../prices", None, 7])
+@pytest.mark.parametrize(
+    "method",
+    [
+        lambda c, v: c.fuel_surcharge.latest(v),
+        lambda c, v: c.fuel_surcharge.history(v),
+        lambda c, v: c.fuel_surcharge.parcel_latest(v),
+        lambda c, v: c.fuel_surcharge.parcel_latest_rate(v, "ground"),
+        lambda c, v: c.fuel_surcharge.parcel_history(v, "ground"),
+    ],
+    ids=["latest", "history", "parcel_latest", "parcel_latest_rate", "parcel_history"],
+)
+def test_invalid_carrier_is_refused_locally(transport, call, carrier, method):
+    with pytest.raises(ValidationError) as info:
+        call(lambda c: method(c, carrier))
+
+    _assert_local_refusal(info, "carrier", carrier, transport)
 
 
 @pytest.mark.parametrize("service_level", ["", " ", "ground/x", None])
-def test_invalid_service_level_is_refused_locally(transport, call, service_level):
-    with pytest.raises(ValidationError):
-        call(lambda c: c.fuel_surcharge.parcel_history("ups", service_level))
+@pytest.mark.parametrize(
+    "method",
+    [
+        lambda c, v: c.fuel_surcharge.parcel_latest_rate("ups", v),
+        lambda c, v: c.fuel_surcharge.parcel_history("ups", v),
+    ],
+    ids=["parcel_latest_rate", "parcel_history"],
+)
+def test_invalid_service_level_is_refused_locally(transport, call, service_level, method):
+    with pytest.raises(ValidationError) as info:
+        call(lambda c: method(c, service_level))
 
-    assert transport.calls == []
+    _assert_local_refusal(info, "service_level", service_level, transport)
 
 
 @pytest.mark.parametrize(
-    "kwargs",
-    [{"page": 0}, {"page": -1}, {"per_page": 0}, {"per_page": 101}, {"per_page": True}, {"page": "2"}],
+    "field,value",
+    [("page", 0), ("page", -1), ("page", "2"), ("per_page", 0), ("per_page", 101), ("per_page", True)],
 )
-def test_out_of_range_pagination_is_refused_not_silently_clamped(transport, call, kwargs):
-    with pytest.raises(ValidationError):
-        call(lambda c: c.fuel_surcharge.history("odfl", **kwargs))
+@pytest.mark.parametrize("parcel", [False, True], ids=["ltl", "parcel"])
+def test_out_of_range_pagination_is_refused_not_silently_clamped(transport, call, field, value, parcel):
+    kwargs = {field: value}
+    if parcel:
+        fn = lambda c: c.fuel_surcharge.parcel_history("ups", "ground", **kwargs)  # noqa: E731
+    else:
+        fn = lambda c: c.fuel_surcharge.history("odfl", **kwargs)  # noqa: E731
+    with pytest.raises(ValidationError) as info:
+        call(fn)
 
-    assert transport.calls == []
+    _assert_local_refusal(info, field, value, transport)
 
 
 def test_per_page_100_is_the_accepted_maximum(transport, call):
