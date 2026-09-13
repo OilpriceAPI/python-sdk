@@ -71,6 +71,17 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ### Fixed
 
+- **`error.code` is no longer set to a human sentence (#145).** For fail
+  envelopes, `{"status": "fail", "data": {"error": ...}}`, the SDK copied
+  `data.error` into `error.code` / `error.machine_code` whatever it held. Every
+  fuel-surcharge 400/404 puts the sentence itself there, for example
+  `"Unknown carrier 'nope'. Covered carriers: ..."`, so code-based branching
+  saw a different string on every request. `data.error` is now the code only
+  when it is a snake-case token: upper-snake like `VALIDATION_ERROR` or
+  `INTERVAL_FLOOR`, or lower-snake like `invalid_code` or `no_price_data`. A
+  sentence stays in `error.message` and `error.code` is `None`. A canonical
+  nested `error` object still takes precedence, and API-key redaction is
+  unchanged.
 - **`subscriptions.create()` no longer turns a malformed success into a
   half-built record.** It fell back to treating the whole `data` object as the
   subscription when `data.subscription` was missing, and leaked a raw pydantic
