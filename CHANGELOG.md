@@ -2,6 +2,51 @@
 
 All notable changes to the OilPriceAPI Python SDK will be documented in this file.
 
+## [1.14.0] - Unreleased
+
+### Fixed
+
+- **`timeout=0` is honoured instead of silently becoming 30.** The constructor
+  used `timeout or self.DEFAULT_TIMEOUT`, so an explicit zero -- a real httpx
+  timeout meaning "fail immediately", and what
+  `float(os.getenv("OPA_TIMEOUT", "0"))` produces -- was discarded. The caller
+  got a 30-second timeout and a hang that is very hard to attribute back to the
+  constructor. Same defect, and the same line, as the `or` defaults fixed in
+  1.13.x for `max_retries` and `retry_on`. Both clients.
+- **`base_url=""` no longer points the client at production.** It now raises
+  `ConfigurationError`. Whatever an empty string meant, silently talking to the
+  live API -- and pinning the request-origin guard to an origin the caller did
+  not choose -- was the worst available answer.
+
+### Changed
+
+- **`max_retries=0` is accepted again, with a `DeprecationWarning`, and means
+  one attempt.** It was briefly rejected with `ConfigurationError` at client
+  construction, which takes a process down at startup for a value that
+  constructed fine in 1.13.0. `max_retries` counts total **attempts**, not
+  retries after the first, so `0` now resolves to `1` -- one attempt, no
+  retries -- and the warning says so. It does **not** go back to silently
+  meaning 3. `0` will be refused in the next major version; pass
+  `max_retries=1` to say "no retries" explicitly.
+- **An integral float `max_retries` (`3.0`) is coerced with a
+  `DeprecationWarning`** instead of raising. That is what a JSON or YAML config
+  round-trip produces for an integer.
+- Still refused, because no coercion is obviously right: a negative
+  `max_retries`, a non-integral float (`2.5`), a string, and `bool` (`True`
+  would silently mean one attempt).
+
+### Added
+
+- `timeout` is validated: a negative or non-numeric value raises
+  `ConfigurationError` instead of being passed down to httpx unvalidated.
+
+### Upgrading
+
+Nothing that worked in 1.13.0 raises in 1.14.0. Two silent behaviours change:
+`timeout=0` now means zero rather than 30, and `max_retries=0` now means one
+attempt rather than three. If you were relying on either of those defaults,
+pass the value you want explicitly.
+
 ## [1.13.0] - 2026-08-23
 
 ### Fixed
