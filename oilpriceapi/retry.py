@@ -353,7 +353,7 @@ class RetryStrategy:
             attempt: Current attempt number (0-indexed)
 
         Returns:
-            Wait time in seconds (capped at 60 seconds)
+            Wait time in seconds, never above ``MAX_WAIT_SECONDS`` (60).
 
         Examples:
             Without jitter:
@@ -361,17 +361,27 @@ class RetryStrategy:
             - Attempt 1: 2.0s
             - Attempt 2: 4.0s
 
-            With jitter (adds 0-30% randomization):
+            With jitter (adds 0-30% randomization, then clamps to 60s):
             - Attempt 0: 1.0-1.3s
             - Attempt 1: 2.0-2.6s
             - Attempt 2: 4.0-5.2s
+            - Attempt 6 and up: saturates at 60.0s
+
+        The clamp is the point. ``min(2 ** attempt, 60)`` bounded the BASE, then
+        up to 30% jitter was added on top, so the documented 60s cap was
+        exceeded from attempt 6 onwards -- 78s at the ceiling. #115 added
+        ``bounded_wait`` but wired it only into the 429/Retry-After path; the
+        5xx and transport-error paths in both clients call this method raw
+        (#123). Bounding here fixes every call site at once and cannot drift
+        between the sync and async clients.
         """
-        base_wait = min(2 ** attempt, 60)
+        base_wait = float(min(2 ** attempt, self.MAX_WAIT_SECONDS))
 
         if self.jitter:
-            # Add 0-30% random jitter to prevent synchronized retries
+            # Add 0-30% random jitter to prevent synchronized retries, then
+            # clamp -- jitter must not push the wait past the documented cap.
             jitter_amount = random.uniform(0, 0.3 * base_wait)
-            return base_wait + jitter_amount
+            return self.bounded_wait(base_wait + jitter_amount, base_wait)
 
         return base_wait
 
