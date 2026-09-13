@@ -4,6 +4,7 @@ OilPriceAPI Data Models
 Pydantic models for API responses.
 """
 
+import warnings
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -454,32 +455,122 @@ class Subscription(BaseModel):
         return v
 
 
-class SubscriptionEvent(BaseModel):
-    """A single event emitted by a subscription, returned from the poll endpoint."""
+class SubscriptionEventSnapshot(BaseModel):
+    """One watched code's price at the moment a subscription event was recorded.
+
+    Built by the API's ``MarketBriefBuilder#snapshot_hash``.
+    """
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    seq: Optional[int] = Field(default=None, description="Monotonic per-user sequence cursor")
-    watch_id: Optional[str] = Field(default=None, description="Subscription (watch) that produced the event")
-    type: Optional[str] = Field(default=None, description="Event type")
-    code: Optional[str] = Field(default=None, description="Commodity code the event relates to")
-    payload: Optional[Dict[str, Any]] = Field(default=None, description="Event payload")
-    created_at: Optional[datetime] = Field(default=None, description="Event timestamp")
+    price: float = Field(description="Latest spot price")
+    currency: str = Field(description="Price currency, e.g. USD")
+    change_24h_pct: Optional[float] = Field(
+        default=None, description="24h change in percent; None when there is no 24h comparison"
+    )
+    as_of: Optional[datetime] = Field(default=None, description="Timestamp of the price used")
 
-    @field_validator("created_at", mode="before")
-    @classmethod
-    def parse_created_at(cls, v):
-        """Parse created_at from various formats."""
-        if v is None:
-            return None
-        if isinstance(v, str):
-            try:
-                return datetime.fromisoformat(v.replace("Z", "+00:00"))
-            except ValueError:
-                from dateutil import parser
 
-                return parser.parse(v)
-        return v
+class SubscriptionEventDelta(BaseModel):
+    """One code's change since the previous event of the same subscription.
+
+    Built by the API's ``Watch#compute_deltas``.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    price_change: float = Field(description="Price change since the previous event")
+    pct_change: Optional[float] = Field(
+        default=None,
+        description="Percent change; None when the previous price was 0 (the API omits it)",
+    )
+
+
+class SubscriptionEvent(BaseModel):
+    """A single event emitted by a subscription, returned from the poll endpoint.
+
+    Typed from ``GET /v1/subscriptions/events`` as the API sends it (#149).
+    ``snapshot`` and ``deltas`` are keyed by commodity code. ``deltas`` is
+    ``{}`` on a subscription's first event, and a code is absent from it when
+    either snapshot lacked a price.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    id: str = Field(description="Event identifier")
+    seq: int = Field(description="Monotonic per-user sequence cursor")
+    watch_id: str = Field(description="Subscription (watch) that produced the event")
+    observed_at: datetime = Field(description="When the snapshot was taken")
+    snapshot: Dict[str, SubscriptionEventSnapshot] = Field(
+        description="Price per watched code at observed_at"
+    )
+    deltas: Dict[str, SubscriptionEventDelta] = Field(
+        description="Change per code since the previous event; {} on the first event"
+    )
+    source: Optional[str] = Field(default=None, description="Attribution source of the subscription")
+    tool_name: Optional[str] = Field(default=None, description="Attribution tool name of the subscription")
+
+    # Deprecated accessors (#149). Plain properties, not pydantic fields, so they
+    # never appear in model_dump() or serialization. Removed in 2.0.0.
+
+    @property
+    def created_at(self) -> datetime:
+        """Deprecated alias for ``observed_at``; removed in 2.0.0.
+
+        The API never sent ``created_at`` on an event, so this always read
+        ``None``. The event's timestamp is ``observed_at``.
+        """
+        warnings.warn(
+            "SubscriptionEvent.created_at is deprecated and will be removed in 2.0.0; "
+            "use observed_at. The events API does not send created_at (#149).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.observed_at
+
+    @property
+    def type(self) -> None:
+        """Deprecated; always ``None``, removed in 2.0.0.
+
+        The events API has no event type: every event is an interval snapshot.
+        """
+        warnings.warn(
+            "SubscriptionEvent.type is deprecated and will be removed in 2.0.0. It was "
+            "always None: the events API sends no event type, and has no equivalent "
+            "field; every event is an interval snapshot (#149).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return None
+
+    @property
+    def code(self) -> None:
+        """Deprecated; always ``None``, removed in 2.0.0.
+
+        An event can cover several codes: use ``snapshot.keys()``.
+        """
+        warnings.warn(
+            "SubscriptionEvent.code is deprecated and will be removed in 2.0.0. It was "
+            "always None: an event covers every watched code, so use "
+            "list(event.snapshot) (#149).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return None
+
+    @property
+    def payload(self) -> None:
+        """Deprecated; always ``None``, removed in 2.0.0.
+
+        The event data is in ``snapshot`` and ``deltas``.
+        """
+        warnings.warn(
+            "SubscriptionEvent.payload is deprecated and will be removed in 2.0.0. It "
+            "was always None: use event.snapshot and event.deltas (#149).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return None
 
 
 class DataConnectorPrice(BaseModel):

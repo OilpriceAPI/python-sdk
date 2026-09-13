@@ -45,6 +45,8 @@ from oilpriceapi.models import (
     PriceAlert,
     Subscription,
     SubscriptionEvent,
+    SubscriptionEventDelta,
+    SubscriptionEventSnapshot,
     WebhookTestResponse,
 )
 from oilpriceapi.resources.subscriptions import SubscriptionEventsPage
@@ -90,6 +92,8 @@ __all__ = [
     "ParcelFuelSurchargeCarrier",
     "Subscription",
     "SubscriptionEvent",
+    "SubscriptionEventDelta",
+    "SubscriptionEventSnapshot",
     "SubscriptionEventsPage",
     "PriceStream",
     "StreamUpdate",
