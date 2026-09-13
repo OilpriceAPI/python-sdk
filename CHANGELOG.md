@@ -71,6 +71,24 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ### Fixed
 
+- **`SubscriptionEvent` is typed from the event the API sends (#149).** It
+  declared `type`, `code`, `payload` and `created_at`, which
+  `GET /v1/subscriptions/events` has never sent, so they read `None` on every
+  real event. Meanwhile `id`, `observed_at`, `snapshot`, `deltas`, `source` and
+  `tool_name` were untyped extras. The model now declares:
+  - required `id`, `seq`, `watch_id`, `observed_at` (a timezone-aware
+    `datetime`), `snapshot` and `deltas`;
+  - optional `source` and `tool_name`.
+  `snapshot` maps each code to the new `SubscriptionEventSnapshot` (`price`,
+  `currency`, optional `change_24h_pct` and `as_of`). `deltas` maps each code
+  to the new `SubscriptionEventDelta` (`price_change`, optional `pct_change`).
+  An event missing a required field raises
+  `OilPriceAPIError(code="MALFORMED_RESPONSE")`.
+  - **Behaviour change:** `type`, `code` and `payload` are removed, because no
+    field in the event corresponds to them. Code that read them only ever got
+    `None`. Watched codes are the keys of `event.snapshot`.
+  - `created_at` is kept as a deprecated property. It returns `observed_at` and
+    emits a `DeprecationWarning`.
 - **`subscriptions.list()` and `subscriptions.events()` no longer report a
   malformed success as "nothing there" (#142), sync and async.** A 200 without
   a `data.subscriptions` list returned `[]`, and one without `data.events` /

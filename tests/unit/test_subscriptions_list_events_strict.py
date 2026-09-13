@@ -185,7 +185,9 @@ MALFORMED_EVENT_BODIES = {
     "has_more missing": _page(cursor=41, events=[]),
     "has_more is a string": _page(cursor=41, has_more="false", events=[]),
     "cursor behind since": _page(cursor=0, has_more=False, events=[]),
-    "cursor behind the last event": _page(cursor=41, has_more=False, events=[{"seq": 43}]),
+    "cursor behind the last event": _page(
+        cursor=41, has_more=False, events=[{**WIRE_EVENTS_PAGE["data"]["events"][0], "seq": 43}]
+    ),
 }
 
 

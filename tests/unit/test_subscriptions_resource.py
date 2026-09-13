@@ -21,6 +21,20 @@ from oilpriceapi._subscriptions_common import (
 )
 
 
+def _event(seq):
+    """An event in the live GET /v1/subscriptions/events shape (2026-09-13)."""
+    return {
+        "id": f"00000000-0000-4000-8000-{seq:012d}",
+        "seq": seq,
+        "watch_id": "abc-123",
+        "observed_at": "2026-09-08T16:20:42Z",
+        "snapshot": {"BRENT_CRUDE_USD": {"as_of": "2026-09-08T16:16:14Z", "price": 97.27, "currency": "USD", "change_24h_pct": -0.04}},
+        "deltas": {"BRENT_CRUDE_USD": {"pct_change": -0.53, "price_change": -0.52}},
+        "source": "api",
+        "tool_name": None,
+    }
+
+
 class TestIntervalMapping:
     """Friendly interval → interval_seconds conversion."""
 
@@ -161,10 +175,7 @@ class TestSubscriptionsResource:
             "data": {
                 "cursor": 42,
                 "has_more": True,
-                "events": [
-                    {"seq": 41, "watch_id": "abc-123", "type": "threshold", "code": "BRENT_CRUDE_USD"},
-                    {"seq": 42, "watch_id": "abc-123", "type": "threshold", "code": "BRENT_CRUDE_USD"},
-                ],
+                "events": [_event(41), _event(42)],
             },
         }
         with patch.object(client, "request", return_value=payload) as mock_req:

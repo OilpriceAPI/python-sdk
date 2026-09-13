@@ -73,7 +73,18 @@ class TestAsyncSubscriptionsResource:
             "data": {
                 "cursor": 7,
                 "has_more": False,
-                "events": [{"seq": 7, "watch_id": "abc-123", "type": "threshold", "code": "WTI_USD"}],
+                "events": [
+                    {
+                        "id": "a835a930-f34f-4001-80b1-38fb3cde3797",
+                        "seq": 7,
+                        "watch_id": "abc-123",
+                        "observed_at": "2026-09-08T17:21:19Z",
+                        "snapshot": {"WTI_USD": {"as_of": "2026-09-08T17:20:37Z", "price": 63.02, "currency": "USD", "change_24h_pct": -0.08}},
+                        "deltas": {"WTI_USD": {"pct_change": -0.26, "price_change": -0.16}},
+                        "source": "api",
+                        "tool_name": None,
+                    }
+                ],
             }
         }
         mock = AsyncMock(return_value=payload)

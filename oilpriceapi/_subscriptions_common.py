@@ -386,7 +386,7 @@ def unwrap_events_page(
                 f"{_field_errors(error)}",
                 response,
             ) from error
-        if event.seq is not None and event.seq > cursor:
+        if event.seq > cursor:
             raise _malformed(
                 subject,
                 f"data.cursor {cursor} is behind data.events[{index}].seq {event.seq}; "
