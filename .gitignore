@@ -168,6 +168,8 @@ cython_debug/
 !.env.example
 !schemas/*.json
 !examples/snippets/*.json
+# Verbatim API response bodies used as unit-test fixtures (#99).
+!tests/unit/fixtures/**/*.json
 
 # Keep example notebooks and GitHub Pages docs
 !examples/*.ipynb

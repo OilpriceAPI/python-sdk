@@ -6,6 +6,35 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ### Added
 
+- **Typed `client.spreads` and `client.indicators` resources (#99), sync and
+  async.** They cover the server-calculated `/v1/spreads/*` routes: `crack`,
+  `crack_historical`, `crack_all`, `gasoil_crack`, `basis`,
+  `basis_historical`, `basis_all`, `curve_structure`, `curve_structure_all`,
+  `margin`, `margin_historical`, `margin_all`, `physical_premium`,
+  `physical_premium_historical` and `physical_premium_all`. They also cover the
+  `/v1/indicators/*` routes: `fuel_switching`, `fuel_switching_historical`,
+  `price_context`, `storage_analytics`, `storage_analytics_all`,
+  `annotations`, `annotations_batch`, `cftc_positioning`,
+  `cftc_positioning_historical` and `cftc_positioning_all`.
+  - Each method returns a pydantic model from the new
+    `oilpriceapi.metrics_models` module. The models are typed from production
+    responses captured on 2026-09-13.
+  - Timestamps parse to timezone-aware `datetime` and calendar dates to `date`.
+    Units, full-precision values and nulls are kept exactly as sent.
+  - A key the server always emits is required. A 200 that drops it, changes its
+    type, or breaks the envelope raises
+    `OilPriceAPIError(code="MALFORMED_RESPONSE")` with the raw body. It is never
+    defaulted.
+  - History responses expose the server-applied `period` and, for crack
+    spreads, the `coverage` actually returned.
+  - Blank selectors, invalid dates, `start_date` after `end_date`, and more than
+    20 codes for `annotations_batch` are refused before any request is sent,
+    with `ValidationError` (an `OilPriceAPIError`) carrying `field`, `value`
+    and `status_code=None`.
+    The API would otherwise return a default window, or silently annotate only
+    the first 20 codes.
+  - `/v1/indicators/congressional-trades` is deliberately not exposed. It has
+    never returned data in production, so there is no response shape to type.
 - **Subscription lifecycle: `get`, `update`, `pause`, `resume` (#100).** Sync
   and async, against `GET`/`PATCH /v1/subscriptions/{id}` and
   `POST /v1/subscriptions/{id}/pause|resume`. Each returns a typed

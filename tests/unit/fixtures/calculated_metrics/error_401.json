@@ -1,0 +1,1 @@
+{"error":{"code":"UNAUTHORIZED","message":"Missing or invalid API key. Include header: Authorization: Token YOUR_API_KEY","status":401,"request_id":"563a503a-98be-4408-84e0-d5e281d8802e","docs":"https://docs.oilpriceapi.com#UNAUTHORIZED","signup_url":"https://www.oilpriceapi.com/auth/signup","demo_endpoint":"/v1/demo/prices"}}

@@ -1,0 +1,1 @@
+{"status":"success","data":{"pair":"BRENT_WTI","spread_name":"Brent-WTI Spread","value":4.33,"unit":"USD/bbl","components":{"BRENT_CRUDE_USD":104.32,"WTI_USD":99.99},"signal":"normal","timestamp":"2026-09-13T18:31:12Z","percentile_1y":49,"changes":{"change_1d":-0.15,"change_1d_pct":-3.35,"change_1w":-0.73,"change_1w_pct":-14.43,"change_1m":-1.44,"change_1m_pct":-24.96}}}

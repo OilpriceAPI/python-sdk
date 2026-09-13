@@ -32,7 +32,9 @@ from .async_resources import (
     AsyncForecastsResource,
     AsyncFuelSurchargeResource,
     AsyncFuturesResource,
+    AsyncIndicatorsResource,
     AsyncRigCountsResource,
+    AsyncSpreadsResource,
     AsyncStorageResource,
     AsyncSubscriptionsResource,
     AsyncWebhooksResource,
@@ -179,6 +181,9 @@ class AsyncOilPriceAPI:
         self.data_sources = AsyncDataSourcesResource(self)
         # Agent watch subscriptions + event polling (#3245 Phase 2).
         self.subscriptions = AsyncSubscriptionsResource(self)
+        # Server-calculated spreads and market indicators (#99).
+        self.spreads = AsyncSpreadsResource(self)
+        self.indicators = AsyncIndicatorsResource(self)
         # LTL + parcel carrier fuel surcharges (#101).
         self.fuel_surcharge = AsyncFuelSurchargeResource(self)
 
