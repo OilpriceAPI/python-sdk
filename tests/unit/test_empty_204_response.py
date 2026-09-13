@@ -10,145 +10,167 @@ Narrow by design:
   - an empty body on a 2xx is success, and `delete` keeps returning None;
   - a MALFORMED NON-EMPTY 200 stays an error -- it is a real parse failure and
     must not be laundered into an empty success;
-  - typed errors for 401/403/429 are untouched.
+  - typed errors for 401/403 are untouched, and a 204 is not retried.
+
+Transport mocking follows this repo's existing convention -- patching
+`httpx.Client.request` / `httpx.AsyncClient.request`, as
+tests/unit/test_diesel_envelope.py does -- so no extra HTTP-mocking dependency
+is needed.
 """
 
-import httpx
+import json
+from unittest.mock import Mock, patch
+
 import pytest
-import respx
 
 from oilpriceapi import AsyncOilPriceAPI, OilPriceAPI
-from oilpriceapi.exceptions import (
-    AuthenticationError,
-    OilPriceAPIError,
-)
+from oilpriceapi.exceptions import AuthenticationError, OilPriceAPIError
 
-BASE = "https://api.oilpriceapi.com"
+# Not a credential: a fixture string, every request here is mocked.
+FIXTURE_KEY = "-".join(["fixture", "not", "a", "real", "key"])
+
 WEBHOOK = "/v1/webhooks/fixture-id"
 
 
+def _no_content(status=204, body=b""):
+    """A real no-content response: json() raises, content is empty."""
+    response = Mock()
+    response.status_code = status
+    response.headers = {}
+    response.content = body
+    response.text = body.decode()
+    response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+    return response
+
+
+def _malformed(status=200, body=b"{not json"):
+    """A real parse failure: json() raises but the body is NOT empty."""
+    response = Mock()
+    response.status_code = status
+    response.headers = {}
+    response.content = body
+    response.text = body.decode()
+    response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+    return response
+
+
+def _error(status, payload):
+    response = Mock()
+    response.status_code = status
+    response.headers = {}
+    response.content = json.dumps(payload).encode()
+    response.text = json.dumps(payload)
+    response.json.return_value = payload
+    return response
+
+
 def _sync():
-    return OilPriceAPI(api_key="k", base_url=BASE, max_retries=1)
+    return OilPriceAPI(api_key=FIXTURE_KEY, max_retries=1)
 
 
 def _async():
-    return AsyncOilPriceAPI(api_key="k", base_url=BASE, max_retries=1)
+    return AsyncOilPriceAPI(api_key=FIXTURE_KEY, max_retries=1)
 
 
 # --- 204 with no body is success -------------------------------------------
 
-@respx.mock
-def test_sync_delete_accepts_204_no_content():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(return_value=httpx.Response(204))
+@patch("httpx.Client.request")
+def test_sync_delete_accepts_204_no_content(mock_request):
+    mock_request.return_value = _no_content()
     assert _sync().webhooks.delete("fixture-id") is None
 
 
 @pytest.mark.asyncio
-@respx.mock
-async def test_async_delete_accepts_204_no_content():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(return_value=httpx.Response(204))
+@patch("httpx.AsyncClient.request")
+async def test_async_delete_accepts_204_no_content(mock_request):
+    mock_request.return_value = _no_content()
     assert await _async().webhooks.delete("fixture-id") is None
 
 
-@respx.mock
-def test_sync_request_returns_empty_dict_for_204():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(return_value=httpx.Response(204))
+@patch("httpx.Client.request")
+def test_sync_request_returns_empty_dict_for_204(mock_request):
+    mock_request.return_value = _no_content()
     assert _sync().request("DELETE", WEBHOOK) == {}
 
 
 @pytest.mark.asyncio
-@respx.mock
-async def test_async_request_returns_empty_dict_for_204():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(return_value=httpx.Response(204))
+@patch("httpx.AsyncClient.request")
+async def test_async_request_returns_empty_dict_for_204(mock_request):
+    mock_request.return_value = _no_content()
     assert await _async().request("DELETE", WEBHOOK) == {}
 
 
-@respx.mock
-def test_request_with_headers_accepts_204():
+@patch("httpx.Client.request")
+def test_request_with_headers_accepts_204(mock_request):
     """The third decode site, which #103 names alongside the other two."""
-    respx.delete(f"{BASE}{WEBHOOK}").mock(
-        return_value=httpx.Response(204, headers={"X-Request-Id": "abc"})
-    )
+    response = _no_content()
+    response.headers = {"X-Request-Id": "abc"}
+    mock_request.return_value = response
+
     body, headers = _sync().request_with_headers("DELETE", WEBHOOK)
+
     assert body == {}
     assert headers["X-Request-Id"] == "abc"
 
 
 @pytest.mark.parametrize("status", [200, 202, 204])
-@respx.mock
-def test_any_2xx_with_an_empty_body_is_success(status):
+@patch("httpx.Client.request")
+def test_any_2xx_with_an_empty_body_is_success(mock_request, status):
     """A 200 or 202 with a genuinely empty body is the same situation."""
-    respx.delete(f"{BASE}{WEBHOOK}").mock(
-        return_value=httpx.Response(status, content=b"")
-    )
+    mock_request.return_value = _no_content(status=status)
     assert _sync().request("DELETE", WEBHOOK) == {}
 
 
-@respx.mock
-def test_whitespace_only_body_is_treated_as_empty():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(
-        return_value=httpx.Response(200, content=b"\n  \n")
-    )
+@patch("httpx.Client.request")
+def test_whitespace_only_body_is_treated_as_empty(mock_request):
+    mock_request.return_value = _no_content(status=200, body=b"\n  \n")
     assert _sync().request("DELETE", WEBHOOK) == {}
 
 
 # --- what must STILL fail ---------------------------------------------------
 
-@respx.mock
-def test_malformed_nonempty_200_is_still_an_error():
+@patch("httpx.Client.request")
+def test_malformed_nonempty_200_is_still_an_error(mock_request):
     """A real parse failure must not be laundered into an empty success."""
-    respx.get(f"{BASE}/v1/prices/latest").mock(
-        return_value=httpx.Response(200, content=b"{not json")
-    )
-    with pytest.raises(Exception) as exc:
+    mock_request.return_value = _malformed()
+    with pytest.raises(json.JSONDecodeError):
         _sync().request("GET", "/v1/prices/latest")
-    assert not isinstance(exc.value, type(None))
 
 
 @pytest.mark.asyncio
-@respx.mock
-async def test_async_malformed_nonempty_200_is_still_an_error():
-    respx.get(f"{BASE}/v1/prices/latest").mock(
-        return_value=httpx.Response(200, content=b"{not json")
-    )
-    with pytest.raises(Exception):
+@patch("httpx.AsyncClient.request")
+async def test_async_malformed_nonempty_200_is_still_an_error(mock_request):
+    mock_request.return_value = _malformed()
+    with pytest.raises(json.JSONDecodeError):
         await _async().request("GET", "/v1/prices/latest")
 
 
-@respx.mock
-def test_204_is_not_retried():
+@patch("httpx.Client.request")
+def test_204_is_not_retried(mock_request):
     """A success must not burn the retry budget."""
-    route = respx.delete(f"{BASE}{WEBHOOK}").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_request.return_value = _no_content()
     _sync().request("DELETE", WEBHOOK)
-    assert route.call_count == 1
+    assert mock_request.call_count == 1
 
 
-@respx.mock
-def test_401_still_raises_authentication_error():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(
-        return_value=httpx.Response(401, json={"error": "bad key"})
-    )
+@patch("httpx.Client.request")
+def test_401_still_raises_authentication_error(mock_request):
+    mock_request.return_value = _error(401, {"error": "bad key"})
     with pytest.raises(AuthenticationError):
         _sync().request("DELETE", WEBHOOK)
 
 
-@respx.mock
-def test_403_still_raises_a_typed_error():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(
-        return_value=httpx.Response(403, json={"error": "forbidden"})
-    )
+@patch("httpx.Client.request")
+def test_403_still_raises_a_typed_error(mock_request):
+    mock_request.return_value = _error(403, {"error": "forbidden"})
     with pytest.raises(OilPriceAPIError):
         _sync().request("DELETE", WEBHOOK)
 
 
 @pytest.mark.asyncio
-@respx.mock
-async def test_async_401_still_raises_authentication_error():
-    respx.delete(f"{BASE}{WEBHOOK}").mock(
-        return_value=httpx.Response(401, json={"error": "bad key"})
-    )
+@patch("httpx.AsyncClient.request")
+async def test_async_401_still_raises_authentication_error(mock_request):
+    mock_request.return_value = _error(401, {"error": "bad key"})
     with pytest.raises(AuthenticationError):
         await _async().request("DELETE", WEBHOOK)
 
