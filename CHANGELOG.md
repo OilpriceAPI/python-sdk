@@ -71,6 +71,23 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ### Fixed
 
+- **`subscriptions.list()` and `subscriptions.events()` no longer report a
+  malformed success as "nothing there" (#142), sync and async.** A 200 without
+  a `data.subscriptions` list returned `[]`, and one without `data.events` /
+  `data.cursor` returned an empty page with `cursor=None`. Fed back as
+  `events(since=page.cursor)`, that `None` dropped `since`, and the API reads a
+  missing `since` as `0`, so the poller replayed the account's whole event
+  history. Both now raise `OilPriceAPIError(code="MALFORMED_RESPONSE")` with the
+  raw body when the collection is missing or mistyped, a record is invalid,
+  `cursor` is not a non-negative integer, `has_more` is not a boolean, or the
+  cursor is behind `since` or behind an event in the page. A genuinely empty
+  list or page is still an empty success, and `page.cursor` is now always an
+  `int`.
+- **`subscriptions.events(since=...)` refuses a cursor the API would read as
+  `0`.** The API parses `since` with `to_i`, so `"abc"`, `""` and `-1` replay
+  every event and `1.5` becomes `1` (verified against production on
+  2026-09-13). Anything but a non-negative `int` or `None` now raises
+  `ValidationError(field="since", status_code=None)` before a request is sent.
 - **`subscriptions.create()` no longer turns a malformed success into a
   half-built record.** It fell back to treating the whole `data` object as the
   subscription when `data.subscription` was missing, and leaked a raw pydantic

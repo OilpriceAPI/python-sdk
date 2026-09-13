@@ -5,14 +5,16 @@ Agent "watch" subscriptions + event polling (#3245 Phase 2). Persistent watches
 periodically evaluate commodity codes and emit events an agent can poll for.
 """
 
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
 from .._subscriptions_common import (
     build_attribution_headers,
     build_create_body,
     build_update_body,
-    unwrap_data,
+    unwrap_events_page,
     unwrap_subscription,
+    unwrap_subscription_list,
+    validate_since,
     validate_subscription_id,
 )
 from ..models import Subscription, SubscriptionEvent
@@ -57,16 +59,19 @@ class SubscriptionsResource:
         """List all subscriptions for the authenticated user.
 
         Returns:
-            List of Subscription models.
+            List of Subscription models. Empty only when the API sent an empty
+            list.
+
+        Raises:
+            OilPriceAPIError: ``code="MALFORMED_RESPONSE"`` when a success body
+                has no ``data.subscriptions`` list or a record in it is invalid.
 
         Example:
             >>> for sub in client.subscriptions.list():
             ...     print(sub.name, sub.codes)
         """
         response = self.client.request(method="GET", path="/v1/subscriptions")
-        data = unwrap_data(response)
-        subs = data.get("subscriptions", [])
-        return [Subscription(**s) for s in subs]
+        return unwrap_subscription_list(response, subject="subscriptions.list")
 
     def create(
         self,
@@ -254,19 +259,32 @@ class SubscriptionsResource:
         """Poll for subscription events newer than a cursor.
 
         Args:
-            since: Sequence cursor; only events with seq > since are returned.
+            since: ``page.cursor`` from the previous call; only events with
+                ``seq > since`` are returned. Omit it (or pass ``0``) only to
+                start from the first event. Must be a non-negative ``int``: the
+                API reads any other value as ``0`` and replays every event.
             limit: Max events to return (server clamps to its own max).
             watch_id: Restrict to a single subscription.
 
         Returns:
-            A SubscriptionEventsPage with events, cursor, and has_more.
+            A SubscriptionEventsPage with events, cursor, and has_more. The
+            cursor is always an ``int``, so ``events(since=page.cursor)`` never
+            restarts from the beginning.
+
+        Raises:
+            ValidationError: ``field="since"``, ``status_code=None``, if ``since``
+                is not a non-negative int. Nothing is sent.
+            OilPriceAPIError: ``code="MALFORMED_RESPONSE"`` when a success body
+                lacks the ``events`` list, an integer ``cursor`` or a boolean
+                ``has_more``, or its cursor would move polling backwards.
 
         Example:
             >>> page = client.subscriptions.events(since=0)
             >>> for event in page:
-            ...     print(event.type, event.code)
+            ...     print(event.seq, event.watch_id)
             >>> next_page = client.subscriptions.events(since=page.cursor)
         """
+        since = validate_since(since)
         params: Dict[str, Any] = {}
         if since is not None:
             params["since"] = since
@@ -280,8 +298,4 @@ class SubscriptionsResource:
             path="/v1/subscriptions/events",
             params=params,
         )
-        data = unwrap_data(response)
-        events = [SubscriptionEvent(**e) for e in data.get("events", [])]
-        cursor = cast(Optional[int], data.get("cursor"))
-        has_more = bool(data.get("has_more", False))
-        return SubscriptionEventsPage(events=events, cursor=cursor, has_more=has_more)
+        return unwrap_events_page(response, since=since, subject="subscriptions.events")

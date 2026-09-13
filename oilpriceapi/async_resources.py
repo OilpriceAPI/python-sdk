@@ -8,8 +8,10 @@ from ._subscriptions_common import (
     build_attribution_headers,
     build_create_body,
     build_update_body,
-    unwrap_data,
+    unwrap_events_page,
     unwrap_subscription,
+    unwrap_subscription_list,
+    validate_since,
     validate_subscription_id,
 )
 from .exceptions import ValidationError
@@ -42,7 +44,6 @@ from .models import (
     ParcelFuelSurchargeCarrier,
     PriceAlert,
     Subscription,
-    SubscriptionEvent,
 )
 from .resource_validators import (
     VALID_OPERATORS,
@@ -1600,11 +1601,13 @@ class AsyncSubscriptionsResource:
         self.client = client
 
     async def list(self) -> List[Subscription]:
-        """List all subscriptions for the authenticated user."""
+        """List all subscriptions. See ``SubscriptionsResource.list``.
+
+        Raises ``OilPriceAPIError(code="MALFORMED_RESPONSE")`` when a success
+        body has no ``data.subscriptions`` list; empty only when the API sent [].
+        """
         response = await self.client.request(method="GET", path="/v1/subscriptions")
-        data = unwrap_data(response)
-        subs = data.get("subscriptions", [])
-        return [Subscription(**s) for s in subs]
+        return unwrap_subscription_list(response, subject="subscriptions.list")
 
     async def create(
         self,
@@ -1706,8 +1709,12 @@ class AsyncSubscriptionsResource:
     ) -> SubscriptionEventsPage:
         """Poll for subscription events newer than a cursor.
 
-        Returns a SubscriptionEventsPage with events, cursor, and has_more.
+        See ``SubscriptionsResource.events``. ``since`` must be a non-negative
+        int (``ValidationError``, nothing sent, otherwise), and a success body
+        without an integer cursor raises ``MALFORMED_RESPONSE`` rather than
+        returning ``cursor=None``, which would restart polling from event 1.
         """
+        since = validate_since(since)
         params: Dict[str, Any] = {}
         if since is not None:
             params["since"] = since
@@ -1721,11 +1728,7 @@ class AsyncSubscriptionsResource:
             path="/v1/subscriptions/events",
             params=params,
         )
-        data = unwrap_data(response)
-        events = [SubscriptionEvent(**e) for e in data.get("events", [])]
-        cursor = data.get("cursor")
-        has_more = bool(data.get("has_more", False))
-        return SubscriptionEventsPage(events=events, cursor=cursor, has_more=has_more)
+        return unwrap_events_page(response, since=since, subject="subscriptions.events")
 
 
 class AsyncFuelSurchargeResource:
