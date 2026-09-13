@@ -45,7 +45,13 @@ from .resources.storage import StorageResource
 from .resources.subscriptions import SubscriptionsResource
 from .resources.webhooks import WebhooksResource
 from .resources.well_production import WellProductionResource
-from .retry import RetryStrategy, mark_ambiguous_write, validated_max_retries
+from .retry import (
+    RetryStrategy,
+    mark_ambiguous_write,
+    validated_base_url,
+    validated_max_retries,
+    validated_timeout,
+)
 
 
 class OilPriceAPI:
@@ -118,11 +124,14 @@ class OilPriceAPI:
             )
 
         # Configuration
-        self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
-        self.timeout = timeout or self.DEFAULT_TIMEOUT
-        # Explicit None checks, not `or`: an explicit max_retries=0 used to
-        # become 3 and an explicit retry_on=[] used to become the default status
-        # list, silently discarding what the caller asked for (#104).
+        # Explicit None checks, not `or`, on every one of these four lines.
+        # #115 fixed the two below and left these two, so `timeout=0` silently
+        # became 30 and `base_url=""` silently became production (#120).
+        self.base_url = (
+            self.DEFAULT_BASE_URL if base_url is None else validated_base_url(base_url)
+        )
+        self.timeout = self.DEFAULT_TIMEOUT if timeout is None else validated_timeout(timeout)
+        # max_retries=0 and retry_on=[] used to be discarded the same way (#104).
         self.max_retries = (
             self.DEFAULT_MAX_RETRIES if max_retries is None else validated_max_retries(max_retries)
         )

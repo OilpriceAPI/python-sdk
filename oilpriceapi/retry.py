@@ -2,6 +2,7 @@
 
 import logging
 import random
+import warnings
 from typing import List, Mapping, Optional
 
 logger = logging.getLogger(__name__)
@@ -22,21 +23,119 @@ def validated_max_retries(value: object) -> int:
     (``for attempt in range(self.max_retries)``). One attempt is the minimum;
     zero attempts would send nothing. This used to be swallowed by an ``or``
     default, which silently turned an explicit 0 into 3.
+
+    ``0`` and an integral float are accepted with a ``DeprecationWarning``
+    rather than refused (#121). Both constructed fine in 1.13.0 -- ``0`` is the
+    natural spelling of "do not retry" and ``3.0`` is what a JSON or YAML
+    config round-trip produces for an integer -- and this failure happens at
+    CLIENT CONSTRUCTION, so refusing them takes the whole process down at
+    startup rather than degrading one call. The warning says what the argument
+    actually counts, which is the thing the caller needs to learn; the silent
+    ``0 -> 3`` that #104 removed does not come back.
+
+    Still refused, because no coercion is obviously right: negatives,
+    non-numerics, ``bool`` (a typo hazard: ``True`` would mean one attempt),
+    and a non-integral float.
     """
     from .exceptions import ConfigurationError
 
-    if isinstance(value, bool) or not isinstance(value, int):
+    if isinstance(value, bool):
+        raise ConfigurationError(
+            "max_retries must be an int counting total attempts, got bool. "
+            "Pass max_retries=1 for a single attempt with no retries."
+        )
+
+    if isinstance(value, float):
+        if not value.is_integer():
+            raise ConfigurationError(
+                f"max_retries counts total attempts and must be a whole number, "
+                f"got {value}. Pass max_retries=1 for a single attempt with no "
+                f"retries."
+            )
+        warnings.warn(
+            f"max_retries={value!r} is a float; it counts total ATTEMPTS and is "
+            f"being used as {int(value)}. Pass an int.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        value = int(value)
+
+    if not isinstance(value, int):
         raise ConfigurationError(
             f"max_retries must be an int counting total attempts, got "
             f"{type(value).__name__}. Pass max_retries=1 for a single attempt "
             f"with no retries."
         )
+
+    if value == 0:
+        warnings.warn(
+            "max_retries counts total ATTEMPTS, not retries after the first, so "
+            "max_retries=0 is being treated as 1 -- one attempt, no retries. "
+            "Pass max_retries=1 to say that explicitly; 0 will be refused in a "
+            "future major version.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return 1
+
     if value < 1:
         raise ConfigurationError(
             f"max_retries counts total attempts and must be at least 1, got {value}. "
             f"Pass max_retries=1 for a single attempt with no retries."
         )
     return value
+
+
+def validated_timeout(value: object) -> float:
+    """Validate an explicit ``timeout`` (seconds).
+
+    ``0`` is a real request timeout to httpx -- fail immediately rather than
+    wait -- and is what ``float(os.getenv("OPA_TIMEOUT", "0"))`` produces. It
+    used to be swallowed by ``timeout or self.DEFAULT_TIMEOUT`` and silently
+    became 30, and the resulting hang is very hard to attribute back to the
+    constructor (#120).
+
+    A negative value used to be passed straight down to httpx unvalidated.
+    """
+    from .exceptions import ConfigurationError
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ConfigurationError(
+            f"timeout must be a number of seconds, got {type(value).__name__}. "
+            f"Pass timeout=None for the {30}s default."
+        )
+    if value != value:  # NaN
+        raise ConfigurationError("timeout must be a number of seconds, got NaN.")
+    if value < 0:
+        raise ConfigurationError(
+            f"timeout must be zero or positive, got {value}. Use timeout=0 to "
+            f"fail immediately, or timeout=None for the default."
+        )
+    return value
+
+
+def validated_base_url(value: object) -> str:
+    """Validate an explicit ``base_url``.
+
+    ``(base_url or DEFAULT).rstrip("/")`` sent a client constructed with
+    ``base_url=""`` to PRODUCTION. Whatever the caller meant, that is the worst
+    available answer -- and every request-origin guard downstream then pins to
+    an origin they did not choose (#120).
+    """
+    from .exceptions import ConfigurationError
+
+    if not isinstance(value, str):
+        raise ConfigurationError(
+            f"base_url must be a string, got {type(value).__name__}. "
+            f"Pass base_url=None for the default."
+        )
+    trimmed = value.strip().rstrip("/")
+    if not trimmed:
+        raise ConfigurationError(
+            "base_url is empty. Pass base_url=None for the default "
+            "(https://api.oilpriceapi.com) rather than an empty string."
+        )
+    return trimmed
 
 
 def mark_ambiguous_write(error, method: Optional[str]):

@@ -44,7 +44,13 @@ from .exceptions import (
 )
 from .models import HistoricalPrice, HistoricalResponse, MarketBrief, Price
 from .resource_validators import format_date
-from .retry import RetryStrategy, mark_ambiguous_write, validated_max_retries
+from .retry import (
+    RetryStrategy,
+    mark_ambiguous_write,
+    validated_base_url,
+    validated_max_retries,
+    validated_timeout,
+)
 
 
 class AsyncOilPriceAPI:
@@ -97,8 +103,13 @@ class AsyncOilPriceAPI:
             )
 
         # Configuration
-        self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
-        self.timeout = timeout or self.DEFAULT_TIMEOUT
+        # Explicit None checks, not `or`, on every one of these four lines.
+        # #115 fixed the two below and left these two, so `timeout=0` silently
+        # became 30 and `base_url=""` silently became production (#120).
+        self.base_url = (
+            self.DEFAULT_BASE_URL if base_url is None else validated_base_url(base_url)
+        )
+        self.timeout = self.DEFAULT_TIMEOUT if timeout is None else validated_timeout(timeout)
         # Explicit None checks, not `or` (#104) -- see OilPriceAPI.__init__.
         self.max_retries = (
             self.DEFAULT_MAX_RETRIES if max_retries is None else validated_max_retries(max_retries)

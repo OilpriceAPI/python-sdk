@@ -216,9 +216,9 @@ def test_async_empty_retry_on_is_preserved():
     assert client.retry_on == []
 
 
-@pytest.mark.parametrize("bad", [0, -1, -5])
+@pytest.mark.parametrize("bad", [-1, -5])
 def test_invalid_max_retries_fails_loudly(bad):
-    """max_retries counts ATTEMPTS. Zero attempts is not a thing; say so."""
+    """max_retries counts ATTEMPTS. A negative count is not a thing; say so."""
     with pytest.raises(ConfigurationError) as excinfo:
         OilPriceAPI(api_key=FIXTURE_KEY, max_retries=bad)
     assert "attempt" in str(excinfo.value).lower()
@@ -232,7 +232,25 @@ def test_non_integer_max_retries_fails_loudly(bad):
 
 def test_async_invalid_max_retries_fails_loudly():
     with pytest.raises(ConfigurationError):
-        AsyncOilPriceAPI(api_key=FIXTURE_KEY, max_retries=0)
+        AsyncOilPriceAPI(api_key=FIXTURE_KEY, max_retries=-1)
+
+
+# max_retries=0 was briefly a ConfigurationError at construction. It is now a
+# DeprecationWarning resolving to one attempt: the validation was right, but a
+# value that constructed fine in 1.13.0 must not take a process down at startup
+# inside a patch series (#121). The full contract lives in
+# tests/unit/test_constructor_config_validation.py; this pins the one thing
+# THIS file exists to protect -- 0 does not silently go back to 3.
+def test_zero_max_retries_does_not_go_back_to_three():
+    counter = _Counter(_status(503))
+    with pytest.warns(DeprecationWarning):
+        client = _sync_client(counter, max_retries=0)
+
+    with patch("time.sleep"):
+        with pytest.raises(OilPriceAPIError):
+            client.request("GET", "/v1/prices/latest")
+
+    assert counter.methods == ["GET"]
 
 
 def test_max_retries_one_means_a_single_attempt():
