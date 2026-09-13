@@ -6,6 +6,47 @@ from typing import List, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 
+AMBIGUOUS_WRITE_NOTE = (
+    "This {method} was NOT retried: the server may have already processed it, "
+    "and replaying it could create a duplicate. Check whether the write landed "
+    "before sending it again. Pass idempotent=True to request() if repeating "
+    "this call is safe."
+)
+
+
+def validated_max_retries(value: object) -> int:
+    """Validate an explicit ``max_retries``.
+
+    ``max_retries`` counts total ATTEMPTS, not retries after the first — that
+    is what the clients have always documented and what the request loop does
+    (``for attempt in range(self.max_retries)``). One attempt is the minimum;
+    zero attempts would send nothing. This used to be swallowed by an ``or``
+    default, which silently turned an explicit 0 into 3.
+    """
+    from .exceptions import ConfigurationError
+
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigurationError(
+            f"max_retries must be an int counting total attempts, got "
+            f"{type(value).__name__}. Pass max_retries=1 for a single attempt "
+            f"with no retries."
+        )
+    if value < 1:
+        raise ConfigurationError(
+            f"max_retries counts total attempts and must be at least 1, got {value}. "
+            f"Pass max_retries=1 for a single attempt with no retries."
+        )
+    return value
+
+
+def mark_ambiguous_write(error, method: Optional[str]):
+    """Tell the caller the write was sent once and its outcome is unknown."""
+    error.ambiguous_write = True
+    note = AMBIGUOUS_WRITE_NOTE.format(method=str(method or "request").upper())
+    error.message = f"{error.message} {note}"
+    error.args = (error.message,)
+    return error
+
 
 class RetryStrategy:
     """
@@ -29,7 +70,9 @@ class RetryStrategy:
             jitter: Add randomized jitter to backoff to prevent thundering herd (default: True)
         """
         self.max_retries = max_retries
-        self.retry_on = retry_on or [500, 502, 503, 504]
+        # None means "not configured"; an explicit [] means "retry on no status
+        # code at all" and must survive (#104).
+        self.retry_on = [500, 502, 503, 504] if retry_on is None else list(retry_on)
         self.jitter = jitter
 
     # A 429 means two completely different things, and retrying is only correct
@@ -50,11 +93,75 @@ class RetryStrategy:
     # recoverable hourly circuit breaker also emits exhausted/0.
     PERSISTENT_QUOTA_WINDOWS = frozenset({"daily_counter", "monthly_counter", "trial_counter"})
 
+    # Replaying a request is only safe when repeating it has the same effect as
+    # doing it once. RFC 9110 calls that idempotent. POST and PATCH are not:
+    # a create the server committed just before the response was lost becomes
+    # two creates on replay -- two subscriptions, two webhooks, two charges.
+    #
+    # A timeout or a transport error is AMBIGUOUS, not a failure: the SDK cannot
+    # know whether the server processed the write. A 5xx is equally ambiguous,
+    # because a gateway can return 502 after the origin already committed. Both
+    # are therefore sent once for a non-idempotent method.
+    #
+    # 429 is the exception in the other direction: it is an outright refusal, so
+    # the write definitively did not happen and replay is safe.
+    IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE"})
+
+    # Bound on any wait, whether computed by backoff or handed to us by the
+    # server in Retry-After. The keyless demo endpoint returns
+    # `retry-after: 31612`, which unbounded would block a process for 8.8 hours.
+    MAX_WAIT_SECONDS = 60.0
+
+    @classmethod
+    def is_replay_safe(
+        cls,
+        method: Optional[str] = None,
+        idempotent: Optional[bool] = None,
+    ) -> bool:
+        """
+        May this request be sent again after an ambiguous outcome?
+
+        Args:
+            method: HTTP method. ``None`` means the caller did not say, and is
+                treated as safe so the public RetryStrategy contract is
+                unchanged for existing callers. The SDK's own clients always
+                pass it.
+            idempotent: Caller's explicit assertion, which wins over the method.
+                Pass True for a write you know is safe to repeat (your own
+                server-side deduplication, a naturally idempotent endpoint).
+
+        Returns:
+            True if the request may be replayed.
+        """
+        if idempotent is not None:
+            return bool(idempotent)
+        if method is None:
+            return True
+        return str(method).upper() in cls.IDEMPOTENT_METHODS
+
+    @classmethod
+    def bounded_wait(cls, seconds: object, fallback: float) -> float:
+        """
+        Clamp a wait to [0, MAX_WAIT_SECONDS], falling back when unparseable.
+
+        Both ends matter. Unbounded above, a server Retry-After can park a
+        process for hours; below zero, ``time.sleep()`` raises ValueError.
+        """
+        try:
+            value = float(seconds)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            value = float(fallback)
+        if value != value:  # NaN
+            value = float(fallback)
+        return max(0.0, min(value, cls.MAX_WAIT_SECONDS))
+
     def should_retry(
         self,
         attempt: int,
         status_code: int,
         headers: Optional[Mapping[str, str]] = None,
+        method: Optional[str] = None,
+        idempotent: Optional[bool] = None,
     ) -> bool:
         """
         Determine if request should be retried.
@@ -65,6 +172,9 @@ class RetryStrategy:
             headers: Response headers. When they identify a durable counter
                 window whose allowance is exhausted, the request is not
                 retried because waiting briefly cannot help.
+            method: HTTP method, so a non-idempotent write is never replayed
+                after an ambiguous 5xx.
+            idempotent: Caller's explicit override of the method check.
 
         Returns:
             True if request should be retried, False otherwise
@@ -76,6 +186,11 @@ class RetryStrategy:
 
         # Only 429 carries a remedy. Server errors are always worth a retry.
         if status_code == 429 and self.quota_exhausted(headers):
+            return False
+
+        # A 429 refused the request outright, so replaying a write is safe.
+        # A 5xx may have committed it; do not replay.
+        if status_code != 429 and not self.is_replay_safe(method, idempotent):
             return False
 
         return True
@@ -103,17 +218,30 @@ class RetryStrategy:
         window = str(lookup.get("x-ratelimit-window", "")).strip().lower()
         return state == "exhausted" and window in cls.PERSISTENT_QUOTA_WINDOWS
 
-    def should_retry_on_exception(self, attempt: int) -> bool:
+    def should_retry_on_exception(
+        self,
+        attempt: int,
+        method: Optional[str] = None,
+        idempotent: Optional[bool] = None,
+    ) -> bool:
         """
         Determine if request should be retried on exception.
 
+        A timeout or transport error is an ambiguous outcome, not a failure:
+        the server may have processed the request before the response was lost.
+        A non-idempotent write is therefore never replayed.
+
         Args:
             attempt: Current attempt number (0-indexed)
+            method: HTTP method. Omitted means "unknown", treated as safe.
+            idempotent: Caller's explicit override of the method check.
 
         Returns:
             True if request should be retried, False otherwise
         """
-        return attempt < self.max_retries - 1
+        if attempt >= self.max_retries - 1:
+            return False
+        return self.is_replay_safe(method, idempotent)
 
     def calculate_wait_time(self, attempt: int) -> float:
         """

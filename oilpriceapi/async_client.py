@@ -44,7 +44,7 @@ from .exceptions import (
 )
 from .models import HistoricalPrice, HistoricalResponse, MarketBrief, Price
 from .resource_validators import format_date
-from .retry import RetryStrategy
+from .retry import RetryStrategy, mark_ambiguous_write, validated_max_retries
 
 
 class AsyncOilPriceAPI:
@@ -56,7 +56,13 @@ class AsyncOilPriceAPI:
         api_key: API key for authentication
         base_url: Base URL for API
         timeout: Request timeout in seconds
-        max_retries: Maximum request attempts
+        max_retries: Total request ATTEMPTS, not retries after the first.
+            Must be at least 1; anything less raises ConfigurationError.
+        retry_on: Status codes to retry on. An explicit empty list is honoured.
+
+    Retry safety: POST and PATCH are sent exactly once -- a timeout, transport
+    error or 5xx is ambiguous, so replaying could duplicate the write. Pass
+    ``idempotent=True`` to ``request()`` to opt back in.
 
     Example:
         >>> async with AsyncOilPriceAPI() as client:
@@ -93,8 +99,13 @@ class AsyncOilPriceAPI:
         # Configuration
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
         self.timeout = timeout or self.DEFAULT_TIMEOUT
-        self.max_retries = max_retries or self.DEFAULT_MAX_RETRIES
-        self.retry_on = retry_on or self.DEFAULT_RETRY_CODES
+        # Explicit None checks, not `or` (#104) -- see OilPriceAPI.__init__.
+        self.max_retries = (
+            self.DEFAULT_MAX_RETRIES if max_retries is None else validated_max_retries(max_retries)
+        )
+        self.retry_on = (
+            list(self.DEFAULT_RETRY_CODES) if retry_on is None else list(retry_on)
+        )
         self.max_connections = max_connections
         self.max_keepalive_connections = max_keepalive_connections
         self.app_url = app_url
@@ -196,9 +207,16 @@ class AsyncOilPriceAPI:
         path: str,
         params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Dict[str, Any]] = None,
+        idempotent: Optional[bool] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], List[Any]]:
-        """Make async HTTP request to API."""
+        """Make async HTTP request to API.
+
+        Args:
+            idempotent: Assert that repeating this request is safe. Without it,
+                a non-idempotent method (POST, PATCH) is sent exactly once and
+                never replayed after an ambiguous outcome (#104).
+        """
         await self._ensure_client()
         assert self._client is not None  # set by _ensure_client
 
@@ -239,11 +257,12 @@ class AsyncOilPriceAPI:
                     )
 
                     # Auto-retry with Retry-After if we have attempts left
-                    if self._retry_strategy.should_retry(attempt, 429, response.headers):
-                        try:
-                            wait_time = min(float(retry_after), 60.0)
-                        except (TypeError, ValueError):
-                            wait_time = self._retry_strategy.calculate_wait_time(attempt)
+                    if self._retry_strategy.should_retry(
+                        attempt, 429, response.headers, method=method, idempotent=idempotent
+                    ):
+                        wait_time = self._retry_strategy.bounded_wait(
+                            retry_after, self._retry_strategy.calculate_wait_time(attempt)
+                        )
                         logger.info(
                             f"Rate limited. Retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})"
                         )
@@ -251,7 +270,11 @@ class AsyncOilPriceAPI:
                         continue
                 elif response.status_code >= 500:
                     if self._retry_strategy.should_retry(
-                        attempt, response.status_code, response.headers
+                        attempt,
+                        response.status_code,
+                        response.headers,
+                        method=method,
+                        idempotent=idempotent,
                     ):
                         wait_time = self._retry_strategy.calculate_wait_time(attempt)
                         self._retry_strategy.log_retry(
@@ -273,20 +296,26 @@ class AsyncOilPriceAPI:
                     api_key=self.api_key,
                     timeout=self.timeout,
                 )
-                if self._retry_strategy.should_retry_on_exception(attempt):
+                if self._retry_strategy.should_retry_on_exception(
+                    attempt, method=method, idempotent=idempotent
+                ):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt, "Request timeout", wait_time, is_async=True
                     )
                     await asyncio.sleep(wait_time)
                     continue
+                if not self._retry_strategy.is_replay_safe(method, idempotent):
+                    raise mark_ambiguous_write(last_exception, method)
                 raise last_exception
             except httpx.RequestError as error:
                 last_exception = error_from_exception(
                     error,
                     api_key=self.api_key,
                 )
-                if self._retry_strategy.should_retry_on_exception(attempt):
+                if self._retry_strategy.should_retry_on_exception(
+                    attempt, method=method, idempotent=idempotent
+                ):
                     wait_time = self._retry_strategy.calculate_wait_time(attempt)
                     self._retry_strategy.log_retry(
                         attempt,
@@ -296,6 +325,8 @@ class AsyncOilPriceAPI:
                     )
                     await asyncio.sleep(wait_time)
                     continue
+                if not self._retry_strategy.is_replay_safe(method, idempotent):
+                    raise mark_ambiguous_write(last_exception, method)
                 raise last_exception
 
         if last_exception:
