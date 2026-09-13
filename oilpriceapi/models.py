@@ -510,20 +510,67 @@ class SubscriptionEvent(BaseModel):
     source: Optional[str] = Field(default=None, description="Attribution source of the subscription")
     tool_name: Optional[str] = Field(default=None, description="Attribution tool name of the subscription")
 
+    # Deprecated accessors (#149). Plain properties, not pydantic fields, so they
+    # never appear in model_dump() or serialization. Removed in 2.0.0.
+
     @property
     def created_at(self) -> datetime:
-        """Deprecated alias for ``observed_at``.
+        """Deprecated alias for ``observed_at``; removed in 2.0.0.
 
         The API never sent ``created_at`` on an event, so this always read
         ``None``. The event's timestamp is ``observed_at``.
         """
         warnings.warn(
-            "SubscriptionEvent.created_at is deprecated and will be removed; use "
-            "observed_at. The events API does not send created_at (#149).",
+            "SubscriptionEvent.created_at is deprecated and will be removed in 2.0.0; "
+            "use observed_at. The events API does not send created_at (#149).",
             DeprecationWarning,
             stacklevel=2,
         )
         return self.observed_at
+
+    @property
+    def type(self) -> None:
+        """Deprecated; always ``None``, removed in 2.0.0.
+
+        The events API has no event type: every event is an interval snapshot.
+        """
+        warnings.warn(
+            "SubscriptionEvent.type is deprecated and will be removed in 2.0.0. It was "
+            "always None: the events API sends no event type, and has no equivalent "
+            "field; every event is an interval snapshot (#149).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return None
+
+    @property
+    def code(self) -> None:
+        """Deprecated; always ``None``, removed in 2.0.0.
+
+        An event can cover several codes: use ``snapshot.keys()``.
+        """
+        warnings.warn(
+            "SubscriptionEvent.code is deprecated and will be removed in 2.0.0. It was "
+            "always None: an event covers every watched code, so use "
+            "list(event.snapshot) (#149).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return None
+
+    @property
+    def payload(self) -> None:
+        """Deprecated; always ``None``, removed in 2.0.0.
+
+        The event data is in ``snapshot`` and ``deltas``.
+        """
+        warnings.warn(
+            "SubscriptionEvent.payload is deprecated and will be removed in 2.0.0. It "
+            "was always None: use event.snapshot and event.deltas (#149).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return None
 
 
 class DataConnectorPrice(BaseModel):

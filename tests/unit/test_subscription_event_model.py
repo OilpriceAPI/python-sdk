@@ -27,6 +27,7 @@ import asyncio
 import json
 import warnings
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -130,23 +131,56 @@ def test_nothing_the_api_did_not_send_is_left_as_an_untyped_extra():
     assert event.model_extra == {}
 
 
-# --- declared fields the API never sends are gone ---------------------------------
+# --- names the API never sends: deprecated accessors, not fields --------------------
+
+DEPRECATED = ["type", "code", "payload", "created_at"]
 
 
-@pytest.mark.parametrize("name", ["type", "code", "payload"])
-def test_fields_the_api_never_sends_are_not_declared(name):
-    assert name not in SubscriptionEvent.model_fields
-    assert not hasattr(SubscriptionEvent(**LAST_EVENT), name)
+@pytest.mark.parametrize(
+    ("name", "guidance"),
+    [("type", "no equivalent"), ("code", "event.snapshot"), ("payload", "event.snapshot")],
+)
+def test_never_sent_names_read_none_and_warn_once_per_access(name, guidance):
+    event = SubscriptionEvent(**LAST_EVENT)
+
+    for _ in range(2):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            value = getattr(event, name)
+        assert value is None
+        assert [w.category for w in caught] == [DeprecationWarning]
+        message = str(caught[0].message)
+        assert f"SubscriptionEvent.{name} is deprecated" in message
+        assert "2.0.0" in message
+        assert guidance in message
 
 
 def test_created_at_is_a_deprecated_alias_for_observed_at():
     event = SubscriptionEvent(**LAST_EVENT)
 
-    with pytest.warns(DeprecationWarning, match="observed_at"):
-        value = event.created_at
+    for _ in range(2):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            value = event.created_at
+        assert value == event.observed_at
+        assert [w.category for w in caught] == [DeprecationWarning]
+        assert "use observed_at" in str(caught[0].message)
+        assert "2.0.0" in str(caught[0].message)
 
-    assert value == event.observed_at
-    assert "created_at" not in SubscriptionEvent.model_fields
+
+@pytest.mark.parametrize("name", DEPRECATED)
+def test_deprecated_names_are_not_fields_and_not_serialized(name):
+    event = SubscriptionEvent(**LAST_EVENT)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        dumped = event.model_dump()
+        dumped_json = json.loads(event.model_dump_json())
+
+    assert name not in SubscriptionEvent.model_fields
+    assert name not in dumped
+    assert name not in dumped_json
+    assert set(dumped) == set(LAST_EVENT)
 
 
 # --- what the API can legitimately omit or null ------------------------------------
@@ -204,7 +238,37 @@ def test_a_snapshot_entry_missing_price_or_currency_is_malformed(mode, missing):
     assert info.value.code == "MALFORMED_RESPONSE"
 
 
-def test_no_deprecation_warning_from_parsing_alone():
+LIVE_EVENTS = json.loads(
+    (Path(__file__).parent / "fixtures" / "subscription_events_live_2026-09-13.json").read_text()
+)
+
+
+def test_parsing_all_223_live_events_emits_no_warning_and_leaves_nothing_untyped():
+    assert len(LIVE_EVENTS) == 223
+
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        SubscriptionEvent(**LAST_EVENT)
+        events = [SubscriptionEvent(**raw) for raw in LIVE_EVENTS]
+        for event in events:
+            event.model_dump()
+
+    assert [event.seq for event in events] == list(range(1, 224))
+    assert all(event.model_extra == {} for event in events)
+    assert [event.seq for event in events if not event.deltas] == [1]
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_polling_the_live_events_emits_no_deprecation_warning(mode):
+    # Only deprecation / SubscriptionEvent warnings are this PR's concern: building
+    # a client can emit unrelated ImportWarnings for optional extras.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        page = _poll(mode, LIVE_EVENTS, cursor=223)
+
+    assert len(page) == 223
+    ours = [
+        str(w.message)
+        for w in caught
+        if issubclass(w.category, DeprecationWarning) or "SubscriptionEvent" in str(w.message)
+    ]
+    assert ours == []

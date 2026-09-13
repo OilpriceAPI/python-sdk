@@ -84,11 +84,6 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
   to the new `SubscriptionEventDelta` (`price_change`, optional `pct_change`).
   An event missing a required field raises
   `OilPriceAPIError(code="MALFORMED_RESPONSE")`.
-  - **Behaviour change:** `type`, `code` and `payload` are removed, because no
-    field in the event corresponds to them. Code that read them only ever got
-    `None`. Watched codes are the keys of `event.snapshot`.
-  - `created_at` is kept as a deprecated property. It returns `observed_at` and
-    emits a `DeprecationWarning`.
 - **`error.code` is no longer set to a human sentence (#145).** For fail
   envelopes, `{"status": "fail", "data": {"error": ...}}`, the SDK copied
   `data.error` into `error.code` / `error.machine_code` whatever it held. Every
@@ -136,6 +131,23 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 - **`Subscription.codes` is required.** A record with no `codes` used to
   default to `[]`, reading as a watch on nothing; the API always sends it, so a
   missing value now fails validation instead of being invented.
+
+### Deprecated
+
+- **`SubscriptionEvent.type`, `.code`, `.payload` and `.created_at` are
+  deprecated and will be removed in 2.0.0 (#149).** The events API never sends
+  any of them. They are no longer pydantic fields and do not appear in
+  `model_dump()`. Each is now a property that emits a `DeprecationWarning` on
+  access:
+  - `type` returns `None` and has no equivalent, because every event is an
+    interval snapshot.
+  - `code` returns `None`. An event covers every watched code; use
+    `list(event.snapshot)`.
+  - `payload` returns `None`. Use `event.snapshot` and `event.deltas`.
+  - `created_at` returns `observed_at`, the event's timestamp, where it used to
+    return `None`.
+
+  Parsing, polling and serializing events emit no warning.
 
 ## [1.15.0] - 2026-09-13
 
