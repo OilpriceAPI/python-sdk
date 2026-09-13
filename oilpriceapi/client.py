@@ -16,8 +16,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-from ._subscriptions_common import unwrap_data
 from ._body import decode_json_body
+from ._subscriptions_common import unwrap_data
 from ._url import resolve_api_url
 from .exceptions import (
     ConfigurationError,
