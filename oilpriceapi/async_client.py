@@ -429,14 +429,17 @@ class AsyncPricesResource:
         self.client = client
 
     @staticmethod
-    def _to_price(price_data: Dict[str, Any], fallback_code: Optional[str] = None) -> Price:
+    def _to_price(price_data: Dict[str, Any]) -> Price:
         """Map one API price row onto the Price model.
 
-        Casts are for mypy; pydantic does the real validation. See
-        PricesResource._to_price.
+        An absent ``code`` maps to ``""`` and is never back-filled with the
+        requested code (#127) — see PricesResource._to_price for why. Kept
+        signature-identical to the sync mapper so the two cannot drift.
+
+        Casts are for mypy; pydantic does the real validation.
         """
         return Price(
-            commodity=cast(str, price_data.get("code", fallback_code)),
+            commodity=cast(str, price_data.get("code", "")),
             value=cast(float, price_data.get("price")),
             currency=price_data.get("currency", "USD"),
             unit=cast(str, price_data.get("unit", "barrel")),
@@ -461,7 +464,7 @@ class AsyncPricesResource:
         else:
             rows = [data]
 
-        return [self._to_price(row, codes[0] if len(codes) == 1 else None) for row in rows]
+        return [self._to_price(row) for row in rows]
 
     async def get(self, commodity: str) -> Price:
         """Get current price for commodity."""
@@ -474,18 +477,13 @@ class AsyncPricesResource:
         else:
             price_data = response
 
-        # Map API response to Price model
-        # Note: API should provide 'unit' field. If missing, we default to 'barrel'
-        # for backwards compatibility, but this may be incorrect for non-oil commodities
-        mapped_data = {
-            "commodity": price_data.get("code", commodity),
-            "value": price_data.get("price"),
-            "currency": price_data.get("currency", "USD"),
-            "unit": price_data.get("unit", "barrel"),
-            "timestamp": price_data.get("created_at"),
-        }
-
-        return Price(**mapped_data)
+        # Single mapper for every async price read, so this path cannot drift
+        # from _fetch_batch (it previously carried its own copy, including its
+        # own `code` fallback to the requested commodity — #127).
+        # Note: API should provide 'unit' field. If missing, _to_price defaults
+        # to 'barrel' for backwards compatibility, which may be incorrect for
+        # non-oil commodities.
+        return self._to_price(price_data)
 
     async def get_multiple(
         self, commodities: List[str], raise_on_error: bool = False, return_failures: bool = False

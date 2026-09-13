@@ -27,10 +27,18 @@ class PricesResource:
         self.client = client
 
     @staticmethod
-    def _to_price(price_data: Dict[str, Any], fallback_code: Optional[str] = None) -> Price:
+    def _to_price(price_data: Dict[str, Any]) -> Price:
         """Map one API price row onto the Price model.
 
         Shared by get() and the batched path so the two cannot drift.
+
+        An absent ``code`` maps to ``""``, matching get_all() below (#127).
+        It must NEVER be back-filled with the code the caller asked for: a
+        consumer's ``price.commodity == requested`` check is the durable
+        defence against being served a different instrument (#112,
+        mcp-server#90), and stamping the request onto an unidentified row
+        makes that check pass by construction on exactly the responses where
+        it needed to fail. Empty is recoverable; a fabricated match is not.
 
         Values are passed to a pydantic model, which does the coercion and
         raises on anything genuinely wrong. The casts here are for mypy: the
@@ -38,7 +46,7 @@ class PricesResource:
         form simply hid that from the type checker.
         """
         return Price(
-            commodity=cast(str, price_data.get("code", fallback_code)),
+            commodity=cast(str, price_data.get("code", "")),
             value=cast(float, price_data.get("price")),
             currency=price_data.get("currency"),
             # Retain the established oil-only fallback for legacy minimal
@@ -66,7 +74,7 @@ class PricesResource:
         else:
             rows = [data]
 
-        return [self._to_price(row, codes[0] if len(codes) == 1 else None) for row in rows]
+        return [self._to_price(row) for row in rows]
 
     def get(self, commodity: str) -> Price:
         """Get current price for a single commodity.
@@ -86,7 +94,7 @@ class PricesResource:
         )
 
         price_data = response["data"] if "data" in response else response
-        return self._to_price(price_data, commodity)
+        return self._to_price(price_data)
 
     def get_multiple(
         self, commodities: List[str], raise_on_error: bool = False, return_failures: bool = False
