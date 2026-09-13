@@ -28,7 +28,9 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
   - History responses expose the server-applied `period` and, for crack
     spreads, the `coverage` actually returned.
   - Blank selectors, invalid dates, `start_date` after `end_date`, and more than
-    20 codes for `annotations_batch` are refused before any request is sent.
+    20 codes for `annotations_batch` are refused before any request is sent,
+    with `ValidationError` (an `OilPriceAPIError`) carrying `field`, `value`
+    and `status_code=None`.
     The API would otherwise return a default window, or silently annotate only
     the first 20 codes.
   - `/v1/indicators/congressional-trades` is deliberately not exposed. It has

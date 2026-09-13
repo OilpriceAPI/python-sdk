@@ -61,7 +61,8 @@ class SpreadsResource:
             ``components``, the oldest input ``timestamp`` and ``changes``.
 
         Raises:
-            ValueError: If an argument is blank.
+            ValidationError: If an argument is blank (raised locally,
+                ``status_code`` is ``None``).
             DataNotFoundError: Unknown spread type, or no data for an input.
 
         Example:
@@ -93,7 +94,8 @@ class SpreadsResource:
             changes when the underlying inputs are restated.
 
         Raises:
-            ValueError: Blank selector, invalid date, or start after end.
+            ValidationError: Blank selector, invalid date, or start after end
+                (raised locally, ``status_code`` is ``None``).
         """
         return ops.run_sync(
             self.client, ops.crack_historical(spread_type, crude, start_date, end_date)
@@ -124,7 +126,7 @@ class SpreadsResource:
             pair: Pair key, e.g. ``"BRENT_WTI"``, ``"WAHA_HH"``, ``"TTF_HH"``.
 
         Raises:
-            ValueError: If ``pair`` is blank.
+            ValidationError: If ``pair`` is blank (raised locally).
             DataNotFoundError: Unknown pair (the message lists valid pairs).
 
         Example:

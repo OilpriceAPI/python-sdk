@@ -29,6 +29,7 @@ from oilpriceapi.exceptions import (
     PaymentRequiredError,
     PermissionDeniedError,
     RateLimitError,
+    ValidationError,
 )
 from oilpriceapi.exceptions import TimeoutError as OPATimeoutError
 from oilpriceapi.metrics_models import (
@@ -742,49 +743,91 @@ async def test_async_timeout_recovers_on_retry(mock_request, _sleep):
 # ---------------------------------------------------------------------------
 
 INVALID_CALLS = [
-    ("basis empty pair", "spreads", "basis", ("",), {}),
-    ("basis blank pair", "spreads", "basis", ("   ",), {}),
-    ("basis non-str pair", "spreads", "basis", (None,), {}),
-    ("basis_historical empty pair", "spreads", "basis_historical", ("",), {}),
-    ("curve empty commodity", "spreads", "curve_structure", ("",), {}),
-    ("crack blank type", "spreads", "crack", (), {"spread_type": " "}),
-    ("crack bad start_date", "spreads", "crack_historical", (), {"start_date": "09/01/2026"}),
-    ("margin impossible end_date", "spreads", "margin_historical", (), {"end_date": "2026-02-30"}),
+    ("basis empty pair", "spreads", "basis", ("",), {}, "pair"),
+    ("basis blank pair", "spreads", "basis", ("   ",), {}, "pair"),
+    ("basis non-str pair", "spreads", "basis", (None,), {}, "pair"),
+    ("basis_historical empty pair", "spreads", "basis_historical", ("",), {}, "pair"),
+    ("curve empty commodity", "spreads", "curve_structure", ("",), {}, "commodity"),
+    ("crack blank type", "spreads", "crack", (), {"spread_type": " "}, "spread_type"),
+    (
+        "crack bad start_date", "spreads", "crack_historical", (), {"start_date": "09/01/2026"},
+        "start_date",
+    ),
+    (
+        "margin impossible end_date", "spreads", "margin_historical", (), {"end_date": "2026-02-30"},
+        "end_date",
+    ),
     (
         "start after end", "spreads", "basis_historical", ("BRENT_WTI",),
-        {"start_date": "2026-09-10", "end_date": "2026-09-01"},
+        {"start_date": "2026-09-10", "end_date": "2026-09-01"}, "start_date",
     ),
-    ("price_context empty code", "indicators", "price_context", ("",), {}),
-    ("annotations empty code", "indicators", "annotations", ("",), {}),
-    ("annotations_batch empty list", "indicators", "annotations_batch", ([],), {}),
-    ("annotations_batch blank code", "indicators", "annotations_batch", (["BRENT_CRUDE_USD", ""],), {}),
-    ("annotations_batch comma in code", "indicators", "annotations_batch", (["A,B"],), {}),
-    ("annotations_batch bare string", "indicators", "annotations_batch", ("BRENT_CRUDE_USD",), {}),
+    ("price_context empty code", "indicators", "price_context", ("",), {}, "code"),
+    ("annotations empty code", "indicators", "annotations", ("",), {}, "code"),
+    ("annotations_batch empty list", "indicators", "annotations_batch", ([],), {}, "codes"),
+    (
+        "annotations_batch blank code", "indicators", "annotations_batch",
+        (["BRENT_CRUDE_USD", ""],), {}, "codes",
+    ),
+    ("annotations_batch comma in code", "indicators", "annotations_batch", (["A,B"],), {}, "codes"),
+    (
+        "annotations_batch bare string", "indicators", "annotations_batch",
+        ("BRENT_CRUDE_USD",), {}, "codes",
+    ),
     (
         "annotations_batch over server cap", "indicators", "annotations_batch",
-        ([f"CODE_{i}" for i in range(21)],), {},
+        ([f"CODE_{i}" for i in range(21)],), {}, "codes",
     ),
-    ("cftc bad date type", "indicators", "cftc_positioning_historical", (), {"start_date": 20260901}),
+    (
+        "cftc bad date type", "indicators", "cftc_positioning_historical", (),
+        {"start_date": 20260901}, "start_date",
+    ),
 ]
 
 
-@pytest.mark.parametrize("label,namespace,method,args,kwargs", INVALID_CALLS, ids=[c[0] for c in INVALID_CALLS])
+def _assert_local_refusal(error, field):
+    """A local refusal is the SDK's ValidationError, catchable as OilPriceAPIError,
+    and carries no HTTP status because no request was sent (#123, #134)."""
+    assert type(error) is ValidationError
+    assert isinstance(error, OilPriceAPIError)
+    assert error.status_code is None
+    assert error.field == field
+    assert str(error)
+
+
+@pytest.mark.parametrize(
+    "label,namespace,method,args,kwargs,field", INVALID_CALLS, ids=[c[0] for c in INVALID_CALLS]
+)
 @patch("httpx.Client.request")
-def test_sync_invalid_arguments_never_reach_the_network(mock_request, label, namespace, method, args, kwargs):
-    with pytest.raises(ValueError):
+def test_sync_invalid_arguments_never_reach_the_network(
+    mock_request, label, namespace, method, args, kwargs, field
+):
+    with pytest.raises(OilPriceAPIError) as info:
         getattr(getattr(_sync(), namespace), method)(*args, **kwargs)
+    _assert_local_refusal(info.value, field)
     mock_request.assert_not_called()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("label,namespace,method,args,kwargs", INVALID_CALLS, ids=[c[0] for c in INVALID_CALLS])
+@pytest.mark.parametrize(
+    "label,namespace,method,args,kwargs,field", INVALID_CALLS, ids=[c[0] for c in INVALID_CALLS]
+)
 @patch("httpx.AsyncClient.request")
 async def test_async_invalid_arguments_never_reach_the_network(
-    mock_request, label, namespace, method, args, kwargs
+    mock_request, label, namespace, method, args, kwargs, field
 ):
-    with pytest.raises(ValueError):
+    with pytest.raises(OilPriceAPIError) as info:
         await getattr(getattr(_async(), namespace), method)(*args, **kwargs)
+    _assert_local_refusal(info.value, field)
     mock_request.assert_not_called()
+
+
+def test_local_refusal_keeps_the_offending_value():
+    with pytest.raises(ValidationError) as info:
+        _sync().spreads.basis_historical("BRENT_WTI", start_date="2026-09-10", end_date="2026-09-01")
+    assert info.value.value == "2026-09-10"
+    with pytest.raises(ValidationError) as info:
+        _sync().indicators.annotations_batch(["A,B"])
+    assert info.value.value == "A,B"
 
 
 def test_congressional_trades_is_not_exposed():

@@ -10,7 +10,8 @@ both clients by construction rather than by copy.
 Two rules are enforced here and nowhere else:
 
 * **Arguments are validated before any request is sent.** A blank selector or
-  an unparseable date raises ``ValueError`` locally. The API would otherwise
+  an unparseable date raises ``ValidationError`` locally, with
+  ``status_code=None`` because nothing was sent. The API would otherwise
   fall back to a default window, or answer an unknown selector on a history
   route with an empty HTTP 200 -- neither is a result the caller asked for.
 * **A malformed success body raises.** A 200 whose envelope, collection or
@@ -26,7 +27,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Sequence, Type,
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 
-from ..exceptions import OilPriceAPIError
+from ..exceptions import OilPriceAPIError, ValidationError
 from ..metrics_models import (
     BasisSpread,
     BasisSpreadHistory,
@@ -160,11 +161,21 @@ def _collection(path: str, key: str, model: Type[M], subject: str) -> "MetricsCa
 # ---------------------------------------------------------------------------
 
 
+def _refuse(message: str, field: str, value: Any) -> ValidationError:
+    """Build a local refusal.
+
+    Matches ``_url._reject``: a ``ValidationError`` (so the documented
+    ``except OilPriceAPIError`` catch-all sees it) with ``status_code=None``,
+    because no request was sent and there is no HTTP status to report (#123).
+    """
+    return ValidationError(message=message, field=field, value=value, status_code=None)
+
+
 def _text(name: str, value: Any, *, required: bool) -> Optional[str]:
     if value is None and not required:
         return None
     if not isinstance(value, str) or not value.strip():
-        raise ValueError("%s must be a non-empty string" % name)
+        raise _refuse("%s must be a non-empty string" % name, name, value)
     return value.strip()
 
 
@@ -172,11 +183,26 @@ def _params(**values: Optional[str]) -> Dict[str, str]:
     return {key: value for key, value in values.items() if value is not None}
 
 
+def _date(name: str, value: Optional[DateInput]) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        return format_date(value)
+    except ValueError as exc:
+        # format_date is shared with older resources and raises ValueError;
+        # these new methods report the refusal in the SDK's own error type.
+        raise _refuse("%s: %s" % (name, exc), name, value) from exc
+
+
 def _window(start_date: Optional[DateInput], end_date: Optional[DateInput]) -> Dict[str, str]:
-    start = format_date(start_date) if start_date is not None else None
-    end = format_date(end_date) if end_date is not None else None
+    start = _date("start_date", start_date)
+    end = _date("end_date", end_date)
     if start is not None and end is not None and start > end:
-        raise ValueError("start_date (%s) must be on or before end_date (%s)" % (start, end))
+        raise _refuse(
+            "start_date (%s) must be on or before end_date (%s)" % (start, end),
+            "start_date",
+            start_date,
+        )
     return _params(start_date=start, end_date=end)
 
 
@@ -350,20 +376,23 @@ def annotations(code: str) -> "MetricsCall[MarketAnnotations]":
 
 def annotations_batch(codes: Sequence[str]) -> "MetricsCall[MarketAnnotationsBatch]":
     if isinstance(codes, str) or not isinstance(codes, Sequence):
-        raise ValueError("codes must be a list of commodity codes")
+        raise _refuse("codes must be a list of commodity codes", "codes", codes)
     if not codes:
-        raise ValueError("codes must contain at least one commodity code")
+        raise _refuse("codes must contain at least one commodity code", "codes", codes)
     if len(codes) > ANNOTATIONS_BATCH_MAX_CODES:
-        raise ValueError(
+        raise _refuse(
             "codes accepts at most %d commodity codes per call (got %d); the API "
-            "silently ignores the rest" % (ANNOTATIONS_BATCH_MAX_CODES, len(codes))
+            "silently ignores the rest" % (ANNOTATIONS_BATCH_MAX_CODES, len(codes)),
+            "codes",
+            codes,
         )
     cleaned: List[str] = []
     for code in codes:
-        text = _text("each code", code, required=True)
-        assert text is not None
+        if not isinstance(code, str) or not code.strip():
+            raise _refuse("each code must be a non-empty string", "codes", code)
+        text = code.strip()
         if "," in text:
-            raise ValueError("commodity codes may not contain ',' (got %r)" % text)
+            raise _refuse("commodity codes may not contain ',' (got %r)" % text, "codes", text)
         cleaned.append(text)
     params = {"codes": ",".join(cleaned)}
     return _object(

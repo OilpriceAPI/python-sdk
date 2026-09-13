@@ -79,7 +79,7 @@ class IndicatorsResource:
             enough history) are ``None``; ``context.anomaly`` is always set.
 
         Raises:
-            ValueError: If ``code`` is blank.
+            ValidationError: If ``code`` is blank (raised locally).
             DataNotFoundError: No data for ``code``.
         """
         return ops.run_sync(self.client, ops.price_context(code, related_spreads))
@@ -101,7 +101,7 @@ class IndicatorsResource:
         """Get annotations for up to 20 commodity codes in one request.
 
         The server leaves out codes it has no data for and codes with no
-        annotations. More than 20 codes raises ``ValueError`` locally, because
+        annotations. More than 20 codes raises ``ValidationError`` locally, because
         the API silently annotates only the first 20.
         """
         return ops.run_sync(self.client, ops.annotations_batch(codes))
