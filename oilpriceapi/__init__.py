@@ -46,6 +46,7 @@ from oilpriceapi.streaming import (
     PriceStream,
     PriceUpdate,
     RigCountUpdate,
+    StreamAuthError,
     StreamingNotInstalledError,
     StreamUpdate,
 )
@@ -82,6 +83,7 @@ __all__ = [
     "StreamUpdate",
     "PriceUpdate",
     "RigCountUpdate",
+    "StreamAuthError",
     "StreamingNotInstalledError",
 ]
 
