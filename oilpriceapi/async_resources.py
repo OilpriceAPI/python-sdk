@@ -37,12 +37,27 @@ class AsyncDieselResource:
         response = await self.client.request(
             method="GET", path="/v1/diesel-prices", params={"state": state.upper()}
         )
+        location = None
         if "regional_average" in response:
             price_data = response["regional_average"]
+            location = response.get("location")
         elif "data" in response:
             price_data = response["data"]
+            location = response.get("location")
         else:
             price_data = response
+
+        # `regional_average` carries `region` ("california"), not `state`, which
+        # the model requires. The envelope's location block has the code; fall
+        # back to what the caller asked for.
+        #
+        # The sync client has had this block since resources/diesel.py:116-118;
+        # the async client never did, so the SAME response the sync client
+        # parsed made this one raise "state: Field required" (#123).
+        if isinstance(price_data, dict) and not price_data.get("state"):
+            state_code = location.get("state_code") if isinstance(location, dict) else None
+            price_data["state"] = (state_code or state).upper()
+
         return DieselPrice(**price_data)
 
     async def get_stations(self, lat: float, lng: float, radius: Optional[float] = 8047) -> DieselStationsResponse:
