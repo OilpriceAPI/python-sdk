@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import Any, Tuple
 from urllib.parse import urljoin, urlsplit
 
-from .exceptions import ValidationError
+from .exceptions import ConfigurationError, ValidationError
 
 __all__ = ["resolve_api_url"]
 
@@ -44,10 +44,26 @@ _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
 def _origin(url: str) -> Tuple[str, str, int]:
-    parts = urlsplit(url)
-    scheme = (parts.scheme or "").lower()
-    host = (parts.hostname or "").lower()
-    port = parts.port or _DEFAULT_PORTS.get(scheme, 0)
+    """Return ``(scheme, host, port)``, never a raw ``ValueError``.
+
+    ``urlsplit`` and its ``.hostname`` / ``.port`` accessors raise ValueError
+    for an out-of-range port ("...:99999") and for a non-ASCII netloc whose
+    NFKC normalisation introduces one of ``/?#@:`` ("https://\u2100evil.example").
+    ``_origin`` runs on ``base_url`` on EVERY request, so a misconfigured client
+    raised a bare stdlib exception from the hot path -- the one type this
+    module's docstring says cannot escape (#123).
+    """
+    try:
+        parts = urlsplit(url)
+        scheme = (parts.scheme or "").lower()
+        host = (parts.hostname or "").lower()
+        port = parts.port or _DEFAULT_PORTS.get(scheme, 0)
+    except ValueError as exc:
+        raise ConfigurationError(
+            f"Cannot parse the URL {url!r}: {exc}. "
+            "Check the client's base_url -- it must be an absolute "
+            "http(s) origin such as 'https://api.oilpriceapi.com'."
+        ) from exc
     return scheme, host, port
 
 
@@ -65,6 +81,10 @@ def _reject(path: Any, reason: str) -> "ValidationError":
         ),
         field="path",
         value=path,
+        # No request was sent, so there is no HTTP status to report. The 422
+        # default would make this local refusal indistinguishable, to any log
+        # or metric keyed on status, from a 422 the API actually returned.
+        status_code=None,
     )
 
 
@@ -104,7 +124,16 @@ def resolve_api_url(base_url: str, path: Any) -> str:
 
     normalized = path if path.startswith("/") else "/" + path
 
-    url = urljoin(base_url + "/", normalized)
+    # urljoin parses the base, so it raises the same ValueError _origin does
+    # for an out-of-range port or an NFKC-invalid netloc -- and it runs first.
+    try:
+        url = urljoin(base_url + "/", normalized)
+    except ValueError as exc:
+        raise ConfigurationError(
+            f"Cannot parse the client's base_url {base_url!r}: {exc}. "
+            "It must be an absolute http(s) origin such as "
+            "'https://api.oilpriceapi.com'."
+        ) from exc
 
     if _origin(url) != _origin(base_url):
         raise _reject(path, "resolves to a different host than the configured base URL")
