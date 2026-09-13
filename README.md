@@ -214,6 +214,33 @@ An empty permit search or production history is a valid data state. Do not
 infer broader well-level coverage from the presence of permit data or an SDK
 helper; dataset and account availability come from the current API response.
 
+## Carrier Fuel Surcharges
+
+Weekly fuel surcharges for LTL carriers and, per service level, for parcel
+carriers. Each rate keeps the carrier's `effective_date` and the `source` URL
+and `retrieved_at` time it was retrieved from; a null the API sends (for
+example `doe_diesel_price` on parcel rates) stays `None`.
+
+```python
+import os
+
+from oilpriceapi import OilPriceAPI
+
+with OilPriceAPI(api_key=os.environ["OILPRICEAPI_KEY"]) as client:
+    odfl = client.fuel_surcharge.latest("odfl")
+    history = client.fuel_surcharge.history("odfl", per_page=10)
+    ups_ground = client.fuel_surcharge.parcel_latest_rate("ups", "ground")
+
+print(odfl.surcharge_percent, odfl.effective_date, odfl.source)
+print(history.meta.total_count, [row.effective_date for row in history.history])
+print(ups_ground.surcharge_percent, ups_ground.service_level)
+```
+
+An unknown or uncovered carrier raises `DataNotFoundError` with the covered
+carriers in `error.suggestions`. `page` must be 1 or more and `per_page` 1 to
+100; the SDK refuses other values rather than letting the API clamp them.
+See [`examples/fuel_surcharge.py`](examples/fuel_surcharge.py).
+
 ## Complete pandas DataFrames
 
 Install the optional pandas support, then request a historical DataFrame:

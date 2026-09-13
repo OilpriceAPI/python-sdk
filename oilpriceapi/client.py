@@ -38,6 +38,7 @@ from .resources.diesel import DieselResource
 from .resources.drilling import DrillingIntelligenceResource
 from .resources.ei import EnergyIntelligenceResource
 from .resources.forecasts import ForecastsResource
+from .resources.fuel_surcharge import FuelSurchargeResource
 from .resources.futures import FuturesResource
 from .resources.historical import HistoricalResource
 from .resources.indicators import IndicatorsResource
@@ -217,6 +218,8 @@ class OilPriceAPI:
         self.indicators = IndicatorsResource(self)
         # Public, no-auth demo endpoints (/v1/demo/*).
         self.demo = DemoResource(self)
+        # LTL + parcel carrier fuel surcharges (#101).
+        self.fuel_surcharge = FuelSurchargeResource(self)
 
         # Initialize visualization (optional)
         self.viz: Optional["PriceVisualizer"]

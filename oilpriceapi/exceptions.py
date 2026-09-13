@@ -396,6 +396,25 @@ class FuturesContractError(ValidationError, ValueError):
         return self.message
 
 
+class SubscriptionIntervalError(ValidationError, ValueError):
+    """Raised locally when a subscription interval cannot be parsed (#100).
+
+    Two base classes, deliberately:
+
+    * ``ValidationError`` -- so ``except OilPriceAPIError`` catches it, like
+      every other refusal in this SDK. It is raised before any request is
+      built, so ``status_code`` is ``None``, ``field`` is ``"interval"`` and
+      ``value`` is the rejected input.
+    * ``ValueError`` -- so code written against the pre-#100 ``raise
+      ValueError`` from ``subscriptions.create(interval=...)`` and
+      ``normalize_interval`` keeps working. This is not a breaking change.
+
+    Only the interval path that already raised ``ValueError`` gets the dual
+    base. Refusals introduced with ``get``/``update``/``pause``/``resume`` and
+    the ``delete`` id check raise a plain ``ValidationError``.
+    """
+
+
 class ServerError(OilPriceAPIError):
     """Raised when the server returns HTTP 5xx."""
 
@@ -532,6 +551,8 @@ def error_from_response(
             "suggestions",
             "did_you_mean",
             "valid_commodities",
+            "covered_carriers",
+            "available_service_levels",
         )
     )
     invalid_codes = _string_list(_first_value(sources, "invalid_codes"))

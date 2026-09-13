@@ -3,10 +3,14 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+from . import _fuel_surcharge_common as fs
 from ._subscriptions_common import (
     build_attribution_headers,
     build_create_body,
+    build_update_body,
     unwrap_data,
+    unwrap_subscription,
+    validate_subscription_id,
 )
 from .exceptions import ValidationError
 from .metrics_models import (
@@ -30,7 +34,16 @@ from .metrics_models import (
     RefineryMarginHistory,
     StorageAnalytics,
 )
-from .models import DieselPrice, DieselStationsResponse, PriceAlert, Subscription, SubscriptionEvent
+from .models import (
+    DieselPrice,
+    DieselStationsResponse,
+    FuelSurchargeHistoryPage,
+    FuelSurchargeRate,
+    ParcelFuelSurchargeCarrier,
+    PriceAlert,
+    Subscription,
+    SubscriptionEvent,
+)
 from .resource_validators import (
     VALID_OPERATORS,
     extract_commodity_catalog,
@@ -1618,12 +1631,67 @@ class AsyncSubscriptionsResource:
             json_data=body,
             headers=headers,
         )
-        data = unwrap_data(response)
-        sub = data.get("subscription", data)
-        return Subscription(**sub)
+        return unwrap_subscription(response, subject="subscriptions.create")
+
+    async def get(self, subscription_id: str) -> Subscription:
+        """Fetch one subscription. See ``SubscriptionsResource.get``."""
+        subscription_id = validate_subscription_id(subscription_id)
+        response = await self.client.request(
+            method="GET",
+            path=f"/v1/subscriptions/{subscription_id}",
+        )
+        return unwrap_subscription(response, subject="subscriptions.get")
+
+    async def update(
+        self,
+        subscription_id: str,
+        *,
+        name: Optional[str] = None,
+        codes: Optional[List[str]] = None,
+        interval: Optional[Union[str, int]] = None,
+        deliver_webhook: Optional[bool] = None,
+        status: Optional[str] = None,
+    ) -> Subscription:
+        """Change a subscription; only the arguments passed are sent.
+
+        Sent once (PATCH is not replayed). See ``SubscriptionsResource.update``.
+        """
+        subscription_id = validate_subscription_id(subscription_id)
+        body = build_update_body(
+            name=name,
+            codes=codes,
+            interval=interval,
+            deliver_webhook=deliver_webhook,
+            status=status,
+        )
+        response = await self.client.request(
+            method="PATCH",
+            path=f"/v1/subscriptions/{subscription_id}",
+            json_data=body,
+        )
+        return unwrap_subscription(response, subject="subscriptions.update")
+
+    async def pause(self, subscription_id: str) -> Subscription:
+        """Pause a subscription. See ``SubscriptionsResource.pause``."""
+        subscription_id = validate_subscription_id(subscription_id)
+        response = await self.client.request(
+            method="POST",
+            path=f"/v1/subscriptions/{subscription_id}/pause",
+        )
+        return unwrap_subscription(response, subject="subscriptions.pause")
+
+    async def resume(self, subscription_id: str) -> Subscription:
+        """Resume a paused subscription. See ``SubscriptionsResource.resume``."""
+        subscription_id = validate_subscription_id(subscription_id)
+        response = await self.client.request(
+            method="POST",
+            path=f"/v1/subscriptions/{subscription_id}/resume",
+        )
+        return unwrap_subscription(response, subject="subscriptions.resume")
 
     async def delete(self, subscription_id: str) -> bool:
         """Delete a subscription. Returns True on success."""
+        subscription_id = validate_subscription_id(subscription_id)
         await self.client.request(
             method="DELETE",
             path=f"/v1/subscriptions/{subscription_id}",
@@ -1658,6 +1726,87 @@ class AsyncSubscriptionsResource:
         cursor = data.get("cursor")
         has_more = bool(data.get("has_more", False))
         return SubscriptionEventsPage(events=events, cursor=cursor, has_more=has_more)
+
+
+class AsyncFuelSurchargeResource:
+    """Async LTL and parcel carrier fuel surcharges (#101).
+
+    Same routes, validation and parsing as ``FuelSurchargeResource``; see its
+    docstrings for arguments, return types and errors.
+    """
+
+    def __init__(self, client: Any) -> None:
+        self.client = client
+
+    async def list(self) -> List[FuelSurchargeRate]:
+        """Latest LTL surcharge for every carrier that has data."""
+        response = await self.client.request(method="GET", path=fs.LTL_LIST_PATH)
+        return fs.parse_rate_list(response, subject="fuel-surcharge list")
+
+    async def latest(self, carrier: str) -> FuelSurchargeRate:
+        """Latest LTL surcharge for one carrier."""
+        path = fs.carrier_path(carrier, "latest")
+        response = await self.client.request(method="GET", path=path)
+        return fs.parse_rate(response, mode="ltl", subject="fuel-surcharge latest", carrier=carrier)
+
+    async def history(
+        self,
+        carrier: str,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
+    ) -> FuelSurchargeHistoryPage:
+        """Weekly LTL surcharge history for one carrier, newest first."""
+        path = fs.carrier_path(carrier, "history")
+        params = fs.history_params(page, per_page)
+        response = await self.client.request(method="GET", path=path, params=params or None)
+        return fs.parse_history(
+            response, mode="ltl", subject="fuel-surcharge history", carrier=carrier
+        )
+
+    async def parcel_list(self) -> List[ParcelFuelSurchargeCarrier]:
+        """Latest parcel surcharge per service level, for every parcel carrier."""
+        response = await self.client.request(method="GET", path=fs.PARCEL_LIST_PATH)
+        return fs.parse_parcel_carrier_list(response, subject="parcel fuel-surcharge list")
+
+    async def parcel_latest(self, carrier: str) -> ParcelFuelSurchargeCarrier:
+        """Latest surcharge for every service level of one parcel carrier."""
+        path = fs.parcel_carrier_path(carrier, "latest")
+        response = await self.client.request(method="GET", path=path)
+        return fs.parse_parcel_carrier(
+            response, subject="parcel fuel-surcharge latest", carrier=carrier
+        )
+
+    async def parcel_latest_rate(self, carrier: str, service_level: str) -> FuelSurchargeRate:
+        """Latest surcharge for one parcel carrier and service level."""
+        path = fs.parcel_carrier_path(carrier, "latest")
+        params = {"service_level": fs.validate_slug(service_level, "service_level")}
+        response = await self.client.request(method="GET", path=path, params=params)
+        return fs.parse_rate(
+            response,
+            mode="parcel",
+            subject="parcel fuel-surcharge latest",
+            carrier=carrier,
+            service_level=service_level,
+        )
+
+    async def parcel_history(
+        self,
+        carrier: str,
+        service_level: str,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
+    ) -> FuelSurchargeHistoryPage:
+        """Weekly surcharge history for one parcel carrier and service level."""
+        path = fs.parcel_carrier_path(carrier, "history")
+        params = fs.parcel_history_params(service_level, page, per_page)
+        response = await self.client.request(method="GET", path=path, params=params)
+        return fs.parse_history(
+            response,
+            mode="parcel",
+            subject="parcel fuel-surcharge history",
+            carrier=carrier,
+            service_level=service_level,
+        )
 
 
 class AsyncSpreadsResource:

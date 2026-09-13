@@ -35,6 +35,61 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
     the first 20 codes.
   - `/v1/indicators/congressional-trades` is deliberately not exposed. It has
     never returned data in production, so there is no response shape to type.
+- **Subscription lifecycle: `get`, `update`, `pause`, `resume` (#100).** Sync
+  and async, against `GET`/`PATCH /v1/subscriptions/{id}` and
+  `POST /v1/subscriptions/{id}/pause|resume`. Each returns a typed
+  `Subscription` with the server's timestamps and nulls as sent. `update()`
+  sends only the fields you pass (`name`, `codes`, `interval`,
+  `deliver_webhook`, `status`). Ids and update payloads are validated before
+  any request is built; an invalid one raises `ValidationError` with
+  `status_code=None`, `field` naming the argument, and nothing sent. Unknown ids raise `DataNotFoundError`; a refused update (interval
+  below the plan minimum, webhook delivery the plan lacks) raises
+  `ValidationError` with the server's `details`. `update`, `pause` and
+  `resume` are writes and are sent once, like `create`: after an ambiguous
+  timeout or 5xx the error carries `ambiguous_write=True` and `get()` tells
+  you whether the change landed.
+- **Typed LTL and parcel fuel-surcharge clients (#101).** `client.fuel_surcharge`
+  on both `OilPriceAPI` and `AsyncOilPriceAPI` covers all six
+  `/v1/fuel-surcharge` routes: `list()`, `latest(carrier)`,
+  `history(carrier, page=, per_page=)`, `parcel_list()`,
+  `parcel_latest(carrier)`, `parcel_latest_rate(carrier, service_level)` and
+  `parcel_history(carrier, service_level, page=, per_page=)`. Responses are
+  `FuelSurchargeRate`, `FuelSurchargeHistoryPage` (with the server's
+  `meta`) and `ParcelFuelSurchargeCarrier` models typed from production
+  payloads captured on 2026-09-13: `effective_date` is a `date`,
+  `retrieved_at` a timezone-aware `datetime`, and `source`, nullable
+  `doe_diesel_price` and `diesel_band` are kept as sent. A success body
+  missing a field the API always sends raises
+  `OilPriceAPIError(code="MALFORMED_RESPONSE")` instead of defaulting it.
+  Carrier slugs, service levels and pagination are validated before any
+  request; out-of-range `page`/`per_page` are refused because the API clamps
+  them silently.
+- **Fuel-surcharge 400/404 bodies populate `error.suggestions`.** The
+  `covered_carriers` and `available_service_levels` lists the API returns with
+  an unknown carrier or a missing service level are now surfaced the same way
+  commodity suggestions are.
+
+### Fixed
+
+- **`subscriptions.create()` no longer turns a malformed success into a
+  half-built record.** It fell back to treating the whole `data` object as the
+  subscription when `data.subscription` was missing, and leaked a raw pydantic
+  or `TypeError` when the record was null or a list. It now raises
+  `OilPriceAPIError(code="MALFORMED_RESPONSE")`, the same as the new lifecycle
+  methods.
+- **`subscriptions.delete()` validates the id before sending.** An id such as
+  `"abc/pause"` or `""` previously produced a request to a different route; it
+  now raises `ValidationError(field="subscription_id", status_code=None)`.
+- **A bad subscription `interval` is now an SDK refusal as well as a
+  `ValueError`.** `subscriptions.create(interval=...)`, `normalize_interval` and
+  `build_create_body` raise the new `SubscriptionIntervalError`, a subclass of
+  both `ValidationError` and `ValueError` (like `FuturesContractError`), so
+  `except OilPriceAPIError` catches it and existing `except ValueError` code
+  keeps working. It carries `field="interval"`, the rejected `value`, and
+  `status_code=None`.
+- **`Subscription.codes` is required.** A record with no `codes` used to
+  default to `[]`, reading as a watch on nothing; the API always sends it, so a
+  missing value now fails validation instead of being invented.
 
 ## [1.15.0] - 2026-09-13
 

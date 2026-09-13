@@ -4,7 +4,7 @@ OilPriceAPI Data Models
 Pydantic models for API responses.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -425,7 +425,10 @@ class Subscription(BaseModel):
 
     id: str = Field(description="Unique subscription identifier")
     name: Optional[str] = Field(default=None, description="User-friendly subscription name")
-    codes: List[str] = Field(default_factory=list, description="Commodity codes being watched")
+    # Required: the server always sends it, and a watch cannot exist without
+    # codes (Watch validates presence). Defaulting a missing value to [] would
+    # report a malformed record as a watch on nothing (#100).
+    codes: List[str] = Field(description="Commodity codes being watched")
     interval_seconds: Optional[int] = Field(default=None, description="Evaluation interval in seconds")
     status: Optional[str] = Field(default=None, description="Subscription status (active, paused, etc.)")
     deliver_webhook: Optional[bool] = Field(default=None, description="Whether events are delivered via webhook")
@@ -508,3 +511,97 @@ class DataConnectorPrice(BaseModel):
     def __str__(self) -> str:
         """String representation."""
         return f"{self.fuel_type} @ {self.port}: {self.currency}{self.price:.2f}/{self.unit}"
+
+
+class FuelSurchargeDieselBand(BaseModel):
+    """The DOE diesel price band a carrier's published table matched.
+
+    Either bound may be null: an open-ended top band has no ``max``.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    min: Optional[float] = Field(strict=True, description="Band lower bound, USD/gal")
+    max: Optional[float] = Field(strict=True, description="Band upper bound, USD/gal")
+
+
+class FuelSurchargeRate(BaseModel):
+    """One carrier fuel-surcharge rate (LTL, or one parcel service level).
+
+    Every key the API always sends is required here. A key the API sends as
+    null stays ``None``; a key missing from the payload is a malformed response,
+    never a default. ``service_level`` is only sent for parcel rates.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    carrier: str = Field(min_length=1, description="Public carrier slug, e.g. 'odfl'")
+    carrier_name: str = Field(min_length=1, description="Carrier display name")
+    mode: str = Field(min_length=1, description="'ltl' or 'parcel'")
+    surcharge_percent: float = Field(strict=True, description="Surcharge as a percent of the line-haul/transport charge")
+    effective_date: date = Field(description="Date the carrier's surcharge takes effect")
+    doe_diesel_price: Optional[float] = Field(
+        strict=True, description="DOE diesel price the rate is indexed to, USD/gal; null when not published"
+    )
+    diesel_band: Optional[FuelSurchargeDieselBand] = Field(
+        description="Diesel price band matched in the carrier's table; null when not applicable"
+    )
+    source: str = Field(min_length=1, description="URL the rate was retrieved from")
+    retrieved_at: datetime = Field(description="When the rate was retrieved (UTC)")
+    service_level: Optional[str] = Field(default=None, description="Parcel service level; absent for LTL")
+
+    @field_validator("effective_date", mode="before")
+    @classmethod
+    def parse_effective_date(cls, v: Any) -> Any:
+        """Accept only the API's ``YYYY-MM-DD`` string (or a ``date``)."""
+        if isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if isinstance(v, str) and len(v) == 10 and v[4] == "-" and v[7] == "-":
+            return date.fromisoformat(v)
+        raise ValueError(f"expected a YYYY-MM-DD date string, got {v!r}")
+
+    @field_validator("retrieved_at", mode="before")
+    @classmethod
+    def parse_retrieved_at(cls, v: Any) -> Any:
+        """Parse an ISO-8601 timestamp and require an explicit UTC offset."""
+        if isinstance(v, str):
+            try:
+                v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except ValueError:
+                raise ValueError(f"expected an ISO-8601 timestamp, got {v!r}") from None
+        if not isinstance(v, datetime):
+            raise ValueError(f"expected an ISO-8601 timestamp, got {v!r}")
+        if v.tzinfo is None:
+            raise ValueError("retrieved_at has no UTC offset; refusing to guess its zone")
+        return v
+
+
+class FuelSurchargeHistoryMeta(BaseModel):
+    """Pagination metadata exactly as the history routes send it."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    page: int = Field(strict=True, description="Page returned")
+    per_page: int = Field(strict=True, description="Rows per page the server applied")
+    total_count: int = Field(strict=True, description="Rows available across all pages")
+    total_pages: int = Field(strict=True, description="Pages available")
+
+
+class FuelSurchargeHistoryPage(BaseModel):
+    """One page of weekly fuel-surcharge history, newest first."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    history: List[FuelSurchargeRate] = Field(description="Rates on this page")
+    meta: FuelSurchargeHistoryMeta = Field(description="Pagination metadata")
+
+
+class ParcelFuelSurchargeCarrier(BaseModel):
+    """A parcel carrier with its latest rate for each service level."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    carrier: str = Field(min_length=1, description="Public parcel carrier slug, e.g. 'ups'")
+    carrier_name: Optional[str] = Field(description="Carrier display name")
+    mode: str = Field(min_length=1, description="Always 'parcel'")
+    service_levels: List[FuelSurchargeRate] = Field(description="Latest rate per service level")
