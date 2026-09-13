@@ -115,7 +115,11 @@ class DieselResource:
         # back to what the caller asked for.
         if isinstance(price_data, dict) and not price_data.get("state"):
             state_code = location.get("state_code") if isinstance(location, dict) else None
-            price_data["state"] = state_code or state.upper()
+            # Uppercase BOTH branches. The location block carries the code as
+            # the API sends it ("ca") while the fallback already uppercased, so
+            # the same caller input produced 'ca' or 'CA' depending on which
+            # branch ran (#123).
+            price_data["state"] = (state_code or state).upper()
 
         return DieselPrice(**price_data)
 
