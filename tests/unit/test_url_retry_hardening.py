@@ -15,6 +15,8 @@ Three separate promises the code does not keep:
    for a request that never reached the network.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 
 from oilpriceapi._url import resolve_api_url
@@ -22,6 +24,9 @@ from oilpriceapi.exceptions import OilPriceAPIError, ValidationError
 from oilpriceapi.retry import RetryStrategy
 
 BASE = "https://api.oilpriceapi.com"
+
+# Not a credential: a fixture string, every request here is mocked.
+FIXTURE_KEY = "-".join(["fixture", "not", "a", "real", "key"])
 
 # urlsplit raises ValueError on both of these.
 UNPARSEABLE_BASES = [
@@ -121,40 +126,42 @@ def test_validation_error_default_is_still_422_for_existing_callers():
 
 # --- 4. sync and async must not diverge -------------------------------------
 
-def _max_sleep_over_a_retry_storm(sleeps):
-    return max(sleeps) if sleeps else 0.0
+def _server_error():
+    """A 503 the retry strategy will keep retrying."""
+    response = Mock()
+    response.status_code = 503
+    response.headers = {}
+    response.json.return_value = {"error": "unavailable"}
+    response.text = "unavailable"
+    return response
 
 
-def test_sync_client_never_sleeps_past_the_cap_on_5xx(monkeypatch):
+@patch("httpx.Client.request")
+def test_sync_client_never_sleeps_past_the_cap_on_5xx(mock_request, monkeypatch):
     """The 5xx path, which #115 left unbounded, on the real transport."""
-    import httpx
-    import respx
-
     from oilpriceapi import OilPriceAPI
 
+    mock_request.return_value = _server_error()
     sleeps = []
     monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
 
-    with respx.mock(base_url=BASE) as mock:
-        mock.get("/v1/prices/latest").mock(return_value=httpx.Response(503))
-        c = OilPriceAPI(api_key="k", base_url=BASE, max_retries=14)
-        with pytest.raises(Exception):
-            c.request("GET", "/v1/prices/latest")
+    c = OilPriceAPI(api_key=FIXTURE_KEY, base_url=BASE, max_retries=14)
+    with pytest.raises(Exception):
+        c.request("GET", "/v1/prices/latest")
 
     assert sleeps, "no retry happened; the test proves nothing"
-    assert _max_sleep_over_a_retry_storm(sleeps) <= RetryStrategy.MAX_WAIT_SECONDS, sleeps
+    assert max(sleeps) <= RetryStrategy.MAX_WAIT_SECONDS, max(sleeps)
 
 
 @pytest.mark.asyncio
-async def test_async_client_never_sleeps_past_the_cap_on_5xx(monkeypatch):
+@patch("httpx.AsyncClient.request")
+async def test_async_client_never_sleeps_past_the_cap_on_5xx(mock_request, monkeypatch):
     """Parity: identical assertion against the async client's 5xx path."""
     import asyncio
 
-    import httpx
-    import respx
-
     from oilpriceapi import AsyncOilPriceAPI
 
+    mock_request.return_value = _server_error()
     sleeps = []
 
     async def fake_sleep(s):
@@ -162,14 +169,12 @@ async def test_async_client_never_sleeps_past_the_cap_on_5xx(monkeypatch):
 
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
-    with respx.mock(base_url=BASE) as mock:
-        mock.get("/v1/prices/latest").mock(return_value=httpx.Response(503))
-        c = AsyncOilPriceAPI(api_key="k", base_url=BASE, max_retries=14)
-        with pytest.raises(Exception):
-            await c.request("GET", "/v1/prices/latest")
+    c = AsyncOilPriceAPI(api_key=FIXTURE_KEY, base_url=BASE, max_retries=14)
+    with pytest.raises(Exception):
+        await c.request("GET", "/v1/prices/latest")
 
     assert sleeps, "no retry happened; the test proves nothing"
-    assert _max_sleep_over_a_retry_storm(sleeps) <= RetryStrategy.MAX_WAIT_SECONDS, sleeps
+    assert max(sleeps) <= RetryStrategy.MAX_WAIT_SECONDS, max(sleeps)
 
 
 def test_both_clients_have_the_same_number_of_wait_call_sites_per_method():
