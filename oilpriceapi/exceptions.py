@@ -551,6 +551,8 @@ def error_from_response(
             "suggestions",
             "did_you_mean",
             "valid_commodities",
+            "covered_carriers",
+            "available_service_levels",
         )
     )
     invalid_codes = _string_list(_first_value(sources, "invalid_codes"))
