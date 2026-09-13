@@ -6,6 +6,15 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ### Fixed
 
+- **A price response that omits `code` no longer comes back wearing the code you
+  asked for (#127).** `_to_price` filled an absent `code` with the requested
+  commodity, so `price.commodity == requested` -- the one consumer-side check
+  that catches being served a different instrument (#112, `mcp-server#90`) --
+  passed by construction on exactly the rows where it needed to fail. An absent
+  code now reads as absent (`""`), matching what `prices.get_all()` has always
+  done. Sync and async, every price-read path. **Behaviour change:** code that
+  read `price.commodity` on a response without `code` now sees `""` instead of
+  the requested code; use the code you passed in if you need it echoed back.
 - **`timeout=0` is honoured instead of silently becoming 30.** The constructor
   used `timeout or self.DEFAULT_TIMEOUT`, so an explicit zero -- a real httpx
   timeout meaning "fail immediately", and what
