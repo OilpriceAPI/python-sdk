@@ -4,6 +4,8 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-09-13
+
 ### Fixed
 
 - **Energy Intelligence collection methods now return the collection they
