@@ -14,6 +14,7 @@ from .exceptions import SubscriptionIntervalError, ValidationError
 
 if TYPE_CHECKING:
     from .models import Subscription
+    from .resources.subscriptions import SubscriptionEventsPage
 
 # Default attribution source stamped on subscriptions created via this SDK.
 DEFAULT_SOURCE = "sdk-python"
@@ -249,6 +250,152 @@ def unwrap_subscription(response: Any, *, subject: str) -> "Subscription":
             code="MALFORMED_RESPONSE",
             raw_body=response,
         ) from error
+
+
+def _field_errors(error: Any) -> str:
+    return ", ".join(".".join(str(part) for part in item["loc"]) for item in error.errors())
+
+
+def unwrap_subscription_list(response: Any, *, subject: str) -> List["Subscription"]:
+    """Return the typed ``data.subscriptions`` list from a success body.
+
+    ``GET /v1/subscriptions`` always answers
+    ``{"status": "success", "data": {"subscriptions": [...]}}``. An empty list is
+    returned only when the API sent an empty list.
+
+    Raises:
+        OilPriceAPIError: ``code="MALFORMED_RESPONSE"`` when ``data.subscriptions``
+            is missing or not a list, or a record in it is not a valid
+            subscription. A malformed success is never reported as "no
+            subscriptions".
+    """
+    from pydantic import ValidationError as PydanticValidationError
+
+    from ._fuel_surcharge_common import _malformed
+    from .models import Subscription
+
+    data = response.get("data") if isinstance(response, dict) else None
+    records = data.get("subscriptions") if isinstance(data, dict) else None
+    if not isinstance(records, list):
+        raise _malformed(subject, "expected data.subscriptions to be a list", response)
+
+    subscriptions: List[Subscription] = []
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise _malformed(
+                subject, f"expected data.subscriptions[{index}] to be an object", response
+            )
+        try:
+            subscriptions.append(Subscription(**record))
+        except PydanticValidationError as error:
+            raise _malformed(
+                subject,
+                f"data.subscriptions[{index}] has {error.error_count()} invalid or missing "
+                f"field(s): {_field_errors(error)}",
+                response,
+            ) from error
+    return subscriptions
+
+
+def validate_since(since: Any) -> Optional[int]:
+    """Return ``since`` if the API will read it as the cursor it is.
+
+    ``GET /v1/subscriptions/events`` reads ``params[:since].to_i``: a blank,
+    non-numeric or negative value becomes ``0`` and replays every event the
+    account has, and ``1.5`` becomes ``1``. ``None`` (omitted) is the first
+    poll; anything else must be a previous page's integer ``cursor``, or ``0``.
+
+    Raises:
+        ValidationError: ``field="since"``, ``status_code=None``. Nothing is sent.
+    """
+    if since is None:
+        return None
+    if isinstance(since, bool) or not isinstance(since, int) or since < 0:
+        raise _refuse(
+            f"Invalid events cursor since={since!r}: pass page.cursor from the previous "
+            f"events() call, 0 to start from the first event, or omit it on the first "
+            f"poll. The API reads any other value as 0 and replays every event.",
+            "since",
+            since,
+        )
+    return since
+
+
+def unwrap_events_page(
+    response: Any, *, since: Optional[int], subject: str
+) -> "SubscriptionEventsPage":
+    """Return the typed events page from a ``GET /v1/subscriptions/events`` body.
+
+    The API always sends ``data.cursor`` (an integer: the last event's ``seq``,
+    or ``since`` when there are none), ``data.has_more`` and ``data.events``.
+    The cursor is what the caller sends as ``since`` next, so a missing or
+    wrong-typed cursor is refused rather than defaulted: ``cursor=None`` would
+    make the next poll omit ``since`` and restart from the first event.
+
+    Raises:
+        OilPriceAPIError: ``code="MALFORMED_RESPONSE"`` when ``data.events`` is
+            not a list of events, ``data.cursor`` is not a non-negative integer,
+            ``data.has_more`` is not a boolean, or the cursor is behind ``since``
+            or behind an event in the page (following it would replay events).
+    """
+    from pydantic import ValidationError as PydanticValidationError
+
+    from ._fuel_surcharge_common import _malformed
+    from .models import SubscriptionEvent
+    from .resources.subscriptions import SubscriptionEventsPage
+
+    data = response.get("data") if isinstance(response, dict) else None
+    if not isinstance(data, dict):
+        raise _malformed(subject, "expected a 'data' object", response)
+
+    records = data.get("events")
+    if not isinstance(records, list):
+        raise _malformed(subject, "expected data.events to be a list", response)
+
+    cursor = data.get("cursor")
+    if isinstance(cursor, bool) or not isinstance(cursor, int) or cursor < 0:
+        raise _malformed(
+            subject,
+            f"expected data.cursor to be a non-negative integer, got {cursor!r}",
+            response,
+        )
+
+    has_more = data.get("has_more")
+    if not isinstance(has_more, bool):
+        raise _malformed(
+            subject, f"expected data.has_more to be true or false, got {has_more!r}", response
+        )
+
+    if since is not None and cursor < since:
+        raise _malformed(
+            subject,
+            f"data.cursor {cursor} is behind since={since}; following it would replay events",
+            response,
+        )
+
+    events: List[SubscriptionEvent] = []
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise _malformed(subject, f"expected data.events[{index}] to be an object", response)
+        try:
+            event = SubscriptionEvent(**record)
+        except PydanticValidationError as error:
+            raise _malformed(
+                subject,
+                f"data.events[{index}] has {error.error_count()} invalid field(s): "
+                f"{_field_errors(error)}",
+                response,
+            ) from error
+        if event.seq is not None and event.seq > cursor:
+            raise _malformed(
+                subject,
+                f"data.cursor {cursor} is behind data.events[{index}].seq {event.seq}; "
+                f"following it would replay events",
+                response,
+            )
+        events.append(event)
+
+    return SubscriptionEventsPage(events=events, cursor=cursor, has_more=has_more)
 
 
 def unwrap_data(response: Any) -> Dict[str, Any]:
