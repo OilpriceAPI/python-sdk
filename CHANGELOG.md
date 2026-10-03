@@ -4,7 +4,7 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
-## [1.16.1] - 2026-10-03
+## [1.17.0] - 2026-10-03
 
 ### Fixed
 
