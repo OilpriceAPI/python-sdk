@@ -4,6 +4,49 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-10-03
+
+### Fixed
+
+- **Eight methods called paths the API does not route, so every call
+  returned 404 (#153).** Sync and async are both fixed.
+  - `storage.history(code, period="90d")` now calls
+    `/v1/storage/history/{code}`. It accepts `CUSHING_STORAGE`, `US_SPR`,
+    `SINGAPORE_STORAGE_TOTAL`, `ARA_STORAGE_TOTAL` (or `"cushing"` / `"spr"`)
+    and a `period` of `7d`, `30d`, `90d`, `1y` or `all`. It returns the
+    API's `{code, period, history, statistics}` object. The
+    `start_date`/`end_date` arguments are gone: the route never accepted
+    them.
+  - `bunker_fuels.spreads(from_port, to_port, grade=None)` now calls
+    `/v1/bunker-fuels/spreads/ports`. Both ports are required.
+  - `bunker_fuels.historical(port, fuel_type=None, start_date=None,
+    end_date=None, interval=None)` now calls
+    `/v1/bunker-fuels/historical/{port}`. `fuel_type` filters the
+    returned `historical_data` by grade.
+  - `forecasts.accuracy()` and `forecasts.archive()` now call
+    `/v1/forecasts/monthly/accuracy` and `/archive`. While monthly
+    forecasts are unpublished, the API's `not_available` 404 raises
+    `DataNotFoundError`.
+  - `drilling.trends()`, `drilling.basin()` and `futures.spreads()` have
+    no API route. They now emit `DeprecationWarning` and raise
+    `ValidationError(code="ENDPOINT_NOT_AVAILABLE", status_code=None)`
+    without sending a request. The error names the replacement:
+    `rig_counts.trends()`, `ei.drilling_productivity.by_basin()` and the
+    new `futures.calendar_spreads(contract)`. They will be removed in 2.0.
+  - Invalid storage codes, periods, ports and fuel types are rejected
+    locally, before any request is sent.
+- **The price-alert polling example in `EXAMPLES.md` now polls hourly**
+  instead of every 30 minutes, halving its daily calls. It now shows how to
+  compute the budget against a plan allowance.
+
+### Added
+
+- `futures.calendar_spreads(contract)` for `/v1/futures/{slug}/spreads`.
+- `tests/unit/test_api_path_contract.py` fails when any `/v1` path in the SDK
+  is missing from the API route table snapshot
+  (`tests/fixtures/api_paths.json.fixture`). Refresh the snapshot with
+  `scripts/refresh_api_paths.py`.
+
 ## [1.16.0] - 2026-09-13
 
 ### Added

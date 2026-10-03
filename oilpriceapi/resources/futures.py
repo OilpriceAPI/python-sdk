@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from ..resource_validators import format_date
 from ._futures_slug import normalize_futures_slug
+from ._removed import removed_endpoint
 
 
 class FuturesResource:
@@ -168,29 +169,44 @@ class FuturesResource:
         return response
 
     def spreads(self, contract1: str, contract2: str) -> Dict[str, Any]:
-        """Get spread analysis between two futures contracts.
+        """Deprecated: the API has no two-contract spread route (#153).
 
-        Args:
-            contract1: First futures contract code
-            contract2: Second futures contract code
+        Use ``client.futures.calendar_spreads(contract)`` for the calendar
+        spreads of one contract family.
 
-        Returns:
-            Spread analysis with current spread and historical data
-
-        Example:
-            >>> spread = client.futures.spreads("CL.1", "CL.2")
-            >>> print(f"Front Month - Second Month: ${spread['current_spread']:.2f}")
+        Raises:
+            ValidationError: Always (``code="ENDPOINT_NOT_AVAILABLE"``); no
+                request is sent.
         """
-        response = self.client.request(
-            method="GET",
-            path="/v1/futures/spreads",
-            params={
-                "contract1": contract1,
-                "contract2": contract2
-            }
+        removed_endpoint(
+            "client.futures.spreads()",
+            "client.futures.calendar_spreads(contract)",
         )
 
-        # Parse response
+    def calendar_spreads(self, contract: str) -> Dict[str, Any]:
+        """Get calendar spreads across the forward curve of a contract family.
+
+        Calls ``GET /v1/futures/{slug}/spreads``.
+
+        Args:
+            contract: Futures slug or friendly contract code (see ``latest``).
+
+        Returns:
+            Spread analysis: ``analysis_period``, ``date_range``,
+            ``total_pairs`` and a ``spreads`` list of front/back contract
+            pairs.
+
+        Example:
+            >>> result = client.futures.calendar_spreads("brent")
+            >>> for s in result["spreads"]:
+            ...     print(s["front_contract"], s["back_contract"])
+        """
+        slug = normalize_futures_slug(contract)
+        response = self.client.request(
+            method="GET",
+            path=f"/v1/futures/{slug}/spreads"
+        )
+
         if "data" in response:
             return response["data"]
         return response

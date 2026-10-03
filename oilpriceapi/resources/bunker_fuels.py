@@ -8,6 +8,12 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
 
 from ..resource_validators import format_date
+from ._route_args import (
+    bunker_grade_prefix,
+    bunker_port_code,
+    bunker_spread_params,
+    filter_bunker_history,
+)
 
 
 class BunkerFuelsResource:
@@ -96,23 +102,29 @@ class BunkerFuelsResource:
             return response["data"]
         return response
 
-    def spreads(self) -> Dict[str, Any]:
-        """Get bunker fuel spreads analysis.
+    def spreads(self, from_port: str, to_port: str, grade: Optional[str] = None) -> Dict[str, Any]:
+        """Get the price spread between two bunker ports.
+
+        Calls ``GET /v1/bunker-fuels/spreads/ports``.
+
+        Args:
+            from_port: Port code (e.g. ``"SIN"`` or LOCODE ``"SGSIN"``)
+            to_port: Port code (e.g. ``"RTM"``)
+            grade: Optional fuel grade filter (e.g. ``"VLSFO"``)
 
         Returns:
-            Spread analysis between fuel types and ports
+            ``{"from_port", "to_port", "fuel_grade", "spreads", "metadata"}``
 
         Example:
-            >>> spreads = client.bunker_fuels.spreads()
-            >>> print(f"VLSFO-MGO Spread: ${spreads['vlsfo_mgo']:.2f}")
-            >>> print(f"VLSFO-IFO380 Spread: ${spreads['vlsfo_ifo380']:.2f}")
+            >>> result = client.bunker_fuels.spreads("SIN", "RTM", grade="VLSFO")
+            >>> print(result["spreads"])
         """
         response = self.client.request(
             method="GET",
-            path="/v1/bunker-fuels/spreads"
+            path="/v1/bunker-fuels/spreads/ports",
+            params=bunker_spread_params(from_port, to_port, grade)
         )
 
-        # Parse response
         if "data" in response:
             return response["data"]
         return response
@@ -120,50 +132,52 @@ class BunkerFuelsResource:
     def historical(
         self,
         port: str,
-        fuel_type: str,
+        fuel_type: Optional[str] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None
-    ) -> List[Dict[str, Any]]:
-        """Get historical bunker fuel prices.
+        end_date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get historical bunker fuel prices for one port.
+
+        Calls ``GET /v1/bunker-fuels/historical/{port}``.
 
         Args:
-            port: Port code
-            fuel_type: Fuel type (e.g., "vlsfo", "mgo", "ifo380")
-            start_date: Start date for historical data
-            end_date: End date for historical data
+            port: Port code (e.g. ``"SIN"`` or LOCODE ``"SGSIN"``). Required.
+            fuel_type: Optional grade (``"vlsfo"``, ``"mgo"``, ``"hfo380"``).
+                The API returns every grade for the port; this filters
+                ``historical_data`` to records whose code starts with the
+                grade.
+            start_date: Start date (API ``from``; defaults to 30 days ago)
+            end_date: End date (API ``to``; defaults to now)
+            interval: Optional aggregation interval (e.g. ``"daily"``)
 
         Returns:
-            List of historical price records
+            ``{"port", "historical_data": [...], "period", "metadata"}``.
+            Each record has ``timestamp``, ``code``, ``average_value`` and
+            ``interval_type``.
 
         Example:
-            >>> history = client.bunker_fuels.historical(
-            ...     port="SINGAPORE",
-            ...     fuel_type="vlsfo",
-            ...     start_date="2024-01-01",
-            ...     end_date="2024-12-31"
-            ... )
-            >>> for record in history:
-            ...     print(f"{record['date']}: ${record['price']:.2f}")
+            >>> result = client.bunker_fuels.historical("SIN", fuel_type="vlsfo")
+            >>> for r in result["historical_data"]:
+            ...     print(r["timestamp"], r["average_value"])
         """
-        params = {
-            "port": port,
-            "fuel_type": fuel_type
-        }
+        prefix = bunker_grade_prefix(fuel_type)
+        params: Dict[str, Any] = {}
         if start_date is not None:
-            params["start_date"] = self._format_date(start_date)
+            params["from"] = self._format_date(start_date)
         if end_date is not None:
-            params["end_date"] = self._format_date(end_date)
+            params["to"] = self._format_date(end_date)
+        if interval is not None:
+            params["interval"] = interval
 
         response = self.client.request(
             method="GET",
-            path="/v1/bunker-fuels/historical",
+            path=f"/v1/bunker-fuels/historical/{bunker_port_code(port)}",
             params=params
         )
 
-        # Parse response
-        if "data" in response:
-            return response["data"]
-        return response
+        data = response["data"] if "data" in response else response
+        return filter_bunker_history(data, prefix)
 
     def export(self, format: str = "json") -> Any:
         """Export bunker fuel data.

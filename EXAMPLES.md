@@ -456,10 +456,13 @@ def monitor_prices():
             elif price.value < limits['low']:
                 send_alert(commodity, price.value, limits['low'], 'BELOW')
 
-        # Example caller-selected interval. Derive production polling from the
+        # Each pass makes one request per commodity, so the daily total grows
+        # with len(thresholds) and shrinks with the sleep interval. Check that
+        # total against your plan's daily allowance before adding commodities
+        # or shortening the interval. Derive production polling from the
         # account's current limit/reset response and the source timestamps.
         # See https://docs.oilpriceapi.com/guides/rate-limiting#how-often-to-poll
-        time.sleep(1800)
+        time.sleep(3600)
 
 if __name__ == '__main__':
     print("Starting price monitor...")

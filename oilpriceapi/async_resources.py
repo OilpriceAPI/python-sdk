@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
 from . import _fuel_surcharge_common as fs
 from ._subscriptions_common import (
@@ -54,6 +54,15 @@ from .resource_validators import (
 )
 from .resources import _calculated_metrics as metrics_ops
 from .resources._futures_slug import normalize_futures_slug
+from .resources._removed import removed_endpoint
+from .resources._route_args import (
+    bunker_grade_prefix,
+    bunker_port_code,
+    bunker_spread_params,
+    filter_bunker_history,
+    storage_history_code,
+    storage_history_period,
+)
 from .resources.ei._envelopes import ei_data, unwrap_ei_collection, unwrap_ei_object
 from .resources.ei.well_permits import unwrap_well_permit_search_response
 from .resources.subscriptions import SubscriptionEventsPage
@@ -442,10 +451,16 @@ class AsyncFuturesResource:
         return response
 
     async def spreads(self, contract1: str, contract2: str) -> Dict[str, Any]:
-        response = await self.client.request(
-            method="GET", path="/v1/futures/spreads",
-            params={"contract1": contract1, "contract2": contract2}
+        """Deprecated: no API route (#153). Use ``calendar_spreads(contract)``."""
+        removed_endpoint(
+            "client.futures.spreads()",
+            "client.futures.calendar_spreads(contract)",
         )
+
+    async def calendar_spreads(self, contract: str) -> Dict[str, Any]:
+        """Calendar spreads for one contract family (``/v1/futures/{slug}/spreads``)."""
+        slug = normalize_futures_slug(contract)
+        response = await self.client.request(method="GET", path=f"/v1/futures/{slug}/spreads")
         if "data" in response:
             return response["data"]
         return response
@@ -512,24 +527,16 @@ class AsyncStorageResource:
             return response["data"]
         return response
 
-    async def history(
-        self,
-        code: str,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None
-    ) -> List[Dict[str, Any]]:
-        params = {}
-        if start_date is not None:
-            params["start_date"] = format_date(start_date)
-        if end_date is not None:
-            params["end_date"] = format_date(end_date)
+    async def history(self, code: str, period: str = "90d") -> Dict[str, Any]:
+        """Storage history (``/v1/storage/history/{code}``). See the sync docstring."""
         response = await self.client.request(
-            method="GET", path=f"/v1/storage/{code}/history", params=params
+            method="GET",
+            path=f"/v1/storage/history/{storage_history_code(code)}",
+            params={"period": storage_history_period(period)},
         )
         if "data" in response:
             return response["data"]
         return response
-
 
 class AsyncRigCountsResource:
     def __init__(self, client):
@@ -604,8 +611,13 @@ class AsyncBunkerFuelsResource:
             return response["data"]
         return response
 
-    async def spreads(self) -> Dict[str, Any]:
-        response = await self.client.request(method="GET", path="/v1/bunker-fuels/spreads")
+    async def spreads(self, from_port: str, to_port: str, grade: Optional[str] = None) -> Dict[str, Any]:
+        """Port-to-port spread (``/v1/bunker-fuels/spreads/ports``)."""
+        response = await self.client.request(
+            method="GET",
+            path="/v1/bunker-fuels/spreads/ports",
+            params=bunker_spread_params(from_port, to_port, grade),
+        )
         if "data" in response:
             return response["data"]
         return response
@@ -613,21 +625,27 @@ class AsyncBunkerFuelsResource:
     async def historical(
         self,
         port: str,
-        fuel_type: str,
+        fuel_type: Optional[str] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None
-    ) -> List[Dict[str, Any]]:
-        params: Dict[str, Any] = {"port": port, "fuel_type": fuel_type}
+        end_date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Port history (``/v1/bunker-fuels/historical/{port}``). See the sync docstring."""
+        prefix = bunker_grade_prefix(fuel_type)
+        params: Dict[str, Any] = {}
         if start_date is not None:
-            params["start_date"] = format_date(start_date)
+            params["from"] = format_date(start_date)
         if end_date is not None:
-            params["end_date"] = format_date(end_date)
+            params["to"] = format_date(end_date)
+        if interval is not None:
+            params["interval"] = interval
         response = await self.client.request(
-            method="GET", path="/v1/bunker-fuels/historical", params=params
+            method="GET",
+            path=f"/v1/bunker-fuels/historical/{bunker_port_code(port)}",
+            params=params,
         )
-        if "data" in response:
-            return response["data"]
-        return response
+        data = response["data"] if "data" in response else response
+        return filter_bunker_history(data, prefix)
 
     async def export(self, format: str = "json") -> Any:
         response = await self.client.request(
@@ -718,21 +736,23 @@ class AsyncForecastsResource:
         return response
 
     async def accuracy(self) -> Dict[str, Any]:
-        response = await self.client.request(method="GET", path="/v1/forecasts/accuracy")
+        """Forecast accuracy (``/v1/forecasts/monthly/accuracy``)."""
+        response = await self.client.request(method="GET", path="/v1/forecasts/monthly/accuracy")
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(Dict[str, Any], response["data"])
+        return cast(Dict[str, Any], response)
 
     async def archive(self, year: Optional[int] = None) -> List[Dict[str, Any]]:
-        params = {}
+        """Archived forecasts (``/v1/forecasts/monthly/archive``)."""
+        params: Dict[str, Any] = {}
         if year:
             params["year"] = year
         response = await self.client.request(
-            method="GET", path="/v1/forecasts/archive", params=params
+            method="GET", path="/v1/forecasts/monthly/archive", params=params
         )
         if "data" in response:
-            return response["data"]
-        return response
+            return cast(List[Dict[str, Any]], response["data"])
+        return cast(List[Dict[str, Any]], response)
 
     async def get(self, period: str, commodity: Optional[str] = None) -> Dict[str, Any]:
         params = {}
@@ -793,13 +813,9 @@ class AsyncDrillingIntelligenceResource:
             return response["data"]
         return response
 
-    async def trends(self, **params) -> List[Dict[str, Any]]:
-        response = await self.client.request(
-            method="GET", path="/v1/drilling-intelligence/trends", params=params
-        )
-        if "data" in response:
-            return response["data"]
-        return response
+    async def trends(self, **params: Any) -> List[Dict[str, Any]]:
+        """Deprecated: no API route (#153). Use ``client.rig_counts.trends()``."""
+        removed_endpoint("client.drilling.trends()", "client.rig_counts.trends()")
 
     async def frac_spreads(self, **params) -> List[Dict[str, Any]]:
         response = await self.client.request(
@@ -842,13 +858,11 @@ class AsyncDrillingIntelligenceResource:
         return response
 
     async def basin(self, name: str) -> Dict[str, Any]:
-        response = await self.client.request(
-            method="GET", path=f"/v1/drilling-intelligence/basin/{name}"
+        """Deprecated: no API route (#153). Use ``client.ei.drilling_productivity.by_basin()``."""
+        removed_endpoint(
+            "client.drilling.basin()",
+            "client.ei.drilling_productivity.by_basin()",
         )
-        if "data" in response:
-            return response["data"]
-        return response
-
 
 class AsyncWellProductionResource:
     """Async resource for US well production data (beta).

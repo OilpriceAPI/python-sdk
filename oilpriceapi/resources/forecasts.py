@@ -53,21 +53,18 @@ class ForecastsResource:
     def accuracy(self) -> Dict[str, Any]:
         """Get forecast accuracy metrics.
 
+        Calls ``GET /v1/forecasts/monthly/accuracy``. While monthly forecasts
+        are not published the API answers 404 ``not_available``, which raises
+        ``DataNotFoundError``.
+
         Returns:
             Historical accuracy analysis of forecasts vs actual prices
-
-        Example:
-            >>> accuracy = client.forecasts.accuracy()
-            >>> print(f"30-day Accuracy: {accuracy['30_day']['accuracy']}%")
-            >>> print(f"90-day Accuracy: {accuracy['90_day']['accuracy']}%")
-            >>> print(f"Mean Absolute Error: {accuracy['mae']}")
         """
         response = self.client.request(
             method="GET",
-            path="/v1/forecasts/accuracy"
+            path="/v1/forecasts/monthly/accuracy"
         )
 
-        # Parse response
         if "data" in response:
             return cast(Dict[str, Any], response["data"])
         return cast(Dict[str, Any], response)
@@ -75,16 +72,15 @@ class ForecastsResource:
     def archive(self, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get archived forecasts.
 
+        Calls ``GET /v1/forecasts/monthly/archive``. While monthly forecasts
+        are not published the API answers 404 ``not_available``, which raises
+        ``DataNotFoundError``.
+
         Args:
             year: Optional year filter for archived forecasts
 
         Returns:
             List of historical forecasts
-
-        Example:
-            >>> archive = client.forecasts.archive(year=2024)
-            >>> for forecast in archive:
-            ...     print(f"{forecast['date']}: {forecast['commodity']} = ${forecast['price']:.2f}")
         """
         params: Dict[str, Any] = {}
         if year:
@@ -92,11 +88,10 @@ class ForecastsResource:
 
         response = self.client.request(
             method="GET",
-            path="/v1/forecasts/archive",
+            path="/v1/forecasts/monthly/archive",
             params=params
         )
 
-        # Parse response
         if "data" in response:
             return cast(List[Dict[str, Any]], response["data"])
         return cast(List[Dict[str, Any]], response)
