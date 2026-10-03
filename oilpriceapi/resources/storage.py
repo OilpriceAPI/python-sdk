@@ -5,9 +5,10 @@ Oil inventory and storage data operations.
 """
 
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from ..resource_validators import format_date
+from ._route_args import storage_history_code, storage_history_period
 
 
 class StorageResource:
@@ -116,44 +117,34 @@ class StorageResource:
             return response["data"]
         return response
 
-    def history(
-        self,
-        code: str,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None
-    ) -> List[Dict[str, Any]]:
-        """Get historical storage data for a specific location.
+    def history(self, code: str, period: str = "90d") -> Dict[str, Any]:
+        """Get historical storage data for a storage series.
+
+        Calls ``GET /v1/storage/history/{code}``.
 
         Args:
-            code: Storage location code (e.g., "cushing", "spr", "padd1")
-            start_date: Start date for historical data
-            end_date: End date for historical data
+            code: Storage series code: ``CUSHING_STORAGE``, ``US_SPR``,
+                ``SINGAPORE_STORAGE_TOTAL`` or ``ARA_STORAGE_TOTAL``. The
+                short forms ``"cushing"`` and ``"spr"`` are accepted.
+            period: Lookback window: ``"7d"``, ``"30d"``, ``"90d"``
+                (default), ``"1y"`` or ``"all"``.
 
         Returns:
-            List of historical storage records
+            ``{"code", "period", "history": [...], "statistics": {...}}``.
+            Each history record has ``value`` (million barrels),
+            ``data_date``, ``week_change`` and ``capacity_utilization``.
 
         Example:
-            >>> history = client.storage.history(
-            ...     code="cushing",
-            ...     start_date="2024-01-01",
-            ...     end_date="2024-12-31"
-            ... )
-            >>> for record in history:
-            ...     print(f"{record['date']}: {record['value']} barrels")
+            >>> result = client.storage.history("cushing", period="30d")
+            >>> for record in result["history"]:
+            ...     print(f"{record['data_date']}: {record['value']}M bbl")
         """
-        params = {}
-        if start_date is not None:
-            params["start_date"] = self._format_date(start_date)
-        if end_date is not None:
-            params["end_date"] = self._format_date(end_date)
-
         response = self.client.request(
             method="GET",
-            path=f"/v1/storage/{code}/history",
-            params=params
+            path=f"/v1/storage/history/{storage_history_code(code)}",
+            params={"period": storage_history_period(period)}
         )
 
-        # Parse response
         if "data" in response:
             return response["data"]
         return response

@@ -6,6 +6,8 @@ Drilling and completion activity data operations.
 
 from typing import Any, Dict, List, cast
 
+from ._removed import removed_endpoint
+
 
 class DrillingIntelligenceResource:
     """Resource for drilling intelligence data."""
@@ -86,29 +88,15 @@ class DrillingIntelligenceResource:
         return cast(Dict[str, Any], response)
 
     def trends(self, **params: Any) -> List[Dict[str, Any]]:
-        """Get drilling activity trends.
+        """Deprecated: the API has no drilling-trends route (#153).
 
-        Args:
-            **params: Optional query parameters for filtering
+        Use ``client.rig_counts.trends()`` for rig-count trends.
 
-        Returns:
-            List of trend data points
-
-        Example:
-            >>> trends = client.drilling.trends()
-            >>> for point in trends:
-            ...     print(f"{point['date']}: {point['rig_count']} rigs")
+        Raises:
+            ValidationError: Always (``code="ENDPOINT_NOT_AVAILABLE"``); no
+                request is sent.
         """
-        response = self.client.request(
-            method="GET",
-            path="/v1/drilling-intelligence/trends",
-            params=params
-        )
-
-        # Parse response
-        if "data" in response:
-            return cast(List[Dict[str, Any]], response["data"])
-        return cast(List[Dict[str, Any]], response)
+        removed_endpoint("client.drilling.trends()", "client.rig_counts.trends()")
 
     def frac_spreads(self, **params: Any) -> List[Dict[str, Any]]:
         """Get frac spread data.
@@ -236,25 +224,16 @@ class DrillingIntelligenceResource:
         return cast(List[Dict[str, Any]], response)
 
     def basin(self, name: str) -> Dict[str, Any]:
-        """Get drilling data for a specific basin.
+        """Deprecated: the API has no per-basin drilling route (#153).
 
-        Args:
-            name: Basin name
+        Use ``client.ei.drilling_productivity.by_basin()`` for basin-level
+        drilling data.
 
-        Returns:
-            Basin-specific drilling data
-
-        Example:
-            >>> permian = client.drilling.basin("permian")
-            >>> print(f"Permian rigs: {permian['rig_count']}")
-            >>> print(f"DUCs: {permian['duc_count']}")
+        Raises:
+            ValidationError: Always (``code="ENDPOINT_NOT_AVAILABLE"``); no
+                request is sent.
         """
-        response = self.client.request(
-            method="GET",
-            path=f"/v1/drilling-intelligence/basin/{name}"
+        removed_endpoint(
+            "client.drilling.basin()",
+            "client.ei.drilling_productivity.by_basin()",
         )
-
-        # Parse response
-        if "data" in response:
-            return cast(Dict[str, Any], response["data"])
-        return cast(Dict[str, Any], response)

@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from oilpriceapi import OilPriceAPI
+from oilpriceapi.exceptions import ValidationError
 
 
 class TestFuturesResource:
@@ -134,18 +135,12 @@ class TestFuturesResource:
             assert len(intraday) == 2
 
     def test_spreads(self, client):
-        """Test getting spread analysis"""
-        mock_spread = {
-            "contract1": "CL.1",
-            "contract2": "CL.2",
-            "current_spread": 0.50,
-            "average_spread": 0.45
-        }
-
-        with patch.object(client, 'request', return_value={"data": mock_spread}):
-            spread = client.futures.spreads("CL.1", "CL.2")
-
-            assert spread["current_spread"] == 0.50
+        """spreads() has no API route (#153): it raises without a request."""
+        with patch.object(client, 'request') as req:
+            with pytest.warns(DeprecationWarning):
+                with pytest.raises(ValidationError, match="calendar_spreads"):
+                    client.futures.spreads("CL.1", "CL.2")
+            req.assert_not_called()
 
     def test_curve(self, client):
         """Test getting futures curve"""

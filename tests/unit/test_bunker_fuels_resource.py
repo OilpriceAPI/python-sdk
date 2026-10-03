@@ -63,10 +63,11 @@ class TestBunkerFuelsResource:
             "MGO_VLSFO": 160.00
         }
 
-        with patch.object(client, 'request', return_value={"data": mock_spreads}):
-            spreads = client.bunker_fuels.spreads()
+        with patch.object(client, 'request', return_value={"data": mock_spreads}) as req:
+            spreads = client.bunker_fuels.spreads("SIN", "RTM")
 
             assert spreads["VLSFO_IFO380"] == 70.00
+            assert req.call_args.kwargs["path"] == "/v1/bunker-fuels/spreads/ports"
 
     def test_export(self, client):
         """Test exporting bunker fuel data"""

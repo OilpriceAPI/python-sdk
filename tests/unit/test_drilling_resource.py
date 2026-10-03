@@ -5,6 +5,7 @@ Unit tests for DrillingIntelligenceResource
 import pytest
 from unittest.mock import Mock, patch
 from oilpriceapi import OilPriceAPI
+from oilpriceapi.exceptions import ValidationError
 
 
 class TestDrillingIntelligenceResource:
@@ -52,15 +53,12 @@ class TestDrillingIntelligenceResource:
             assert summary["total_wells"] == 1000
 
     def test_trends(self, client):
-        """Test getting drilling trends"""
-        mock_trends = [
-            {"period": "2025-01", "wells": 50}
-        ]
-
-        with patch.object(client, 'request', return_value={"data": mock_trends}):
-            trends = client.drilling.trends()
-
-            assert len(trends) == 1
+        """trends() has no API route (#153): it raises without a request."""
+        with patch.object(client, 'request') as req:
+            with pytest.warns(DeprecationWarning):
+                with pytest.raises(ValidationError, match="rig_counts.trends"):
+                    client.drilling.trends()
+            req.assert_not_called()
 
     def test_frac_spreads(self, client):
         """Test getting frac spread data"""
