@@ -65,6 +65,11 @@ cli = [
     "click>=8.0.0",
     "rich>=13.0.0",
 ]
+viz = [
+    "matplotlib>=3.5.0",
+    "numpy>=1.20.0",
+    "pandas>=1.5.0",
+]
 all = [
     "oilpriceapi[pandas,async,stream,cache,cli]",
 ]

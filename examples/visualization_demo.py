@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from oilpriceapi import OilPriceAPI
+from oilpriceapi.visualization import HAS_MATPLOTLIB
 
 # Configuration
 API_KEY = os.getenv("OILPRICEAPI_KEY")
@@ -30,8 +31,8 @@ def demo_price_series():
     
     client = OilPriceAPI(api_key=API_KEY, base_url=BASE_URL)
     
-    if not client.viz:
-        print("⚠️  Matplotlib not installed. Install with: pip install matplotlib")
+    if not HAS_MATPLOTLIB:
+        print("⚠️  Matplotlib not installed. Install with: pip install 'oilpriceapi[viz]'")
         return
     
     # Create visualization
@@ -76,7 +77,7 @@ def demo_spread_analysis():
     
     client = OilPriceAPI(api_key=API_KEY, base_url=BASE_URL)
     
-    if not client.viz:
+    if not HAS_MATPLOTLIB:
         print("⚠️  Visualization not available")
         return
     
@@ -112,7 +113,7 @@ def demo_sparklines():
     
     client = OilPriceAPI(api_key=API_KEY, base_url=BASE_URL)
     
-    if not client.viz:
+    if not HAS_MATPLOTLIB:
         print("⚠️  Visualization not available")
         return
     
@@ -146,7 +147,7 @@ def demo_small_multiples():
     
     client = OilPriceAPI(api_key=API_KEY, base_url=BASE_URL)
     
-    if not client.viz:
+    if not HAS_MATPLOTLIB:
         print("⚠️  Visualization not available")
         return
     
@@ -191,7 +192,7 @@ def main():
         print(f"\n✅ Matplotlib version: {matplotlib.__version__}")
     except ImportError:
         print("\n⚠️  Matplotlib not installed!")
-        print("   Install with: pip install matplotlib")
+        print("   Install with: pip install 'oilpriceapi[viz]'")
         return
     
     # Run demos

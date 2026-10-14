@@ -231,16 +231,16 @@ class OilPriceAPI:
         self._telemetry = Telemetry(enabled=enable_telemetry)
 
     @property
-    def viz(self) -> Optional["PriceVisualizer"]:
-        """Tufte-style charts, or ``None`` when matplotlib is not installed.
+    def viz(self) -> "PriceVisualizer":
+        """Tufte-style charts, built on first access.
 
-        Install with ``pip install matplotlib``.
+        Building the visualizer imports nothing optional and never warns. If
+        matplotlib is missing, each plotting method raises ``ImportError``
+        naming the extra: ``pip install 'oilpriceapi[viz]'``.
         """
         if self._viz is None:
-            from .visualization import HAS_MATPLOTLIB, PriceVisualizer
+            from .visualization import PriceVisualizer
 
-            if not HAS_MATPLOTLIB:
-                return None
             self._viz = PriceVisualizer(self)
         return self._viz
 
