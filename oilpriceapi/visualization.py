@@ -23,6 +23,13 @@ try:
 except ImportError:
     HAS_MATPLOTLIB = False
 
+# Raised by every plotting method when matplotlib is not installed. It names
+# the extra so the fix is one copy-paste away.
+MATPLOTLIB_REQUIRED = (
+    "matplotlib is required for visualization. "
+    "Install it with: pip install 'oilpriceapi[viz]'"
+)
+
 try:
     import pandas as pd
     HAS_PANDAS = True
@@ -88,13 +95,8 @@ class PriceVisualizer:
     def __init__(self, client):
         """Initialize visualizer with OilPriceAPI client."""
         self.client = client
-
-        if not HAS_MATPLOTLIB:
-            warnings.warn(
-                "matplotlib is required for visualization. "
-                "Install with: pip install matplotlib",
-                ImportWarning
-            )
+        # No warning here (#151): every plotting method raises ImportError
+        # with install guidance when matplotlib is missing.
 
     def plot_price_series(
         self,
@@ -119,7 +121,7 @@ class PriceVisualizer:
             matplotlib Figure object
         """
         if not HAS_MATPLOTLIB:
-            raise ImportError("matplotlib required for visualization")
+            raise ImportError(MATPLOTLIB_REQUIRED)
 
         # Fetch data
         history = self.client.historical.get(
@@ -238,7 +240,7 @@ class PriceVisualizer:
         Following Tufte's principle of showing data relationships clearly.
         """
         if not HAS_MATPLOTLIB:
-            raise ImportError("matplotlib required for visualization")
+            raise ImportError(MATPLOTLIB_REQUIRED)
 
         # Fetch data for both commodities
         hist1 = self.client.historical.get(
@@ -381,7 +383,7 @@ class PriceVisualizer:
         Perfect for embedding in reports or dashboards.
         """
         if not HAS_MATPLOTLIB:
-            raise ImportError("matplotlib required for visualization")
+            raise ImportError(MATPLOTLIB_REQUIRED)
 
         # Fetch recent data
         end_date = datetime.now()
@@ -442,7 +444,7 @@ class PriceVisualizer:
         Allows easy comparison across multiple commodities.
         """
         if not HAS_MATPLOTLIB:
-            raise ImportError("matplotlib required for visualization")
+            raise ImportError(MATPLOTLIB_REQUIRED)
 
         n = len(commodities)
         rows = (n + cols - 1) // cols
