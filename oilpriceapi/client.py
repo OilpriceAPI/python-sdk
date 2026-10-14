@@ -221,19 +221,28 @@ class OilPriceAPI:
         # LTL + parcel carrier fuel surcharges (#101).
         self.fuel_surcharge = FuelSurchargeResource(self)
 
-        # Initialize visualization (optional)
-        self.viz: Optional["PriceVisualizer"]
-        try:
-            from .visualization import PriceVisualizer
-
-            self.viz = PriceVisualizer(self)
-        except ImportError:
-            self.viz = None
+        # Visualization is optional and built on first use of ``viz`` (#151):
+        # constructing a client must not import matplotlib or warn about it.
+        self._viz: Optional["PriceVisualizer"] = None
 
         # Initialize telemetry (opt-in, disabled by default)
         from .telemetry import Telemetry
 
         self._telemetry = Telemetry(enabled=enable_telemetry)
+
+    @property
+    def viz(self) -> Optional["PriceVisualizer"]:
+        """Tufte-style charts, or ``None`` when matplotlib is not installed.
+
+        Install with ``pip install matplotlib``.
+        """
+        if self._viz is None:
+            from .visualization import HAS_MATPLOTLIB, PriceVisualizer
+
+            if not HAS_MATPLOTLIB:
+                return None
+            self._viz = PriceVisualizer(self)
+        return self._viz
 
     def request(
         self,

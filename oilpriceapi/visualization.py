@@ -88,13 +88,8 @@ class PriceVisualizer:
     def __init__(self, client):
         """Initialize visualizer with OilPriceAPI client."""
         self.client = client
-
-        if not HAS_MATPLOTLIB:
-            warnings.warn(
-                "matplotlib is required for visualization. "
-                "Install with: pip install matplotlib",
-                ImportWarning
-            )
+        # No warning here (#151): every plotting method raises ImportError
+        # with install guidance when matplotlib is missing.
 
     def plot_price_series(
         self,
