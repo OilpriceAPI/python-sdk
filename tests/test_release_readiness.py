@@ -136,7 +136,7 @@ def test_oidc_publisher_consumes_only_the_verified_artifact() -> None:
 
     assert "Verify release tag matches package version and protected main" in workflow
     assert "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9" in workflow
-    assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" in workflow
+    assert "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333" in workflow
     assert "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33" in publish
     assert "id-token: write" in publish
     assert "sha256sum -c artifact.sha256" in publish
