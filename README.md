@@ -348,6 +348,11 @@ data redistribution rights.
 
 ## Reproducible Examples
 
+The [OilPriceAPI Python tutorial](https://www.oilpriceapi.com/blog/python-oil-price-api-tutorial)
+walks through authentication, source timestamps, error recovery, and a daily
+refresh pattern. The [getting-started page](https://www.oilpriceapi.com/oil-price-api)
+shows the same single-code response shape alongside other languages.
+
 Website and documentation snippets are maintained in `examples/snippets/`.
 Every release attaches a versioned manifest containing the package version,
 minimum runtime, source commit, expected response shape, exact code, and SHA-256
