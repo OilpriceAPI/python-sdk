@@ -4,6 +4,23 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-16
+
+### Fixed
+
+- **The history-gate 402 now carries its upgrade link (#163).** From
+  2026-11-16 12:00 UTC `/v1/prices/historical` and `/v1/prices/history`
+  return 402 `UPGRADE_REQUIRED` for accounts without history access, joining
+  the `past_*` endpoints. The API sends the link as `upgrade.url`;
+  `PaymentRequiredError.remediation_url` now reads it (a top-level
+  `remediation_url` or `upgrade_url` still wins). `oilprice historical`
+  prints the upgrade link instead of a bare `[402]`, and suggests
+  `oilprice price` only when latest prices are still available (#164).
+- `viz.create_small_multiples()` no longer raises when every commodity fits
+  in one row, which was the default call with three or fewer codes (#158).
+- Constructing a client no longer imports matplotlib or emits
+  `ImportWarning`; `client.viz` is built on first use (#151).
+
 ## [1.17.0] - 2026-10-03
 
 ### Fixed
