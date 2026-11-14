@@ -93,3 +93,36 @@ def test_cli_historical_prints_upgrade_path_not_traceback(monkeypatch):
     assert "oilprice price BRENT_CRUDE_USD" in result.output
     assert "Upgrade: https://www.oilpriceapi.com/pricing" in result.output
     assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def test_cli_quota_402_does_not_claim_latest_still_works(monkeypatch):
+    # A free account over quota is refused on /v1/prices/latest too
+    # (admission reason free_tier_quota_exceeded), so the "latest prices still
+    # work" hint would be false there. Only the history gate gets it.
+    pytest.importorskip("click")
+    pytest.importorskip("rich")
+    from oilpriceapi import cli
+
+    body = {
+        "status": "error",
+        "code": "REQUEST_LIMIT_EXCEEDED",
+        "error": "Monthly request limit reached",
+        "message": "Free tier limit of 50 requests reached.",
+        "upgrade_url": "https://www.oilpriceapi.com/pricing",
+    }
+    error = error_from_response(_response(body))
+
+    class FakeHistorical:
+        def get(self, *args, **kwargs):
+            raise error
+
+    class FakeClient:
+        historical = FakeHistorical()
+
+    monkeypatch.setenv("OILPRICEAPI_KEY", "test-key")
+    with patch.object(cli, "_get_client", return_value=FakeClient()):
+        result = CliRunner().invoke(cli.main, ["historical", "WTI_USD"])
+
+    assert result.exit_code == 1
+    assert "Latest prices still work" not in result.output
+    assert "Upgrade: https://www.oilpriceapi.com/pricing" in result.output

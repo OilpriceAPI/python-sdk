@@ -54,7 +54,10 @@ def _print_error(error):
     status = getattr(error, "status_code", None)
     url = getattr(error, "remediation_url", None)
     if status in (402, 403):
-        console.print("Latest prices still work: oilprice price BRENT_CRUDE_USD")
+        # Only the history gate leaves latest prices available. A quota 402
+        # (free_tier_quota_exceeded) refuses /v1/prices/latest as well.
+        if getattr(error, "code", None) == "UPGRADE_REQUIRED":
+            console.print("Latest prices still work: oilprice price BRENT_CRUDE_USD")
         if url:
             # soft_wrap keeps the URL on one line so it can be copied.
             console.print(f"Upgrade: {url}", soft_wrap=True, markup=False)
