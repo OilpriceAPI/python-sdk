@@ -12,7 +12,10 @@ permissions:
 jobs:
   test:
     name: Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now Ubuntu 26.04, where actions/setup-python
+    # has no 3.8/3.9 builds (#165). requires-python is still >=3.8, so keep
+    # testing those versions on 24.04 until support is dropped deliberately.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
