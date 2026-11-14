@@ -599,7 +599,10 @@ def error_from_response(
             "remediation_url",
             "upgrade_url",
             "action_url",
-        ),
+        )
+        # The historical-access 402 (UPGRADE_REQUIRED) nests its link as
+        # ``upgrade.url`` and sends no top-level ``upgrade_url``.
+        or _first_value([_mapping(_first_value(sources, "upgrade"))], "url"),
         "retry_metadata": retry_metadata,
         "raw_body": raw_body,
         "raw_text": raw_text,
