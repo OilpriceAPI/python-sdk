@@ -541,7 +541,7 @@ class AsyncPricesResource:
         prices = []
         failures = []
 
-        for chunk, result in zip(chunks, results):
+        for chunk, result in zip(chunks, results, strict=False):
             if isinstance(result, list):
                 prices.extend(result)
                 continue
@@ -552,7 +552,7 @@ class AsyncPricesResource:
             retry = await asyncio.gather(
                 *(self.get(code) for code in chunk), return_exceptions=True
             )
-            for code, item in zip(chunk, retry):
+            for code, item in zip(chunk, retry, strict=False):
                 if isinstance(item, Price):
                     prices.append(item)
                 else:

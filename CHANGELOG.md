@@ -4,7 +4,18 @@ All notable changes to the OilPriceAPI Python SDK will be documented in this fil
 
 ## [Unreleased]
 
-## [1.18.0] - 2026-11-16
+## [1.18.0] - 2026-11-15
+
+### Changed
+
+- **Dropped Python 3.8 and 3.9 support.** Both versions are end-of-life (Python 3.8 
+  reached EOL in October 2024, Python 3.9 in October 2025) and are no longer 
+  available on the latest Ubuntu GitHub Actions runners (ubuntu-26.04). The package 
+  now requires Python 3.10 or later. Added support for Python 3.13 and 3.14 in CI.
+  - Updated `requires-python` from `>=3.8` to `>=3.10` in `pyproject.toml`
+  - Removed Python 3.8 and 3.9 classifiers, added 3.13 and 3.14 classifiers
+  - Removed conditional `typing-extensions` dependency (only needed for Python < 3.10)
+  - Updated tool configuration targets (black, ruff, mypy) to reflect the new minimum
 
 ### Fixed
 

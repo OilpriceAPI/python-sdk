@@ -452,13 +452,11 @@ class PriceVisualizer:
         fig, axes = plt.subplots(
             rows, cols,
             figsize=(12, 3 * rows),
-            dpi=100
+            dpi=100,
+            # Always a 2-D grid, so axes[row][col] works for one row or one
+            # column too (#158).
+            squeeze=False
         )
-
-        if rows == 1:
-            axes = [axes]
-        if cols == 1:
-            axes = [[ax] for ax in axes]
 
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
@@ -466,7 +464,7 @@ class PriceVisualizer:
         for idx, commodity in enumerate(commodities):
             row = idx // cols
             col = idx % cols
-            ax = axes[row][col] if rows > 1 else axes[col]
+            ax = axes[row][col]
 
             # Fetch data
             history = self.client.historical.get(
@@ -508,7 +506,7 @@ class PriceVisualizer:
         for idx in range(n, rows * cols):
             row = idx // cols
             col = idx % cols
-            ax = axes[row][col] if rows > 1 else axes[col]
+            ax = axes[row][col]
             ax.axis('off')
 
         # Add overall title and source

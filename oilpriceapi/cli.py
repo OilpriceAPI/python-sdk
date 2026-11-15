@@ -44,6 +44,25 @@ def _get_client():
     return OilPriceAPI(api_key=api_key)
 
 
+def _print_error(error):
+    """Print an API error and, when the API sent one, the link that resolves it.
+
+    A plan refusal (HTTP 402/403, e.g. history on a free account) is not a
+    failure the user can retry; it needs the upgrade link the API returned.
+    """
+    console.print(f"[red]Error:[/red] {error}")
+    status = getattr(error, "status_code", None)
+    url = getattr(error, "remediation_url", None)
+    if status in (402, 403):
+        # Only the history gate leaves latest prices available. A quota 402
+        # (free_tier_quota_exceeded) refuses /v1/prices/latest as well.
+        if getattr(error, "code", None) == "UPGRADE_REQUIRED":
+            console.print("Latest prices still work: oilprice price BRENT_CRUDE_USD")
+        if url:
+            # soft_wrap keeps the URL on one line so it can be copied.
+            console.print(f"Upgrade: {url}", soft_wrap=True, markup=False)
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="oilprice")
 def main():
@@ -125,7 +144,7 @@ def historical(commodity, days, as_json):
             end_date=end.strftime("%Y-%m-%d"),
         )
     except Exception as e:
-        console.print(f"[red]Error:[/red] {e}")
+        _print_error(e)
         sys.exit(1)
 
     prices = result.data if hasattr(result, "data") else result
