@@ -228,11 +228,10 @@ def test_secret_and_identity_workflows_only_run_default_branch_code() -> None:
 def test_packaging_configuration_remains_compatible_with_supported_python() -> None:
     project = (ROOT / "pyproject.toml").read_text()
 
-    # Python 3.8 resolves a setuptools release whose schema does not yet accept
-    # the PEP 639 string form. Keep the PEP 621 table while 3.8 is supported.
+    # Setuptools 77+ warns on the legacy license table
     assert 'requires = ["setuptools>=70.1,<77", "wheel"]' in project
     assert 'license = {file = "LICENSE"}' in project
-    assert 'requires-python = ">=3.8"' in project
+    assert 'requires-python = ">=3.10"' in project
     assert "[tool.ruff.lint]" in project
 
 
