@@ -137,7 +137,7 @@ def test_oidc_publisher_consumes_only_the_verified_artifact() -> None:
     assert "Verify release tag matches package version and protected main" in workflow
     assert "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9" in workflow
     assert "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333" in workflow
-    assert "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33" in publish
+    assert "pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086" in publish
     assert "id-token: write" in publish
     assert "sha256sum -c artifact.sha256" in publish
     assert "cmp -s" in publish
@@ -228,11 +228,11 @@ def test_secret_and_identity_workflows_only_run_default_branch_code() -> None:
 def test_packaging_configuration_remains_compatible_with_supported_python() -> None:
     project = (ROOT / "pyproject.toml").read_text()
 
-    # Python 3.8 resolves a setuptools release whose schema does not yet accept
-    # the PEP 639 string form. Keep the PEP 621 table while 3.8 is supported.
+    # Keep the setuptools pin and PEP 621 license table until the license
+    # metadata is migrated deliberately; supported Python is now 3.10+.
     assert 'requires = ["setuptools>=70.1,<77", "wheel"]' in project
     assert 'license = {file = "LICENSE"}' in project
-    assert 'requires-python = ">=3.8"' in project
+    assert 'requires-python = ">=3.10"' in project
     assert "[tool.ruff.lint]" in project
 
 
